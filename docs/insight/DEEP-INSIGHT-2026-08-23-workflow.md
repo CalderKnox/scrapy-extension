@@ -139,7 +139,7 @@
 
 ## 7. 建议追加到 `docs/insight/LEDGER.md` 的行（Round R141）
 
-> 状态说明：以下 23 条均为本次对抗复核 CONFIRMED 且**尚未修复**的发现，state 记为 `OPEN`（沿用账本允许的状态扩展先例：DIRTY-BLOCKED/BLOCKED-push/IDLE）。修复工作流落地后应改记 LANDED/REFUTED。R141-F10 同时是对 R138-F5（DIRTY-BLOCKED）的再确认——落地后应同步更新 R138-F5 行。
+> 状态说明：以下 23 条均已由修复波次 1-3 落地，账本 `LEDGER.md` 中已改记 `LANDED`（2026-08-23，连同后续两轮对抗验证产生的 R142/R143 各条）。R141-F10 同时是对 R138-F5（DIRTY-BLOCKED）的再确认——落地后应同步更新 R138-F5 行。
 
 ```markdown
 | R141 | F1 snapshot-restore-resolution-failure-bypasses-fence | queue/queue.py:2099-2103,1937-1972 | snapshot-restore-resolution-failure-bypasses-fence | LANDED (fixed in fix waves 1-3, 2026-08-23) | P1 (CONFIRMED×2). Startup transient get_storage_backend failure swallowed by non-strict _snapshot_storage (indistinguishable from storage-incapable) → no fence on _restore_snapshot; close then overwrites authoritative manifest with empty state and deletes the never-read legacy key — ALL held items of stateful strategies silently lost (end-to-end repro: 149B manifest → empty state=None). Fix: distinguish resolution_failed (fence) from NotImplementedError (no-op). See DEEP-INSIGHT-2026-08-23-workflow R141-F1. |
