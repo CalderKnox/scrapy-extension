@@ -1912,13 +1912,13 @@ class ConnectionManager:
             # Buffer the exhaustion before the terminal raise so the dispatch
             # after the transaction (outside every manager lock) still emits
             # ``errors/connect`` for a deadline-truncated attempt sequence.
-            monitor_events.append(
-                ("on_error", ("connect", connect_error))
-            )
+            monitor_events.append(("on_error", ("connect", connect_error)))
             raise connect_error
         return None, None
 
-    def _warn_backoff_budget_once(self, retry_attempts: int, retry_delay: float) -> None:
+    def _warn_backoff_budget_once(
+        self, retry_attempts: int, retry_delay: float
+    ) -> None:
         """Warn once when the retry sequence typically cannot fit its budget.
 
         Full jitter draws each wait from ``uniform(0, cap)``, so the expected
