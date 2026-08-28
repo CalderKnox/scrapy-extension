@@ -1001,3 +1001,92 @@ class TestDirCompanionExposesLazyImports:
         assert not missing, (
             f"Lazy backends missing from dir(scrapy_extension.backends): {sorted(missing)}"
         )
+
+
+class TestSettingsPackageLazyExports:
+    """P1-3: ``scrapy_extension.settings`` re-exports lazily (PEP 562).
+
+    The package ``__init__`` previously eager-imported all sixteen settings
+    submodules, so any ``settings.<submodule>`` import — including the root
+    package's own ``settings.base`` — paid for every backend's model. Now
+    only ``Settings`` is eager; backend models load on first access.
+    """
+
+    _BACKEND_SUBMODULES = (
+        "dynamodb",
+        "elasticsearch",
+        "kafka",
+        "memcached",
+        "mongodb",
+        "pulsar",
+        "rabbitmq",
+        "redis",
+        "rocketmq",
+        "sqs",
+    )
+
+    def test_settings_stays_eager(self) -> None:
+        import scrapy_extension.settings as settings_pkg
+
+        assert settings_pkg.Settings is not None
+
+    @pytest.mark.parametrize("submodule", _BACKEND_SUBMODULES)
+    def test_backend_settings_submodule_stays_unloaded_on_bare_import(
+        self, submodule: str
+    ) -> None:
+        """A bare root import must not load any backend settings submodule."""
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys\n"
+                    "import scrapy_extension\n"
+                    f"mod = 'scrapy_extension.settings.{submodule}'\n"
+                    "assert mod not in sys.modules, mod\n"
+                    "print('PASS')\n"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "PASS" in result.stdout
+
+    def test_from_import_resolves_lazy_settings_class(self) -> None:
+        from scrapy_extension.settings import RedisSettings
+        from scrapy_extension.settings.redis import RedisSettings as Direct
+
+        assert RedisSettings is Direct
+
+    def test_submodule_attribute_access_resolves(self) -> None:
+        import scrapy_extension.settings as settings_pkg
+
+        assert settings_pkg.kafka is not None
+        import sys
+
+        assert "scrapy_extension.settings.kafka" in sys.modules
+
+    def test_unknown_name_raises_attribute_error(self) -> None:
+        import scrapy_extension.settings as settings_pkg
+
+        with pytest.raises(AttributeError):
+            settings_pkg.NotARealSettingsClass  # noqa: B018
+
+    def test_dir_lists_lazy_exports(self) -> None:
+        import scrapy_extension.settings as settings_pkg
+
+        listing = dir(settings_pkg)
+        assert "Settings" in listing
+        assert "RedisSettings" in listing
+        assert "SqsQueueNameGeneration" in listing
+
+    def test_all_matches_eager_plus_lazy_surface(self) -> None:
+        import scrapy_extension.settings as settings_pkg
+
+        assert "Settings" in settings_pkg.__all__
+        assert "RedisSettings" in settings_pkg.__all__
+        assert len(settings_pkg.__all__) == 23

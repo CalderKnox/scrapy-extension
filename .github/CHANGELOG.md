@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Backend settings classes load lazily from the settings package.**
+  `scrapy_extension.settings` eagerly imported all sixteen submodules, so
+  every `settings.<submodule>` import — including the root package's own
+  `settings.base` — paid for every backend's model (~24 ms of a ~190 ms
+  bare import, re-measured). `Settings` stays eager; the 22 backend
+  names resolve through PEP 562 `__getattr__` (TYPE_CHECKING re-export
+  aliases keep strict mypy green), submodule attribute access keeps
+  working, and the lazy-import guard suite pins that a bare root import
+  loads no backend settings submodule.
+
 - **CI runs the per-PR unit lanes under xdist and gates serial order
   nightly.** The coverage lane and the non-3.10 matrix lanes now run with
   `-n auto` (verified against the serial gate: identical pass counts and
