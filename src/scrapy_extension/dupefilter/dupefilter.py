@@ -1835,10 +1835,17 @@ class BackendDupeFilter:
             with self._admit_operation("request_seen") as operation:
                 assert operation is not None  # nosec B101
                 try:
+                    # The fingerprint is computed before the lifecycle
+                    # condition is taken (P1-6/F7): ``_fingerprinter`` is
+                    # assigned only at construction/from_crawler wiring and
+                    # never swapped during the lifecycle, so the value does
+                    # not depend on lifecycle state — but a custom
+                    # fingerprinter's user code can take arbitrarily long,
+                    # and it must not extend the critical section every peer
+                    # operation waits on.
+                    fingerprint = self.request_fingerprint(request)
+                    encoded_fingerprint = fingerprint.encode()
                     with self._lifecycle_condition:
-                        fingerprint = self.request_fingerprint(request)
-                        encoded_fingerprint = fingerprint.encode()
-
                         request_id = id(request)
                         active_monitor = self._active_monitor_requests.get(request_id)
                         if (

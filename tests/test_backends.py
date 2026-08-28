@@ -1467,12 +1467,15 @@ class TestRedisBackendQueueOperations:
         backend = RedisBackend(redis_settings)
         assert backend.pop("test_queue") is None
 
-        # Structural corruption: loud QueueError.
+        # Structural corruption: loud QueueError. A fresh backend is
+        # required because the per-connection Lua script cache (P1-6/F8b)
+        # returns the first scenario's Script wrapper for the same client.
         mock_script_corrupt = mocker.MagicMock()
         mock_script_corrupt.return_value = [3, "unexpected payload type: float"]
         mock_redis.register_script.return_value = mock_script_corrupt
+        backend_corrupt = RedisBackend(redis_settings)
         with pytest.raises(QueueError, match="structural corruption"):
-            backend.pop("test_queue")
+            backend_corrupt.pop("test_queue")
 
     def test_non_blocking_pop_uses_lua_script(self, redis_settings, mock_redis, mocker):
         """Non-blocking pop must use a Lua script for ZPOPMIN+HGET+HDEL atomicity.

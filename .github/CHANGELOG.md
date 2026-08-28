@@ -658,6 +658,14 @@ upgrading.
 
 ### Fixed
 
+- **P1-6: Hot-path micro-fixes.** The dupefilter computes request
+  fingerprints outside the lifecycle condition (the fingerprinter reference
+  is assigned only at construction, but a custom fingerprinter's user code
+  must not extend the critical section peers wait on); the Scrapy
+  fingerprint function is resolved once per process instead of re-imported
+  per request; and Redis push/pop reuse one compiled Lua `Script` wrapper
+  per connection instead of constructing a new wrapper per operation
+  (reconnects replace the cache wholesale).
 - **P0-2: SQS `clear_queue` refuses to run on the reactor thread.** The
   purge barrier sleeps out AWS's full 60-second destructive window while
   holding the per-queue lifecycle lock; on the reactor thread that is a
