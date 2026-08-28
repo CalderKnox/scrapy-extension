@@ -146,6 +146,20 @@ def _validate_delete_response(response: object) -> bool:
     return response
 
 
+# Memcached rejects keys longer than 250 bytes server-side; fail fast on the
+# logical name instead of surfacing a driver error after the write is lost.
+_MEMCACHED_MAX_KEY_LENGTH_BYTES = 250
+
+
+def _validate_memcached_key(
+    name: str, field_name: str = "key"
+) -> None:
+    """Validate a logical key against the Memcached server-side byte limit."""
+    _validate_key_name(
+        name, field_name, max_length=_MEMCACHED_MAX_KEY_LENGTH_BYTES
+    )
+
+
 def _validate_storage_key_argument(
     _backend: object,
     key: str,
@@ -153,7 +167,7 @@ def _validate_storage_key_argument(
     **_kwargs: Any,
 ) -> None:
     """Validate a direct Memcached storage key before implementation frames."""
-    _validate_key_name(key, "key")
+    _validate_memcached_key(key, "key")
 
 
 def _validate_store_arguments(
@@ -164,7 +178,7 @@ def _validate_store_arguments(
 ) -> None:
     """Validate a direct Memcached storage write before its terminal boundary."""
     del data
-    _validate_key_name(key, "key")
+    _validate_memcached_key(key, "key")
     _validate_ttl(ttl)
 
 
@@ -174,7 +188,7 @@ def _validate_storage_prefix_argument(
 ) -> None:
     """Validate a non-empty clear prefix before backend implementation frames."""
     if prefix is not None:
-        _validate_key_name(prefix, "prefix")
+        _validate_memcached_key(prefix, "prefix")
 
 
 def _clear_storage_capability_error_boundary(
@@ -537,7 +551,7 @@ class MemcachedBackend(Backend, StorageBackend):
             StorageError: If the underlying client raises (was previously
                 silently swallowed to ``return None``, masking data loss).
         """
-        _validate_key_name(key, "key")
+        _validate_memcached_key(key, "key")
         _validate_ttl(ttl)
         with self._operation("store"):
             with self._lifecycle_lock:
@@ -583,7 +597,7 @@ class MemcachedBackend(Backend, StorageBackend):
             StorageError: If the underlying client raises (was previously
                 silently swallowed to ``return None``).
         """
-        _validate_key_name(key, "key")
+        _validate_memcached_key(key, "key")
         with self._operation("retrieve"):
             with self._lifecycle_lock:
                 client = self._client
@@ -613,7 +627,7 @@ class MemcachedBackend(Backend, StorageBackend):
             StorageError: If the underlying client raises (was previously
                 silently swallowed to ``return False``).
         """
-        _validate_key_name(key, "key")
+        _validate_memcached_key(key, "key")
         with self._operation("delete"):
             with self._lifecycle_lock:
                 client = self._client
@@ -643,7 +657,7 @@ class MemcachedBackend(Backend, StorageBackend):
             StorageError: If the underlying client raises (was previously
                 silently swallowed to ``return False``).
         """
-        _validate_key_name(key, "key")
+        _validate_memcached_key(key, "key")
         with self._operation("exists"):
             with self._lifecycle_lock:
                 client = self._client
@@ -665,7 +679,7 @@ class MemcachedBackend(Backend, StorageBackend):
         Raises:
             ValueError: If key contains invalid characters.
         """
-        _validate_key_name(key, "key")
+        _validate_memcached_key(key, "key")
         return None
 
     @_clear_storage_capability_error_boundary
@@ -691,7 +705,7 @@ class MemcachedBackend(Backend, StorageBackend):
                 client raises (was previously silently swallowed).
         """
         if prefix is not None:
-            _validate_key_name(prefix, "prefix")
+            _validate_memcached_key(prefix, "prefix")
             raise NotImplementedError(
                 _MEMCACHED_CLEAR_STORAGE_PREFIX_UNSUPPORTED_MESSAGE
             )

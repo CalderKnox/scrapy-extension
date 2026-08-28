@@ -2645,3 +2645,60 @@ def test_cluster_ping_failure_wrapped_as_connection_error(mocker):
     assert exc_info.value.backend_type == "redis"
     assert "cluster unreachable" not in str(exc_info.value)
     assert exc_info.value.__cause__ is None
+
+
+class TestKeyNameAbsoluteEndAnchoring:
+    """P0-1 regression: ``$`` accepted one trailing newline in ``.match`` mode.
+
+    ``KEY_NAME_PATTERN`` is consumed via ``re.match``, so the previous ``$``
+    anchor let ``"queue\n"`` pass validation and leak a newline into every
+    key-derived physical name (queues, storage keys, snapshots). ``\Z``
+    anchors at the string's absolute end. The unicode line-separator variants
+    were never accepted by the charset; they pin the whole rejection class.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "queue\n",
+            "queue\r\n",
+            "queue\x85",
+            "queue\u2028",
+            "queue\u2029",
+            "queue\nx",
+        ],
+    )
+    def test_trailing_line_breaks_rejected(self, name: str) -> None:
+        from scrapy_extension.backends.base import _validate_key_name
+
+        with pytest.raises(ValueError, match="Invalid name"):
+            _validate_key_name(name)
+
+    def test_clean_name_still_accepted(self) -> None:
+        from scrapy_extension.backends.base import KEY_NAME_PATTERN
+
+        assert KEY_NAME_PATTERN.match("jobs.worker-1:v2") is not None
+
+
+class TestKeyNameLengthBounds:
+    """F2 regression: Memcached logical keys carry the server-side ceiling.
+
+    The shared validator stays charset-only by default: DynamoDB partition
+    keys (2048 bytes) and the snapshot repository's per-backend map keep
+    their own documented pre-IO limits. Memcached previously had no bound
+    on direct storage keys, so a >250-byte key reached the driver and the
+    write was lost to a server-side rejection. The charset is ASCII-only,
+    so ``len(name)`` is the byte length once the pattern has passed.
+    """
+
+    def test_default_validator_is_unbounded(self) -> None:
+        from scrapy_extension.backends.base import _validate_key_name
+
+        _validate_key_name("a" * 300)
+
+    def test_memcached_bound_accepts_250_and_rejects_251(self) -> None:
+        from scrapy_extension.backends.memcached import _validate_memcached_key
+
+        _validate_memcached_key("a" * 250)
+        with pytest.raises(ValueError, match="Invalid key"):
+            _validate_memcached_key("a" * 251)

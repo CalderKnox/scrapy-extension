@@ -74,7 +74,7 @@ _ENTRY_POINT_GROUP: Final[str] = "scrapy_extension.backends"
 _VALID_CAPABILITIES: Final[frozenset[str]] = frozenset({"queue", "set", "storage"})
 
 #: Backend-type name validator (matches the 3rd-party contract).
-_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
+_NAME_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*\Z")
 
 
 @dataclass(frozen=True)

@@ -15,7 +15,7 @@ from scrapy_extension.settings._transport_security import is_loopback_host
 # four (``us-gov-west-1``), while the European Sovereign Cloud starts with a
 # longer label (``eusc-de-east-1``). Validate the stable structural grammar
 # without a frozen region allowlist that would reject future launches.
-_AWS_REGION_PATTERN = re.compile(r"^[a-z][a-z0-9]+(?:-[a-z][a-z0-9]*)+-[0-9]+$")
+_AWS_REGION_PATTERN = re.compile(r"^[a-z][a-z0-9]+(?:-[a-z][a-z0-9]*)+-[0-9]+\Z")
 
 # These are the exact diagnostics emitted by the validators in this module.
 # They contain only fixed field names and policy text, so terminal backend

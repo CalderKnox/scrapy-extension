@@ -411,8 +411,11 @@ class JSONSerializer:
 
 # Shared utilities for backends
 
-KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+$")
-_SAFE_DIAGNOSTIC_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*$")
+# Uses \Z instead of $ so the pattern only matches at the string's absolute
+# end: $ would accept a trailing newline ("queue\n") and leak it into every
+# key-derived physical name (mirrors TOPIC_NAME_PATTERN in kafka.py).
+KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+\Z")
+_SAFE_DIAGNOSTIC_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*\Z")
 _SENSITIVE_DIAGNOSTIC_FRAGMENTS = (
     "password",
     "secret",
@@ -447,12 +450,28 @@ def _safe_diagnostic_value(value: object) -> str:
     return repr(value)
 
 
-def _validate_key_name(name: str, field_name: str = "name") -> None:
-    """Validate key/queue/set/index names without echoing caller input."""
+def _validate_key_name(
+    name: str,
+    field_name: str = "name",
+    *,
+    max_length: int | None = None,
+) -> None:
+    """Validate key/queue/set/index names without echoing caller input.
+
+    ``max_length`` optionally bounds the byte length of the logical name for
+    backends with a server-side key limit (Memcached: 250 bytes). Length
+    limits for other backends stay with their own pre-IO checks (DynamoDB
+    partition keys, the snapshot repository's per-backend map) so the
+    documented per-backend contracts are unchanged.
+    """
     invalid = False
     safe_field_name = _safe_diagnostic_label(field_name, "name")
     try:
-        invalid = not name or KEY_NAME_PATTERN.match(name) is None
+        invalid = (
+            not name
+            or KEY_NAME_PATTERN.match(name) is None
+            or (max_length is not None and len(name) > max_length)
+        )
     finally:
         # Validation failures are frequently translated at a public boundary.
         # Do not retain the supplied key in this private traceback frame.

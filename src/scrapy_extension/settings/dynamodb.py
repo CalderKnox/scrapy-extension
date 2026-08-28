@@ -23,7 +23,7 @@ from scrapy_extension.settings._aws import (
 from scrapy_extension.settings._redacted import RedactedBaseSettings
 
 _DEFAULT_LOCAL_ENDPOINT = "http://localhost:4566"
-_DYNAMODB_TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,255}$")
+_DYNAMODB_TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,255}\Z")
 _DYNAMODB_TABLE_NAME_ERROR = (
     "DynamoDB table_name must be 3-255 letters, digits, dots, hyphens, or underscores."
 )

@@ -1391,6 +1391,34 @@ class TestDynamoDBTableName:
         assert error.__cause__ is None
 
 
+class TestNamePatternAbsoluteEndAnchoring:
+    """P0-1 sibling sweep: settings name patterns anchor at ``\\Z``.
+
+    These validators consumed their patterns via ``fullmatch``, so the
+    trailing-newline bypass never applied here — the ``\\Z`` anchors are
+    hardening against a future drift to ``re.match``. These cases pin the
+    rejection so the drift, if it happens, fails loudly.
+    """
+
+    def test_dynamodb_table_name_trailing_newline_rejected(self) -> None:
+        with pytest.raises(ConfigurationError) as exc_info:
+            DynamoDBSettings(table_name="table\n")  # type: ignore[arg-type]
+
+        assert exc_info.value.setting_name == "table_name"
+
+    def test_elasticsearch_index_name_trailing_newline_rejected(self) -> None:
+        with pytest.raises(ConfigurationError) as exc_info:
+            ElasticSearchSettings(queue_index="jobs\n")  # type: ignore[arg-type]
+
+        assert exc_info.value.setting_name == "queue_index"
+
+    def test_pulsar_subscription_name_trailing_newline_rejected(self) -> None:
+        with pytest.raises(ConfigurationError) as exc_info:
+            PulsarSettings(subscription_name="sub\n")  # type: ignore[arg-type]
+
+        assert exc_info.value.setting_name == "subscription_name"
+
+
 class TestAwsRegionNameFormat:
     """SQS + DynamoDB ``region_name`` SV4 regex guard.
 

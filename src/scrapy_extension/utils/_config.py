@@ -8,7 +8,7 @@ from typing import Any
 
 from scrapy_extension.exceptions import ConfigurationError
 
-_SAFE_SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_SAFE_SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*\Z")
 
 
 def _setting_label(setting_name: object) -> str:

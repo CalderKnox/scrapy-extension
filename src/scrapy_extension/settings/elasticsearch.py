@@ -25,8 +25,8 @@ from scrapy_extension.settings._transport_security import (
 )
 
 _VALID_ES_SCHEMES: frozenset[str] = frozenset({"http", "https"})
-_ES_INDEX_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
-_ES_ZONE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._~-]+$")
+_ES_INDEX_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*\Z")
+_ES_ZONE_ID_PATTERN = re.compile(r"^[A-Za-z0-9._~-]+\Z")
 _ELASTICSEARCH_INDEX_NAME_ERROR = (
     "Elasticsearch index names must start with a lowercase letter or digit and "
     "contain only lowercase letters, digits, dots, underscores, or hyphens."

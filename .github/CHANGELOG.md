@@ -649,6 +649,15 @@ upgrading.
 
 ### Fixed
 
+- **P0-1: Key-name validation anchors at the string's absolute end.**
+  `KEY_NAME_PATTERN` used `$`, which matches before one trailing newline in
+  `re.match` mode, so `"queue\n"` passed validation and leaked a newline into
+  every key-derived physical name (queues, storage keys, snapshots) across
+  the validator's seven importing surfaces. The pattern now uses `\Z`
+  (mirroring `TOPIC_NAME_PATTERN`), sibling settings-layer name patterns are
+  aligned on `\Z` as drift hardening (they consume via `fullmatch` and were
+  never vulnerable), and direct Memcached storage keys carry the server-side
+  250-byte ceiling before any write is lost to a driver rejection.
 - **R22-C: RocketMQ `max_message_size` is now enforced at push time.** The
   setting was previously declared but unconsumed (a dead config); oversized
   items now raise `QueueError(operation="push")` client-side instead of

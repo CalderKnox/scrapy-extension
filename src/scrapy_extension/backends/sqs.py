@@ -112,7 +112,7 @@ _MAX_WAIT_SECONDS = 20
 _SQS_PURGE_WINDOW_SECONDS = 60.0
 
 # Standard queue names accept only these characters and at most 80 of them.
-_SQS_QUEUE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+_SQS_QUEUE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,80}\Z")
 _V2_QUEUE_NAME_PREFIX = "scrapyext-v2-"
 _V2_QUEUE_NAME_DOMAIN = b"scrapy-extension:sqs:physical-queue:v2\x00"
 _V2_QUEUE_OWNER_TAG_KEY = "scrapy-extension:queue-owner"

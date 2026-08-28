@@ -10,7 +10,7 @@ from typing import cast
 from urllib.parse import urlsplit
 
 _REDACTED = "***REDACTED***"
-_SAFE_SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+_SAFE_SETTING_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*\Z")
 _URI_PREFIX = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 _SENSITIVE_HEADER = re.compile(
     r"^[ \t]*(?:authorization|proxy-authorization|cookie|set-cookie|"

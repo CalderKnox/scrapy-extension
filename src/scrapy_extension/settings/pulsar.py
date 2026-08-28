@@ -26,7 +26,7 @@ from scrapy_extension.settings._transport_security import (
 
 _VALID_PULSAR_SCHEMES: tuple[str, ...] = ("pulsar://", "pulsar+ssl://")
 _PULSAR_MAX_SUBSCRIPTION_NAME_CHARS = 255
-_PULSAR_SUBSCRIPTION_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_=:.\-]+$")
+_PULSAR_SUBSCRIPTION_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_=:.\-]+\Z")
 
 
 def validate_pulsar_subscription_name(value: object) -> str:

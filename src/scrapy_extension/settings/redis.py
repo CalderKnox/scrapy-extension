@@ -43,8 +43,8 @@ class RedisMode(str, Enum):
     CLUSTER = "cluster"
 
 
-_DNS_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
-_ASCII_PORT = re.compile(r"^[0-9]{1,5}$")
+_DNS_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z")
+_ASCII_PORT = re.compile(r"^[0-9]{1,5}\Z")
 _REDIS_ENDPOINT_FORBIDDEN = frozenset("@/?#\\%")
 
 

@@ -33,8 +33,8 @@ _STATE_BYTES = "bytes"
 _MAX_MANIFEST_BYTES = 64 * 1024
 _LEGACY_CHUNK_KEY_PREFIX = "queue:snapshot-chunk:v1:"
 _CURRENT_CHUNK_KEY_PREFIX = "queue:snapshot-chunk:v2:"
-_GENERATION_RE = re.compile(r"^[0-9a-f]{32}$")
-_CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
+_GENERATION_RE = re.compile(r"^[0-9a-f]{32}\Z")
+_CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}\Z")
 _BACKEND_LOGICAL_KEY_LIMITS = {
     BackendType.MEMCACHED: 250,
     BackendType.ELASTICSEARCH: 512,
