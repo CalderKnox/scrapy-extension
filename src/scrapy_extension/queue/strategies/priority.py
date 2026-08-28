@@ -99,6 +99,10 @@ class PriorityQueueStrategy(QueueStrategy):
         }:
             raise ValueError("name_generation must be 'v2' or 'legacy_v1'")
         self._levels = levels
+        # Per-(queue, level) physical-name memo (P1-6/F6): the strategy is
+        # built once per scheduler and name inputs are immutable per
+        # instance, so the digest never needs recomputing within a crawl.
+        self._physical_names: dict[tuple[str, int], str] = {}
         self._name_generation = name_generation
 
     def _level_for(self, priority: float) -> int:
@@ -146,8 +150,18 @@ class PriorityQueueStrategy(QueueStrategy):
         ``legacy_v1`` generation (``SCRAPY_QUEUE_NAME_GENERATION``) — a
         quiescent drain mode that is never dual-read, not a
         backlog-compatible default.
+
+        Results are memoized per (queue, level): the name is a pure function
+        of immutable instance state (name generation is fixed at
+        construction, the backend type per manager), and the digest was
+        previously recomputed on every pop scan iteration — up to
+        ``MAX_PRIORITY_LEVELS`` blake2s hashes per non-blocking pop.
         """
-        return physical_strategy_queue_name(
+        key = (queue_name, level)
+        cached = self._physical_names.get(key)
+        if cached is not None:
+            return cached
+        name = physical_strategy_queue_name(
             self._connection_manager,
             queue_name=queue_name,
             namespace="priority",
@@ -155,6 +169,8 @@ class PriorityQueueStrategy(QueueStrategy):
             legacy_name=f"{queue_name}:p{level}",
             name_generation=self._name_generation,
         )
+        self._physical_names[key] = name
+        return name
 
     def is_push_durable(self, *, delay: float, source: str) -> bool:
         """Report that priority buckets are all backend-backed queues."""

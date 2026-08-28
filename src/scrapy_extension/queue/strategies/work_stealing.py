@@ -155,6 +155,12 @@ class WorkStealingQueueStrategy(QueueStrategy):
         self._steal_timeout = normalized_steal_timeout
         self._steal_idx = 0
         self._steal_lock = threading.Lock()
+        # Per-(queue, worker) physical-name memo (P1-6/F6): name inputs are
+        # immutable per instance (name generation fixed at construction,
+        # backend type per manager), so the steal scans — up to
+        # MAX_STEAL_PEERS probes per empty pop — stop paying a fresh digest
+        # per probe. Bounded by distinct (queue, worker) pairs in the crawl.
+        self._physical_names: dict[tuple[str, str], str] = {}
 
     def _own_queue(self, queue_name: str) -> str:
         return self._worker_queue(queue_name, self._worker_id)
@@ -166,9 +172,13 @@ class WorkStealingQueueStrategy(QueueStrategy):
         ``{queue_name}:{worker_id}`` is produced only under the explicit
         ``legacy_v1`` generation (``SCRAPY_QUEUE_NAME_GENERATION``) — a
         quiescent drain mode that is never dual-read, not a
-        backlog-compatible default.
+        backlog-compatible default. Memoized per (queue, worker).
         """
-        return physical_strategy_queue_name(
+        key = (queue_name, worker_id)
+        cached = self._physical_names.get(key)
+        if cached is not None:
+            return cached
+        name = physical_strategy_queue_name(
             self._connection_manager,
             queue_name=queue_name,
             namespace="worker",
@@ -176,6 +186,8 @@ class WorkStealingQueueStrategy(QueueStrategy):
             legacy_name=f"{queue_name}:{worker_id}",
             name_generation=self._name_generation,
         )
+        self._physical_names[key] = name
+        return name
 
     @staticmethod
     def _remaining_timeout(deadline: float | None) -> float:
