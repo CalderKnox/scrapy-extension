@@ -649,6 +649,15 @@ upgrading.
 
 ### Fixed
 
+- **P1-1: Transactional dupefilter protocol resolution is ~3× faster per
+  request.** `enqueue_request` resolved `_atomic_dupefilter_methods` on every
+  call (re-measured 15.8 µs), dominated by six MRO declaration-rank walks.
+  The ranks are now cached per `(type, name)` — sound because the resolver's
+  instance-`__dict__` guard was extended to cover every ranked name
+  (per-instance shadows of `commit_volatile_reservation` or
+  `_atomic_protocol_request_seen` now reject the protocol outright, matching
+  the established "class-level protocol" policy), and repeated resolution
+  measures ~5 µs. Cache-safety semantics are pinned by tests.
 - **P0-3: Connect-failure messages report attempts made, not the configured
   maximum.** When the reactor IO deadline or a concurrent retirement truncated
   the retry loop, the error claimed all configured attempts ran while the

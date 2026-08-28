@@ -95,6 +95,36 @@ def _static_declaration_rank(component: object, name: str) -> int | None:
     return None
 
 
+# Bounded rank cache (P1-1). Keys hold strong class references, so the bound
+# keeps dynamically created classes from growing the entry set unbounded;
+# past the bound the rank is simply computed fresh per call.
+_CLASS_DECLARATION_RANK_CACHE: dict[tuple[type, str], int | None] = {}
+_CLASS_DECLARATION_RANK_CACHE_MAX_ENTRIES = 512
+
+
+def _class_declaration_rank(cls: type, name: str) -> int | None:
+    """Rank a class-declared capability in ``cls``'s own MRO (P1-1 cache).
+
+    Only sound after the caller has rejected every per-instance shadow of
+    ``name`` — ``getattr_static`` would otherwise see instance attributes
+    and make the rank instance-dependent, so a type-keyed cache would go
+    stale. ``_atomic_dupefilter_methods`` guarantees that with its complete
+    instance-``__dict__`` guard before consulting this helper.
+    """
+    key = (cls, name)
+    cache = _CLASS_DECLARATION_RANK_CACHE
+    if key in cache:
+        return cache[key]
+    rank: int | None = None
+    for index, klass in enumerate(cls.__mro__):
+        if name in vars(klass):
+            rank = index
+            break
+    if len(cache) < _CLASS_DECLARATION_RANK_CACHE_MAX_ENTRIES:
+        cache[key] = rank
+    return rank
+
+
 def _atomic_dupefilter_methods(
     dupefilter: object,
 ) -> (
@@ -112,33 +142,38 @@ def _atomic_dupefilter_methods(
         instance_attributes = object.__getattribute__(dupefilter, "__dict__")
     except (AttributeError, TypeError):
         instance_attributes = {}
+    # Every name whose declaration rank feeds this resolution must be free of
+    # per-instance shadows before the type-keyed rank cache is consulted —
+    # otherwise the cached rank of one instance could go stale for another.
     protocol_names = (
         "request_seen_with_reservation",
         "commit_reservation",
+        "commit_volatile_reservation",
         "rollback_reservation",
         "rollback_reservation_intent",
+        "_atomic_protocol_request_seen",
+        "request_seen",
     )
     if isinstance(instance_attributes, Mapping) and any(
         name in instance_attributes for name in protocol_names
     ):
         # A coherent extension is a class-level protocol. Per-instance shadows
-        # (including autospec mocks) can expose an arbitrary partial combination.
+        # (including autospec mocks) can expose an arbitrary partial
+        # combination, and Scrapy's stable ``request_seen`` hook is
+        # intentionally monkeypatchable per instance — an inherited extension
+        # must not bypass that closer policy override.
         return None
-    if (
-        isinstance(instance_attributes, Mapping)
-        and "request_seen" in instance_attributes
-    ):
-        # Scrapy's stable hook is intentionally monkeypatchable per instance. An
-        # inherited extension must not bypass that closer policy override.
-        return None
-    atomic_rank = _static_declaration_rank(
-        dupefilter,
+    dupefilter_class = type(dupefilter)
+    atomic_rank = _class_declaration_rank(
+        dupefilter_class,
         "request_seen_with_reservation",
     )
-    commit_rank = _static_declaration_rank(dupefilter, "commit_reservation")
-    rollback_rank = _static_declaration_rank(dupefilter, "rollback_reservation")
-    intent_rank = _static_declaration_rank(
-        dupefilter,
+    commit_rank = _class_declaration_rank(dupefilter_class, "commit_reservation")
+    rollback_rank = _class_declaration_rank(
+        dupefilter_class, "rollback_reservation"
+    )
+    intent_rank = _class_declaration_rank(
+        dupefilter_class,
         "rollback_reservation_intent",
     )
     if (
@@ -153,11 +188,11 @@ def _atomic_dupefilter_methods(
     # request_seen() hook. An inherited newer extension must not bypass that
     # custom policy unless the subclass also declares the atomic method at least
     # as close in the MRO.
-    standard_rank = _static_declaration_rank(dupefilter, "request_seen")
+    standard_rank = _class_declaration_rank(dupefilter_class, "request_seen")
     if standard_rank is not None and standard_rank < atomic_rank:
         return None
-    canonical_rank = _static_declaration_rank(
-        dupefilter,
+    canonical_rank = _class_declaration_rank(
+        dupefilter_class,
         "_atomic_protocol_request_seen",
     )
     if canonical_rank is not None and canonical_rank == standard_rank:
@@ -172,7 +207,10 @@ def _atomic_dupefilter_methods(
     atomic = getattr(dupefilter, "request_seen_with_reservation")
     commit = getattr(dupefilter, "commit_reservation")
     volatile_commit: Callable[[object], None] | None = None
-    if _static_declaration_rank(dupefilter, "commit_volatile_reservation") is not None:
+    if (
+        _class_declaration_rank(dupefilter_class, "commit_volatile_reservation")
+        is not None
+    ):
         candidate = getattr(dupefilter, "commit_volatile_reservation")
         if callable(candidate):
             volatile_commit = candidate
