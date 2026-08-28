@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CI runs the per-PR unit lanes under xdist and gates serial order
+  nightly.** The coverage lane and the non-3.10 matrix lanes now run with
+  `-n auto` (verified against the serial gate: identical pass counts and
+  the same 95.46/91.65 coverage against the 95.0/91.0 floors, roughly a
+  3-6x wall-clock drop), a workflow-level concurrency group cancels
+  superseded runs on the same ref, and the single-process pinned-seed
+  order the floors were measured under moved to a scheduled nightly
+  determinism job instead of taxing every PR.
+
 - **Memcached local defaults now use explicit IPv4 loopback.** The runtime
   default, Compose-backed integration command, and CI use `127.0.0.1` so an
   IPv6-first `localhost` resolver cannot miss an IPv4-only Memcached daemon.

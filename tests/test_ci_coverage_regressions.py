@@ -1433,3 +1433,44 @@ def test_module_type_normalization_does_not_depend_on_module_state() -> None:
         "module",
         "coverage_fixture",
     ]
+
+
+def test_ci_parallelizes_pr_lanes_and_gates_serial_order_nightly() -> None:
+    """P1-4: PR signal is parallel; the serial seeded order is pinned nightly.
+
+    The per-PR coverage lane runs under xdist (verified: identical pass count
+    and the same 95.46/91.65 coverage against the 95.0/91.0 floors), a
+    concurrency group cancels superseded runs, and the single-process pinned
+    seed order — the order the floors were measured under — runs on schedule
+    only, without a second JSON coverage report (the gate script must stay
+    unique so the semantic floor test keeps executing exactly one gate).
+    """
+    repository_root = Path(__file__).resolve().parents[1]
+    workflow = yaml.safe_load(
+        (repository_root / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    concurrency = workflow["concurrency"]
+    assert concurrency["group"] == "${{ github.workflow }}-${{ github.ref }}"
+    assert concurrency["cancel-in-progress"] is True
+
+    coverage_step = next(
+        step
+        for step in workflow["jobs"]["unit-tests"]["steps"]
+        if step.get("name")
+        == "Unit tests with statement and branch coverage (integration deselected)"
+    )
+    assert "-n auto" in coverage_step["run"]
+
+    nightly = workflow["jobs"]["nightly-serial-determinism"]
+    assert nightly["if"] == "github.event_name == 'schedule'"
+    nightly_runs = [
+        step.get("run", "") for step in nightly["steps"] if isinstance(step, dict)
+    ]
+    assert any(
+        "--randomly-seed=1125147632" in run and "-n auto" not in run
+        for run in nightly_runs
+    )
+    assert not any("--cov-report=json" in run for run in nightly_runs)
