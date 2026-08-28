@@ -9,11 +9,14 @@ on:
     # nightly-serial-determinism job) runs off the per-PR critical path.
     - cron: '25 3 * * *'
 
-# Superseded pushes/PR updates to the same ref cancel the older run instead
-# of burning runner minutes on a commit that will never be looked at.
+# Superseded PR updates cancel the older run instead of burning runner
+# minutes on a commit that will never be looked at. Main pushes and the
+# nightly determinism gate never cancel: a superseding main-push run starts
+# fresh anyway, and the nightly serial gate is a backstop that must complete
+# whenever it fires (a push landing mid-nightly would otherwise kill it).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

@@ -1454,7 +1454,12 @@ def test_ci_parallelizes_pr_lanes_and_gates_serial_order_nightly() -> None:
 
     concurrency = workflow["concurrency"]
     assert concurrency["group"] == "${{ github.workflow }}-${{ github.ref }}"
-    assert concurrency["cancel-in-progress"] is True
+    # PR-scoped: superseded PR runs cancel, but main pushes and the nightly
+    # serial gate always run to completion.
+    assert (
+        concurrency["cancel-in-progress"]
+        == "${{ github.event_name == 'pull_request' }}"
+    )
 
     coverage_step = next(
         step
