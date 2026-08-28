@@ -649,6 +649,12 @@ upgrading.
 
 ### Fixed
 
+- **P2-7: The failed-release repair backlog is capped.**
+  `_pending_release_leases`/`_pending_release_managers` grew without
+  bound under a release-failure loop, pinning managers indefinitely. Past
+  `MAX_PENDING_RELEASES` (256) a new failed release is dropped without a
+  retry record and a one-shot warning names
+  `ConnectionManager.retry_pending_releases()` as the drain.
 - **P2-7: Managers warn once when retry backoff typically cannot fit
   the reactor IO budget.** Full jitter draws each wait from
   `uniform(0, cap)`, so the expected total wait is half the sum of the

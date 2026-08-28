@@ -456,3 +456,49 @@ def test_composite_close_consumes_late_authoritative_failure_after_timeout(
     assert spider._scheduler is scheduler
     assert spider._connection_manager.close.call_count == 0
     del public, authoritative, bounded
+
+
+def test_pending_release_backlog_is_capped_with_one_shot_warning(
+    monkeypatch, caplog
+) -> None:
+    """EH P3-9: the failed-release repair backlog is bounded.
+
+    Past ``MAX_PENDING_RELEASES`` a new failed release is dropped without a
+    retry record and exactly one warning names the drain call — a
+    release-failure loop outpacing retries is an operator-visible fault, not
+    a silent unbounded pin of managers and leases.
+    """
+    manager = ConnectionManager.get_manager(
+        BackendType.REDIS, {"host": "pending-release-cap"}
+    )
+    monkeypatch.setattr(
+        ConnectionManager, "_pending_release_leases", []
+    )
+    monkeypatch.setattr(ConnectionManager, "_pending_release_cap_warned", False)
+    filler = [object() for _ in range(ConnectionManager.MAX_PENDING_RELEASES)]
+
+    with caplog.at_level(
+        "WARNING", logger="scrapy_extension.backends.connectors"
+    ):
+        from scrapy_extension.backends.connectors._manager import (
+            ConnectionManagerLease,
+        )
+
+        for entry in filler:
+            ConnectionManager._pending_release_leases.append(
+                entry  # type: ignore[arg-type]
+            )
+        lease = ConnectionManagerLease(manager, object())
+        ConnectionManager._retain_failed_lease(lease)
+        # The capped backlog keeps its existing records and refuses the new one.
+        assert ConnectionManager._pending_release_leases == filler
+        ConnectionManager._retain_failed_lease(lease)
+        warnings_seen = [
+            r
+            for r in caplog.records
+            if "release backlog reached its cap" in r.getMessage()
+        ]
+        assert len(warnings_seen) == 1
+
+    lease.release()
+    ConnectionManager.clear_registry()

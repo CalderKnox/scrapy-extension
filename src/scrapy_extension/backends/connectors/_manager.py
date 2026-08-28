@@ -659,6 +659,13 @@ class ConnectionManager:
     _pending_release_leases: ClassVar[list[ConnectionManagerLease]] = []
     _pending_release_managers: ClassVar[list[ConnectionManager]] = []
     _pending_release_retry_threads: ClassVar[set[int]] = set()
+    _pending_release_cap_warned: ClassVar[bool] = False
+    #: Cap on the failed-release repair backlog (EH P3-9). Past the cap a new
+    #: failed release is dropped without a retry record (its manager stays
+    #: alive until process exit) and a one-shot warning names the drain call;
+    #: a release-failure loop outpacing retries is an operator-visible fault,
+    #: not a silent unbounded pin.
+    MAX_PENDING_RELEASES: ClassVar[int] = 256
     #: Cap on the registry size. 32 is comfortably above any realistic
     #: single-process multi-backend coexistence (10 bundled backends x 3
     #: components) while bounding the worst-case leak from settings churn to
@@ -854,10 +861,30 @@ class ConnectionManager:
         return self.settings
 
     @classmethod
+    def _warn_pending_release_cap_once_locked(cls) -> None:
+        """One-shot cap diagnostic; caller must hold ``_registry_lock``."""
+        if cls._pending_release_cap_warned:
+            return
+        cls._pending_release_cap_warned = True
+        # Dropped records keep their manager alive with no retry path; the
+        # warning is the operator signal that a release-failure loop is
+        # outpacing the repair backlog.
+        _log_diagnostic(
+            logger.warning,
+            "Pending connection-manager release backlog reached its cap; "
+            "further failed releases are dropped without a retry record. "
+            "Call ConnectionManager.retry_pending_releases() to drain the "
+            "backlog.",
+        )
+
+    @classmethod
     def _retain_failed_lease(cls, lease: ConnectionManagerLease) -> None:
         """Keep one failed exact release reachable for a later retry."""
         with cls._registry_lock:
             if not any(existing is lease for existing in cls._pending_release_leases):
+                if len(cls._pending_release_leases) >= cls.MAX_PENDING_RELEASES:
+                    cls._warn_pending_release_cap_once_locked()
+                    return
                 cls._pending_release_leases.append(lease)
 
     @classmethod
@@ -877,6 +904,9 @@ class ConnectionManager:
             if not any(
                 existing is manager for existing in cls._pending_release_managers
             ):
+                if len(cls._pending_release_managers) >= cls.MAX_PENDING_RELEASES:
+                    cls._warn_pending_release_cap_once_locked()
+                    return
                 cls._pending_release_managers.append(manager)
 
     @classmethod
