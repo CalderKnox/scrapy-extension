@@ -649,6 +649,19 @@ upgrading.
 
 ### Fixed
 
+- **P0-3: Connect-failure messages report attempts made, not the configured
+  maximum.** When the reactor IO deadline or a concurrent retirement truncated
+  the retry loop, the error claimed all configured attempts ran while the
+  `on_retry` monitor events said otherwise. The message now carries the true
+  count and the exhaustion buffers an `on_error("connect", ...)` monitor event
+  (surfacing as `errors/connect` in stats), dispatched after manager locks
+  release.
+- **P0-4: Deferred backend-client close failures are no longer silent.**
+  `GenerationRecord.finalization_errors` had no reader on any teardown path,
+  so a deferred (reentrant-disconnect) client close that raised vanished with
+  the record. The gate now emits one static ERROR diagnostic naming the
+  generation; the error object stays off the log because driver close
+  messages are not redaction-reviewed.
 - **P0-1: Key-name validation anchors at the string's absolute end.**
   `KEY_NAME_PATTERN` used `$`, which matches before one trailing newline in
   `re.match` mode, so `"queue\n"` passed validation and leaked a newline into
