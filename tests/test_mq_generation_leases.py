@@ -60,6 +60,40 @@ def test_nested_leases_defer_failing_finalizer_until_outer_operation_returns() -
     assert record.finalization_errors == [cleanup_error]
 
 
+def test_failing_deferred_finalizer_emits_static_diagnostic(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """P0-4: deferred close failures surface instead of vanishing with the record.
+
+    ``finalization_errors`` has no reader on any teardown path, so a failing
+    deferred client close was silent. The diagnostic is static plus the
+    integer generation — the error object stays off the log because driver
+    close messages are not redaction-reviewed.
+    """
+    gate: GenerationLeaseGate[object] = GenerationLeaseGate()
+    record = gate.publish(object())
+
+    def failing_finalizer() -> None:
+        raise RuntimeError("close-secret")
+
+    with gate.lease("outer"):
+        retired = gate.retire()
+        assert retired is record
+        assert gate.drain(retired, failing_finalizer) is None
+    # The deferred finalizer runs when the outer lease releases.
+    assert record.finalization_errors != []
+
+    messages = [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == "scrapy_extension.backends._generation"
+    ]
+    assert any(
+        "Deferred backend client close failed on generation" in m for m in messages
+    )
+    assert not any("close-secret" in m for m in messages)
+
+
 def test_interrupted_drain_returns_exact_signal_after_other_owner_releases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

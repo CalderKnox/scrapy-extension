@@ -9,6 +9,7 @@ closed afterwards.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -16,6 +17,8 @@ from threading import Condition, get_ident
 from typing import Generic, TypeVar
 
 _T = TypeVar("_T")
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GenerationUnavailable(RuntimeError):
@@ -96,6 +99,19 @@ class GenerationLeaseGate(Generic[_T]):
         except BaseException as error:
             with self.condition:
                 record.finalization_errors.append(error)
+            # ``finalization_errors`` has no reader on any teardown path; a
+            # deferred close failure previously vanished with the record. Emit
+            # one static diagnostic (the error object itself stays off the log
+            # — driver close messages are not redaction-reviewed) outside the
+            # gate lock so an application handler cannot stall teardown.
+            try:
+                _LOGGER.error(
+                    "Deferred backend client close failed on generation %d; "
+                    "the retired handle may remain open.",
+                    record.generation,
+                )
+            except BaseException:
+                pass
 
     @contextmanager
     def lease(
