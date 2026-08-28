@@ -16,6 +16,33 @@ Effort: **S** < 1 day · **M** 1–3 days · **L** multi-day / multi-PR.
 
 ---
 
+## Remediation status (R144, 2026-08-29)
+
+Wave 1 + the S-effort Wave 2 items have landed as atomic commits with ledger
+rows (`docs/insight/LEDGER.md`, R144 F1–F14) and CHANGELOG entries:
+
+- **Landed:** P0-1 (regex + F2 memcached bound + sibling sweep) · P0-3 ·
+  P0-4 · P0-2 (reactor-thread guard) · P2-2 · P1-1 (15.8 → 5.1 µs) · P1-4
+  (`-n auto` verified against the serial floors + concurrency group +
+  nightly serial gate; mega-lane split skipped — contract tests pin the
+  coverage step and artifact smoke) · P1-3 (PEP 562, 191 → 168 ms bare
+  import) · P1-5 (single-pass deserialize) · P1-6 F7/F8a/F8b · P2-7
+  backoff-budget warning + pending-release cap.
+- **Refuted (with evidence):** P1-2 breaker-proxy memoization — the proxy
+  binds methods at construction and the test suite pins re-wrap-to-capture
+  for instance-level patching; per-op cost is ~µs (ledger R144-F11).
+- **Deferred (with reasons):** F6 level-loop sampling (already bounded at
+  256; sampling breaks the next-ready-item contract — belongs to P3-5);
+  `backend/connect_attempts_exhausted` stat name (needs a new Monitor hook;
+  `errors/connect` via the existing `on_error` seam shipped instead);
+  finalization-error stat (the gate is deliberately monitor-free; static
+  diagnostic shipped).
+- **Unchanged scope:** P1-7 memcached per-client locks, P2-1 DynamoDB
+  Resource→client, P2-3/P2-4/P2-5 hardening, P2-6 F4/F5 security bundle,
+  P3-* architecture program remain as sequenced above.
+
+---
+
 ## 1. Executive summary
 
 The codebase has **exceptional error-handling discipline** (no swallowed exceptions in data paths, epoch-fenced circuit breaker, generation-lease drain-before-close) but carries five compounding problems:
