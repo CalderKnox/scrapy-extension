@@ -1772,6 +1772,10 @@ class ConnectionManager:
 
         retry_attempts, retry_delay = self._retry_policy()
         total_attempts = retry_attempts + 1
+        # Attempts actually started. The retry deadline and a concurrent
+        # retirement can truncate the loop early, so the configured maximum
+        # must not be reported as the number of attempts made.
+        attempts_made = 0
         # Scheduler-facing synchronous APIs cannot yield while the manager is
         # reconnecting. Bound only the retry *wait* here; the selected backend's
         # own socket/RPC timeout remains responsible for bounding one attempt.
@@ -1779,6 +1783,7 @@ class ConnectionManager:
 
         failed_attempt = False
         for attempt in range(total_attempts):
+            attempts_made += 1
             attempt_failed = False
             release_error: BackendConnectionError | None = None
             try:
@@ -1863,11 +1868,18 @@ class ConnectionManager:
             return None, None
 
         if failed_attempt:
-            attempt_word = "attempt" if total_attempts == 1 else "attempts"
-            raise BackendConnectionError(
-                f"Failed to connect after {total_attempts} {attempt_word}.",
+            attempt_word = "attempt" if attempts_made == 1 else "attempts"
+            connect_error = BackendConnectionError(
+                f"Failed to connect after {attempts_made} {attempt_word}.",
                 backend_type=str(self._backend_type_for_operations()),
             )
+            # Buffer the exhaustion before the terminal raise so the dispatch
+            # after the transaction (outside every manager lock) still emits
+            # ``errors/connect`` for a deadline-truncated attempt sequence.
+            monitor_events.append(
+                ("on_error", ("connect", connect_error))
+            )
+            raise connect_error
         return None, None
 
     def _retry_policy(self) -> tuple[int, float]:

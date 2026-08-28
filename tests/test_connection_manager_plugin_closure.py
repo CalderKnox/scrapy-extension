@@ -172,9 +172,11 @@ def test_retry_deadline_and_event_interruption_are_bounded_without_sleep(
     waits = Mock(return_value=False)
     monkeypatch.setattr(manager_module, "_wait_for_retry_backoff", waits)
 
-    with pytest.raises(BackendConnectionError, match="after 5 attempts"):
+    with pytest.raises(BackendConnectionError, match="after 1 attempt"):
         manager.connect()
-    # A zero remaining budget ends the retry transaction before the next attempt.
+    # A zero remaining budget ends the retry transaction before the next
+    # attempt; the reported count is attempts made (1), not the configured
+    # maximum (5), matching the on_retry events actually emitted.
     assert failing.connect_calls == 0
     assert failing.connect.call_count == 1  # type: ignore[attr-defined]
     assert waits.call_count == 0
@@ -186,7 +188,7 @@ def test_retry_deadline_and_event_interruption_are_bounded_without_sleep(
     monkeypatch.setattr(
         manager_module, "_wait_for_retry_backoff", Mock(return_value=True)
     )
-    with pytest.raises(BackendConnectionError, match="after 5 attempts"):
+    with pytest.raises(BackendConnectionError, match="after 1 attempt"):
         manager.connect()
     assert interrupted.connect.call_count == 1  # type: ignore[attr-defined]
 

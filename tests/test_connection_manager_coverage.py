@@ -265,6 +265,61 @@ def test_T2_connect_all_attempts_fail_raises(patch_sleep_random):
     assert fake.connect_calls == 4
 
 
+def test_T2b_connect_deadline_truncation_reports_attempts_made(mocker):
+    """T2b: deadline-truncated retries report attempts made, not the configured max.
+
+    P0-3 regression: with a zero reactor IO budget the retry deadline is
+    already spent after the first failure, so the loop breaks at one attempt
+    while ``retry_attempts`` is 3. The message previously reported the
+    configured maximum ("after 4 attempts"), disagreeing with the ``on_retry``
+    monitor events actually emitted.
+    """
+    from scrapy_extension.exceptions import BackendConnectionError
+
+    fake = FakeBackend(connect_failures=99)
+    m = _manager_with_backend(fake)
+    mocker.patch.object(m, "_reactor_io_timeout", lambda: 0.0)
+
+    with pytest.raises(
+        BackendConnectionError, match="Failed to connect after 1 attempt"
+    ):
+        m.connect()
+    assert fake.connect_calls == 1
+
+
+def test_T5_connect_exhaustion_emits_on_error_monitor(patch_sleep_random):
+    """T5: attempts exhaustion buffers an ``on_error("connect", ...)`` event."""
+    from scrapy_extension.exceptions import BackendConnectionError
+
+    errors: list[tuple[str, BaseException]] = []
+
+    class Recorder:
+        def on_connect(self, bt: str) -> None:
+            pass
+
+        def on_disconnect(self, bt: str, reason: object) -> None:
+            pass
+
+        def on_retry(self, bt: str, attempt: int) -> None:
+            pass
+
+        def on_error(self, operation: str, error: BaseException) -> None:
+            errors.append((operation, error))
+
+    fake = FakeBackend(connect_failures=99)
+    m = _manager_with_backend(fake)
+    m.set_monitor(Recorder())  # type: ignore[arg-type]
+
+    with pytest.raises(BackendConnectionError):
+        m.connect()
+
+    assert len(errors) == 1
+    operation, error = errors[0]
+    assert operation == "connect"
+    assert isinstance(error, BackendConnectionError)
+    assert "Failed to connect after 4 attempts" in str(error)
+
+
 def test_T3_connect_emits_on_retry_monitor(patch_sleep_random):
     """T3: on_retry records each 1-based retry after the serialized transaction."""
     retries: list[tuple[str, int]] = []
