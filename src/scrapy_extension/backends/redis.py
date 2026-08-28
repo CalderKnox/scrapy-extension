@@ -319,6 +319,13 @@ class _RedisGeneration:
     accepting: bool = True
     active_leases: int = 0
     retired: threading.Event = field(default_factory=threading.Event)
+    # Compiled Lua Script wrappers for this connection (P1-6/F8b): push/pop
+    # previously constructed a fresh wrapper per operation. The generation IS
+    # the connection identity, so retiring it drops the wrappers (and their
+    # client references) with the client — no backend-side retention window.
+    # The check-then-assign race is benign: both threads construct a valid
+    # Script and one wins.
+    scripts: dict[str, Any] = field(default_factory=dict)
 
 
 class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
@@ -384,31 +391,23 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
         self._client: Redis | RedisCluster | None = None
         self._master_client: Redis | None = None
         self._sentinel: Sentinel | None = None
-        # Per-connection Lua script cache (P1-6/F8b): push/pop previously
-        # constructed a fresh Script wrapper on every operation. The cache
-        # holds only the current connection's scripts — a reconnect replaces
-        # the entry wholesale, so stale wrappers never outlive their client.
-        # The check-then-assign race is benign: both threads construct a
-        # valid Script and one wins.
-        self._script_cache_client: Redis | RedisCluster | None = None
-        self._script_cache: dict[str, Any] = {}
 
-    def _cached_registered_script(
-        self, client: Redis | RedisCluster, source: str
-    ) -> Any:
-        """Return the connection's compiled ``Script`` for ``source``.
+    @staticmethod
+    def _generation_registered_script(generation: _RedisGeneration, source: str) -> Any:
+        """Return the generation's compiled ``Script`` for ``source``.
 
         ``register_script`` only builds the client-side wrapper (the body is
         cached server-side via EVALSHA), but doing it per push/pop puts the
-        construction on the hot path; one wrapper per connection is enough.
+        construction on the hot path. The generation is the connection
+        identity, so its ``scripts`` dict scopes the cache exactly: retiring
+        the generation drops the wrappers — and their client references —
+        with the client. The check-then-assign race is benign: both threads
+        construct a valid ``Script`` and one wins.
         """
-        if self._script_cache_client is not client:
-            self._script_cache_client = client
-            self._script_cache = {}
-        script = self._script_cache.get(source)
+        script = generation.scripts.get(source)
         if script is None:
-            script = self._register_script(client, source)
-            self._script_cache[source] = script
+            script = RedisBackend._register_script(generation.client, source)
+            generation.scripts[source] = script
         return script
 
     @staticmethod
@@ -1157,9 +1156,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
             payload_key = self._payload_key(queue_name, namespace=namespace)
             counter_key = self._counter_key(queue_name, namespace=namespace)
             try:
-                push_script = self._cached_registered_script(
-                    generation.client, _PUSH_LUA
-                )
+                push_script = self._generation_registered_script(generation, _PUSH_LUA)
                 push_script(
                     keys=[queue_key, payload_key, counter_key],
                     args=[member_uuid, -priority, item],
@@ -1220,7 +1217,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
             queue_key = self._queue_key(queue_name, namespace=namespace)
             payload_key = self._payload_key(queue_name, namespace=namespace)
             try:
-                pop_script = self._cached_registered_script(generation.client, _POP_LUA)
+                pop_script = self._generation_registered_script(generation, _POP_LUA)
             except _REDIS_OPERATION_ERRORS as e:
                 raise QueueError(
                     "Redis queue pop failed.",
