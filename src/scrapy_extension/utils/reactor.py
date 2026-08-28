@@ -15,7 +15,7 @@ retry sleeps are bounded separately.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from twisted.internet.defer import Deferred
 from twisted.internet.threads import deferToThread
@@ -66,6 +66,24 @@ def _reactor() -> Any:
 def reactor_is_running() -> bool:
     """Return whether a Twisted reactor is currently dispatching callbacks."""
     return bool(getattr(_reactor(), "running", False))
+
+
+def current_thread_is_reactor_thread() -> bool:
+    """Return whether the caller itself is running on the reactor thread.
+
+    The detector both reactor libraries and this package standardize on:
+    ``twisted.python.threadable.isInIOThread`` is thread-local truth set by a
+    running reactor, and the ``running`` pre-check keeps non-reactor contexts
+    (scripts, tests, plain sync tools) from consulting Twisted thread state
+    at all.
+    """
+    if not reactor_is_running():
+        return False
+    from twisted.python.threadable import isInIOThread
+
+    # Twisted ships ``threadable`` without inline types; the shim keeps the
+    # strict no-untyped-call boundary inside this one expression.
+    return bool(cast("Callable[[], bool]", isInIOThread)())
 
 
 def defer_to_thread_ordered(

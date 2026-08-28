@@ -13,7 +13,9 @@ configurable ``full_policy`` decides:
 - ``reject`` (default) — raise :class:`~scrapy_extension.exceptions.QueueError`
 - ``drop_oldest`` — overwrite the oldest item, increment a ``_dropped`` counter
 - ``block`` — wait on a :class:`threading.Condition` until a ``pop`` frees a
-  slot (cooperative backpressure; may block indefinitely if no pop happens)
+  slot (cooperative backpressure; may block indefinitely if no pop happens —
+  on the reactor thread the push degrades to the ``reject`` contract instead,
+  because an unbounded reactor wait is a permanent crawl freeze)
 
 Trade-off: items are in-process and lost on crash/restart — the snapshot/
 restore path mitigates this for the buffered items at close time, but a
@@ -47,6 +49,7 @@ from scrapy_extension.queue.strategies.base import (
     QueueStrategyRestoreError,
     normalize_queue_timeout,
 )
+from scrapy_extension.utils.reactor import current_thread_is_reactor_thread
 
 if TYPE_CHECKING:
     from scrapy_extension.backends.connectors import ConnectionManager
@@ -203,6 +206,19 @@ class RingBufferQueueStrategy(QueueStrategy):
                     return
                 # block — wait for a pop to free a slot. Loop re-checks capacity
                 # and closed state against spurious wakeups and concurrent pushes.
+                if current_thread_is_reactor_thread():
+                    # P2-2: the wait below has no deadline. On the reactor
+                    # thread a full buffer with no consumer is a permanent
+                    # crawl freeze, so degrade to the documented reject
+                    # contract instead of hanging every heartbeat; worker
+                    # threads keep the true blocking semantics.
+                    raise QueueError(
+                        "ring buffer full on the reactor thread "
+                        f"(capacity={self._capacity}, full_policy=block); "
+                        "use reject/drop_oldest or push from a worker thread",
+                        queue_name=queue_name,
+                        operation="push",
+                    )
                 self._not_full.wait()
 
     # ------------------------------------------------------------------ pop

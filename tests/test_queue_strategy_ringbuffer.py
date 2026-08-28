@@ -614,3 +614,50 @@ def test_restore_that_frees_capacity_wakes_blocked_pusher(monkeypatch):
     assert woke_from_restore, "restore freed a slot but did not wake the blocked push"
     assert not thread.is_alive()
     assert s.pop("q") == b"new"
+
+
+def test_push_full_block_degrades_to_reject_on_reactor_thread(mocker):
+    """P2-2: the no-deadline block wait must never run on the reactor thread."""
+    s, _ = _strategy(capacity=1, full_policy="block")
+    mocker.patch(
+        "scrapy_extension.queue.strategies.ring_buffer"
+        ".current_thread_is_reactor_thread",
+        return_value=True,
+    )
+    s.push("q", b"first")
+
+    with pytest.raises(QueueError) as exc_info:
+        s.push("q", b"second")
+
+    assert "reactor thread" in str(exc_info.value)
+    assert exc_info.value.operation == "push"
+
+
+def test_push_full_block_still_blocks_off_reactor_thread(mocker):
+    """The guard must not disturb true blocking semantics on worker threads."""
+    import threading
+
+    s, _ = _strategy(capacity=1, full_policy="block")
+    mocker.patch(
+        "scrapy_extension.queue.strategies.ring_buffer"
+        ".current_thread_is_reactor_thread",
+        return_value=False,
+    )
+    s.push("q", b"first")
+
+    completed = threading.Event()
+
+    def blocked_push():
+        s.push("q", b"second")
+        completed.set()
+
+    thread = threading.Thread(target=blocked_push)
+    thread.start()
+    import time as _time
+
+    _time.sleep(0.05)
+    assert not completed.is_set(), "push should still be blocked"
+    assert s.pop("q") == b"first"
+    thread.join(timeout=2.0)
+    assert completed.is_set()
+    assert s.pop("q") == b"second"

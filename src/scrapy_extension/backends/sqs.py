@@ -78,6 +78,7 @@ from scrapy_extension.settings._aws import (
     validate_aws_endpoint,
     validate_aws_region_name,
 )
+from scrapy_extension.utils.reactor import current_thread_is_reactor_thread
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,11 @@ _SQS_SAFE_CONFIGURATION_MESSAGES: frozenset[str] = frozenset(
 _SQS_SAFE_CONNECTION_MESSAGES: frozenset[str] = frozenset(
     {"Failed to create SQS client."}
 )
+_SQS_CLEAR_QUEUE_REACTOR_THREAD_MESSAGE = (
+    "SQS clear_queue waits out the 60-second post-purge deletion window and "
+    "must not run on the reactor thread; run it from a worker thread (e.g. "
+    "deferToThread) or the async surface."
+)
 _SQS_SAFE_QUEUE_MESSAGES: frozenset[str] = frozenset(
     {
         "SQS payload must contain at least one raw byte because MessageBody "
@@ -101,6 +107,7 @@ _SQS_SAFE_QUEUE_MESSAGES: frozenset[str] = frozenset(
         "SQS payload exceeds the 786,432 raw bytes that fit after base64 "
         "encoding within the 1 MiB MessageBody limit.",
         "Malformed SQS message: missing ReceiptHandle.",
+        _SQS_CLEAR_QUEUE_REACTOR_THREAD_MESSAGE,
     }
 )
 
@@ -1587,6 +1594,17 @@ class SqsBackend(Backend, QueueBackend):
                 waiting out the window in case the request reached AWS.
         """
         _validate_key_name(queue_name, "queue_name")
+        if current_thread_is_reactor_thread():
+            # P0-2: the purge barrier below sleeps out AWS's full 60-second
+            # destructive window while holding the per-queue lifecycle lock.
+            # On the reactor thread that is a crawl-wide freeze, not a slow
+            # admin call — refuse before the lease is taken and say where the
+            # call belongs instead.
+            raise QueueError(
+                _SQS_CLEAR_QUEUE_REACTOR_THREAD_MESSAGE,
+                queue_name=queue_name,
+                operation="clear_queue",
+            )
         with self._lease_generation("clear_queue", queue_name=queue_name) as generation:
             if generation is None:  # pragma: no cover - non-token lease is required
                 raise AssertionError("current SQS generation lease returned None")

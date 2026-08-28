@@ -2543,3 +2543,36 @@ class TestSqsInFlightCap:
         # The one-shot warning fired.
         assert b._in_flight_overflow_warned is True
         warning.assert_called_once()
+
+
+class TestClearQueueReactorThreadGuard:
+    """P0-2: the 60-second purge window must never run on the reactor thread."""
+
+    def test_clear_queue_refuses_reactor_thread_before_purge(self, mocker) -> None:
+        b, client = _connected(mocker)
+        sleep = mocker.patch("scrapy_extension.backends.sqs.time.sleep")
+        mocker.patch(
+            "scrapy_extension.backends.sqs.current_thread_is_reactor_thread",
+            return_value=True,
+        )
+
+        with pytest.raises(QueueError) as exc_info:
+            b.clear_queue("queue1")
+
+        assert exc_info.value.operation == "clear_queue"
+        assert "reactor thread" in str(exc_info.value)
+        client.purge_queue.assert_not_called()
+        sleep.assert_not_called()
+
+    def test_clear_queue_proceeds_off_reactor_thread(self, mocker) -> None:
+        b, client = _connected(mocker)
+        sleep = mocker.patch("scrapy_extension.backends.sqs.time.sleep")
+        mocker.patch(
+            "scrapy_extension.backends.sqs.current_thread_is_reactor_thread",
+            return_value=False,
+        )
+
+        b.clear_queue("queue1")
+
+        client.purge_queue.assert_called_once()
+        sleep.assert_called_once_with(60.0)

@@ -658,6 +658,16 @@ upgrading.
 
 ### Fixed
 
+- **P0-2: SQS `clear_queue` refuses to run on the reactor thread.** The
+  purge barrier sleeps out AWS's full 60-second destructive window while
+  holding the per-queue lifecycle lock; on the reactor thread that is a
+  crawl-wide freeze. The guard raises before the lease is taken with a
+  safe-listed message naming the worker-thread alternatives; off-reactor
+  callers keep the existing contract unchanged.
+- **P2-2: `ring_buffer` `full_policy="block"` degrades to reject on the
+  reactor thread.** The block arm's Condition wait has no deadline — a full
+  buffer with no consumer on the reactor thread was a permanent hang one
+  setting away. Worker threads keep true blocking semantics.
 - **P2-7: The failed-release repair backlog is capped.**
   `_pending_release_leases`/`_pending_release_managers` grew without
   bound under a release-failure loop, pinning managers indefinitely. Past
