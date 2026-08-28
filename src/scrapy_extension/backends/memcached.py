@@ -151,13 +151,9 @@ def _validate_delete_response(response: object) -> bool:
 _MEMCACHED_MAX_KEY_LENGTH_BYTES = 250
 
 
-def _validate_memcached_key(
-    name: str, field_name: str = "key"
-) -> None:
+def _validate_memcached_key(name: str, field_name: str = "key") -> None:
     """Validate a logical key against the Memcached server-side byte limit."""
-    _validate_key_name(
-        name, field_name, max_length=_MEMCACHED_MAX_KEY_LENGTH_BYTES
-    )
+    _validate_key_name(name, field_name, max_length=_MEMCACHED_MAX_KEY_LENGTH_BYTES)
 
 
 def _validate_storage_key_argument(

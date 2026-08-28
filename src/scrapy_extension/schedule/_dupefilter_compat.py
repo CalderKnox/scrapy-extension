@@ -169,9 +169,7 @@ def _atomic_dupefilter_methods(
         "request_seen_with_reservation",
     )
     commit_rank = _class_declaration_rank(dupefilter_class, "commit_reservation")
-    rollback_rank = _class_declaration_rank(
-        dupefilter_class, "rollback_reservation"
-    )
+    rollback_rank = _class_declaration_rank(dupefilter_class, "rollback_reservation")
     intent_rank = _class_declaration_rank(
         dupefilter_class,
         "rollback_reservation_intent",

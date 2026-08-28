@@ -471,15 +471,11 @@ def test_pending_release_backlog_is_capped_with_one_shot_warning(
     manager = ConnectionManager.get_manager(
         BackendType.REDIS, {"host": "pending-release-cap"}
     )
-    monkeypatch.setattr(
-        ConnectionManager, "_pending_release_leases", []
-    )
+    monkeypatch.setattr(ConnectionManager, "_pending_release_leases", [])
     monkeypatch.setattr(ConnectionManager, "_pending_release_cap_warned", False)
     filler = [object() for _ in range(ConnectionManager.MAX_PENDING_RELEASES)]
 
-    with caplog.at_level(
-        "WARNING", logger="scrapy_extension.backends.connectors"
-    ):
+    with caplog.at_level("WARNING", logger="scrapy_extension.backends.connectors"):
         from scrapy_extension.backends.connectors._manager import (
             ConnectionManagerLease,
         )

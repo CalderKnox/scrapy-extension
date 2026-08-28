@@ -1220,9 +1220,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
             queue_key = self._queue_key(queue_name, namespace=namespace)
             payload_key = self._payload_key(queue_name, namespace=namespace)
             try:
-                pop_script = self._cached_registered_script(
-                    generation.client, _POP_LUA
-                )
+                pop_script = self._cached_registered_script(generation.client, _POP_LUA)
             except _REDIS_OPERATION_ERRORS as e:
                 raise QueueError(
                     "Redis queue pop failed.",
