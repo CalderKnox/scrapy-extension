@@ -649,6 +649,15 @@ upgrading.
 
 ### Fixed
 
+- **P2-7: Managers warn once when retry backoff typically cannot fit
+  the reactor IO budget.** Full jitter draws each wait from
+  `uniform(0, cap)`, so the expected total wait is half the sum of the
+  per-attempt caps; when that expectation exceeds
+  `SCRAPY_REACTOR_IO_TIMEOUT`, connect retries will be deadline-truncated
+  before every configured attempt runs and the manager now says so once
+  (naming attempts, base delay, and budget). The default policy (3
+  attempts, 1 s base — expected 3.5 s of the 5 s budget) stays quiet. The
+  runbook documents the worst-case synchronous connect latency formula.
 - **P1-1: Transactional dupefilter protocol resolution is ~3× faster per
   request.** `enqueue_request` resolved `_atomic_dupefilter_methods` on every
   call (re-measured 15.8 µs), dominated by six MRO declaration-rank walks.

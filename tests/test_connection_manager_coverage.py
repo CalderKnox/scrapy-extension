@@ -320,6 +320,55 @@ def test_T5_connect_exhaustion_emits_on_error_monitor(patch_sleep_random):
     assert "Failed to connect after 4 attempts" in str(error)
 
 
+def test_T15_backoff_budget_warning_fires_once_under_typical_truncation(
+    mocker, caplog
+):
+    """T15: expected backoff above the IO budget warns once (EH P2-6).
+
+    Full jitter draws each wait from uniform(0, cap), so the expected total
+    is half the sum of caps — comparing that against the budget keeps the
+    default policy (expected 3.5 s of 5 s) quiet while a policy that
+    typically cannot fit warns exactly once per manager, not per connect.
+    """
+    from scrapy_extension.exceptions import BackendConnectionError
+
+    fake = FakeBackend(connect_failures=99)
+    m = _manager_with_backend(fake)  # retry_attempts=3, retry_delay=1.0
+    mocker.patch.object(m, "_reactor_io_timeout", lambda: 1.0)
+
+    with caplog.at_level(
+        "WARNING", logger="scrapy_extension.backends.connectors"
+    ):
+        with pytest.raises(BackendConnectionError):
+            m.connect()
+        with pytest.raises(BackendConnectionError):
+            m.connect()
+
+    truncated = [
+        r for r in caplog.records if "deadline-truncated" in r.getMessage()
+    ]
+    assert len(truncated) == 1
+    message = truncated[0].getMessage()
+    assert "3 attempts" in message
+    assert "1.0 s base" in message
+    assert "1.0 s" in message
+
+
+def test_T16_default_backoff_budget_stays_quiet(patch_sleep_random, caplog):
+    """T16: the default policy's expected backoff fits the default budget."""
+    fake = FakeBackend(connect_failures=1)
+    m = _manager_with_backend(fake)
+
+    with caplog.at_level(
+        "WARNING", logger="scrapy_extension.backends.connectors"
+    ):
+        m.connect()
+
+    assert not [
+        r for r in caplog.records if "deadline-truncated" in r.getMessage()
+    ]
+
+
 def test_T3_connect_emits_on_retry_monitor(patch_sleep_random):
     """T3: on_retry records each 1-based retry after the serialized transaction."""
     retries: list[tuple[str, int]] = []

@@ -22,6 +22,19 @@ cancel an SDK call already in progress. The selected backend's native socket or
 RPC timeout must therefore bound each individual request; configure both
 policies when a tighter scheduler heartbeat is required.
 
+Worst-case synchronous connect latency is therefore:
+
+    min(SCRAPY_REACTOR_IO_TIMEOUT, Σₖ min(3600 s, retry_delay·2ᵏ) / 2)
+      + (attempts made) · backend RPC timeout
+
+where the sum runs over `k = 0..retry_attempts-1` and the `/2` reflects full
+jitter drawing each wait from `uniform(0, cap)`. When the expected backoff
+total exceeds the budget, retries are deadline-truncated (later attempts are
+not made) and the manager emits a one-shot
+`deadline-truncated` warning naming the configured attempts, base delay, and
+budget; raise the budget or lower `retry_attempts`/`retry_delay` if every
+configured attempt must run.
+
 ## Operate Pulsar receive pumps
 
 Pulsar polling owns one background receive pump and a buffer of at most 100

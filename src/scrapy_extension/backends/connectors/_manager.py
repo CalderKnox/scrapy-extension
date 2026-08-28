@@ -25,7 +25,7 @@ from uuid import UUID
 
 from pydantic import SecretBytes, SecretStr, ValidationError
 
-from scrapy_extension.backends._retry import compute_full_jitter_backoff
+from scrapy_extension.backends._retry import _MAX_BACKOFF_S, compute_full_jitter_backoff
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -776,6 +776,11 @@ class ConnectionManager:
         # for the full delay.
         self._retired = False
         self._retirement_event = threading.Event()
+        # One-shot latch for the retry-backoff-vs-budget diagnostic (EH P2-6):
+        # the check runs on the first validated retry policy, not at
+        # construction, so an invalid policy still raises at its documented
+        # boundary instead of from ``__init__``.
+        self._backoff_budget_warned = False
         # Authoritative acquire ownership.  Every pooled acquisition has one
         # opaque identity token; legacy ``get_manager()`` calls additionally place
         # their token in ``_legacy_acquires`` so each ``manager.close()`` consumes
@@ -1771,6 +1776,7 @@ class ConnectionManager:
                 return None, None
 
         retry_attempts, retry_delay = self._retry_policy()
+        self._warn_backoff_budget_once(retry_attempts, retry_delay)
         total_attempts = retry_attempts + 1
         # Attempts actually started. The retry deadline and a concurrent
         # retirement can truncate the loop early, so the configured maximum
@@ -1881,6 +1887,40 @@ class ConnectionManager:
             )
             raise connect_error
         return None, None
+
+    def _warn_backoff_budget_once(self, retry_attempts: int, retry_delay: float) -> None:
+        """Warn once when the retry sequence typically cannot fit its budget.
+
+        Full jitter draws each wait from ``uniform(0, cap)``, so the expected
+        total wait is half the sum of the per-attempt caps. Comparing that
+        expectation against the reactor IO retry budget keeps the default
+        policy (3 attempts, 1 s base: expected 3.5 s of 5 s) quiet and warns
+        only when deadline truncation — attempts silently not made — is the
+        typical outcome, not the tail. (EH P2-6)
+        """
+        if self._backoff_budget_warned or retry_attempts <= 0 or retry_delay <= 0:
+            return
+        self._backoff_budget_warned = True
+        expected_total_wait_s = (
+            sum(
+                min(_MAX_BACKOFF_S, retry_delay * 2**attempt)
+                for attempt in range(retry_attempts)
+            )
+            / 2.0
+        )
+        budget_s = self._reactor_io_timeout()
+        if expected_total_wait_s > budget_s:
+            _log_diagnostic(
+                logger.warning,
+                "Configured retry backoff (%d attempts, %.1f s base) typically "
+                "exceeds the reactor IO retry budget (%.1f s); connect retries "
+                "will be deadline-truncated before every configured attempt "
+                "runs. Worst-case synchronous latency stays bounded by the "
+                "budget plus one in-flight backend RPC.",
+                retry_attempts,
+                retry_delay,
+                budget_s,
+            )
 
     def _retry_policy(self) -> tuple[int, float]:
         """Normalize and validate generic connection retry controls.
