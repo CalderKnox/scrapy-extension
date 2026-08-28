@@ -157,6 +157,39 @@ class TestJSONSerializer:
         assert deserialized["raw"] == b"\x00\xff\x42"
         assert isinstance(deserialized["raw"], bytes)
 
+    def test_single_pass_decode_decodes_markers_at_every_depth(self):
+        """P1-5: marker decoding folds into object_pairs_hook (one walk).
+
+        json.loads parses depth-first, so by the time an object's pairs reach
+        the hook its nested values are already decoded. The escaping, corrupt-
+        marker fallthrough, and duplicate-key rejection contracts are
+        unchanged; this pins the single-pass wiring at list, dict, and nested
+        depths so the second tree walk cannot silently return.
+        """
+        from datetime import datetime as _datetime
+
+        serializer = JSONSerializer()
+        payload = {
+            "nested": [{"blob": b"\x00\x01", "when": _datetime(2026, 1, 1)}],
+            "deep": {"inner": {"blob2": b"ff"}},
+        }
+        restored = serializer.deserialize(serializer.serialize(payload))
+        assert restored == payload
+        assert restored["nested"][0]["blob"] == b"\x00\x01"
+        assert isinstance(restored["nested"][0]["when"], _datetime)
+        assert restored["deep"]["inner"]["blob2"] == b"ff"
+
+    def test_single_pass_decode_still_rejects_duplicate_keys(self):
+        """The duplicate-member contract survives the fold into the hook."""
+        serializer = JSONSerializer()
+        with pytest.raises(ValueError, match="Duplicate JSON object key"):
+            serializer.deserialize(b'{"a": 1, "a": 2}')
+        with pytest.raises(ValueError, match="Duplicate escaped JSON object key"):
+            serializer.deserialize(
+                b'{"__scrapy_extension_json_type__": "dict",'
+                b'"data": [["k", 1], ["k", 2]]}'
+            )
+
     def test_corrupt_b64_marker_does_not_crash_deserialize(self):
         """#31: a stored value shaped like {"__b64__": "<invalid base64>"} (a
         spider's own meta key, or a truncated/corrupt value) must NOT crash the

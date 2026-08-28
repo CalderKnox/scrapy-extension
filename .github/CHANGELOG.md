@@ -668,6 +668,16 @@ upgrading.
 
 ### Fixed
 
+- **P1-5: `JSONSerializer.deserialize` decodes in a single pass.** The
+  marker decode (bytes/datetime/date tags, escaped dicts, legacy
+  `__b64__`) previously re-walked the fully-built value tree after
+  `json.loads`; it now folds into `object_pairs_hook`, which parses
+  depth-first with children already decoded. The escape, corrupt-marker
+  fallthrough, and duplicate-key rejection contracts are bit-identical
+  (verified against the pre-change implementation and the property
+  round-trip suite); serialize's bottom-up walk remains — the marker
+  escape contract requires encoding children before parents inspect
+  them, which `json.dumps(default=...)` cannot express.
 - **P1-6: Hot-path micro-fixes.** The dupefilter computes request
   fingerprints outside the lifecycle condition (the fingerprinter reference
   is assigned only at construction, but a custom fingerprinter's user code

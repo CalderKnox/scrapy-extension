@@ -29,7 +29,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Any, ClassVar, NoReturn, Protocol
+from typing import Any, ClassVar, NoReturn, Protocol, cast
 
 from pydantic import SecretStr
 
@@ -222,64 +222,55 @@ def _encode_json_value(obj: object) -> object:
     return _encode_json_value(_json_default(obj))
 
 
-def _decode_json_value(obj: object) -> object:
-    """Decode current markers and legacy bytes tags without dict collisions."""
-    if isinstance(obj, list):
-        return [_decode_json_value(value) for value in obj]
-    if not isinstance(obj, dict):
-        return obj
+def _decode_marker_dict(obj: dict[str, object]) -> object:
+    """Decode one marker-shaped dict; return it unchanged when it is not one.
 
+    Children are already decoded when this runs — ``json.loads`` parses
+    depth-first, so by the time an object's pairs reach the hook (or, in the
+    legacy two-pass form, by the time a parent dict is revisited) every
+    nested value has been through this logic already. Marker decode failures
+    (bad base64, bad ISO strings) deliberately fall through to the plain
+    dict, matching the historical contract for corrupt-but-recoverable
+    values.
+    """
+    data_value: object = obj.get(_CODEC_DATA)
     if (
         len(obj) == 2
         and obj.get(_CODEC_TAG) == _CODEC_DICT
-        and isinstance(obj.get(_CODEC_DATA), list)
+        and isinstance(data_value, list)
     ):
-        items = obj[_CODEC_DATA]
+        items: list[object] = data_value
         if all(
             isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str)
             for pair in items
         ):
             decoded: dict[str, object] = {}
-            for key, value in items:
-                if key in decoded:
-                    raise ValueError(f"Duplicate escaped JSON object key: {key!r}")
-                decoded[key] = _decode_json_value(value)
+            for item in items:
+                pair = cast("list[str]", item)
+                if pair[0] in decoded:
+                    raise ValueError(f"Duplicate escaped JSON object key: {pair[0]!r}")
+                decoded[pair[0]] = pair[1]
             return decoded
 
-    if (
-        len(obj) == 2
-        and obj.get(_CODEC_TAG) == _CODEC_BYTES
-        and isinstance(obj.get(_CODEC_DATA), str)
-    ):
-        try:
-            return base64.b64decode(obj[_CODEC_DATA], validate=True)
-        except (binascii.Error, ValueError):
-            pass
+    if len(obj) == 2 and isinstance(data_value, str):
+        tag = obj.get(_CODEC_TAG)
+        if tag == _CODEC_BYTES:
+            try:
+                return base64.b64decode(data_value, validate=True)
+            except (binascii.Error, ValueError):
+                pass
+        elif tag == _CODEC_DATETIME:
+            try:
+                return datetime.fromisoformat(data_value)
+            except ValueError:
+                pass
+        elif tag == _CODEC_DATE:
+            try:
+                return date.fromisoformat(data_value)
+            except ValueError:
+                pass
 
-    if (
-        len(obj) == 2
-        and obj.get(_CODEC_TAG) == _CODEC_DATETIME
-        and isinstance(obj.get(_CODEC_DATA), str)
-    ):
-        try:
-            return datetime.fromisoformat(obj[_CODEC_DATA])
-        except ValueError:
-            pass
-
-    if (
-        len(obj) == 2
-        and obj.get(_CODEC_TAG) == _CODEC_DATE
-        and isinstance(obj.get(_CODEC_DATA), str)
-    ):
-        try:
-            return date.fromisoformat(obj[_CODEC_DATA])
-        except ValueError:
-            pass
-
-    legacy = _decode_bytes_tag(obj)
-    if legacy is not obj:
-        return legacy
-    return {key: _decode_json_value(value) for key, value in obj.items()}
+    return _decode_bytes_tag(obj)
 
 
 def _reject_non_finite_json_constant(value: str) -> object:
@@ -287,14 +278,23 @@ def _reject_non_finite_json_constant(value: str) -> object:
     raise ValueError(f"JSON numbers must be finite, got {value}")
 
 
-def _json_object_from_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """Build a JSON object while rejecting ambiguous duplicate member names."""
+def _json_object_from_pairs(pairs: list[tuple[str, object]]) -> object:
+    """Build one JSON object, decode markers, and reject duplicate names.
+
+    Single pass (P1-5): the historical form built plain dicts here and
+    re-walked the finished tree in ``_decode_json_value``. Because
+    ``json.loads`` parses depth-first, every nested value is already decoded
+    by the time its containing object's pairs arrive — so the marker decode
+    folds into this hook and the second tree walk disappears. Duplicate
+    member names are rejected while building, preserving the ambiguity
+    contract; escaped-dict duplicates are rejected in ``_decode_marker_dict``.
+    """
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
             raise ValueError(f"Duplicate JSON object key: {key!r}")
         result[key] = value
-    return result
+    return _decode_marker_dict(result)
 
 
 def secret_value(s: SecretStr | str | None) -> str | None:
@@ -392,7 +392,9 @@ class JSONSerializer:
         """Deserialize JSON bytes to an object.
 
         Reverses escaped current bytes markers and legacy ``{"__b64__": ...}``
-        markers. Marker-shaped caller dictionaries remain dictionaries.
+        markers. Marker-shaped caller dictionaries remain dictionaries. The
+        marker decode runs inside ``object_pairs_hook`` (single pass — the
+        value tree is decoded as ``json.loads`` builds it).
 
         Args:
             data: The JSON bytes to deserialize.
@@ -400,12 +402,10 @@ class JSONSerializer:
         Returns:
             The deserialized object.
         """
-        return _decode_json_value(
-            json.loads(
-                data.decode("utf-8"),
-                parse_constant=_reject_non_finite_json_constant,
-                object_pairs_hook=_json_object_from_pairs,
-            )
+        return json.loads(
+            data.decode("utf-8"),
+            parse_constant=_reject_non_finite_json_constant,
+            object_pairs_hook=_json_object_from_pairs,
         )
 
 
