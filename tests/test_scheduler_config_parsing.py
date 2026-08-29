@@ -35,6 +35,41 @@ def test_default_queue_template_is_project_and_spider_namespaced() -> None:
     assert config.allow_cross_spider is False
 
 
+def test_identity_template_rejects_delimiter_in_field_values() -> None:
+    from scrapy_extension.utils.identity import resolve_identity_template
+
+    for field in ("project_name", "spider_name"):
+        kwargs = {"project_name": "acme", "spider_name": "alpha"}
+        kwargs[field] = "am:biguous"
+        with pytest.raises(ValueError, match="must not contain ':'") as excinfo:
+            resolve_identity_template("queue:{project}:{spider}", **kwargs)
+        # Static message: the offending name itself must not be echoed into
+        # the error text.
+        assert "am:biguous" not in str(excinfo.value)
+    # A literal template never embeds the field values, so a ':'-bearing
+    # name stays legal there (pinned end-to-end by R23-D2 in
+    # test_components.py: scheduler.open with queue_key="test:queue").
+    assert (
+        resolve_identity_template(
+            "test:queue", project_name="ac:me", spider_name="al:pha"
+        )
+        == "test:queue"
+    )
+
+
+def test_identity_template_delimiter_rejection_surfaces_as_configuration_error() -> (
+    None
+):
+    from scrapy_extension.schedule.scheduler import _QueueComponentConfig
+
+    settings = ScrapySettings({"BOT_NAME": "acme"})
+    with pytest.raises(ConfigurationError):
+        _QueueComponentConfig.from_early_settings(settings).with_queue_key(
+            settings,
+            spider_name="al:pha",
+        )
+
+
 def test_identity_template_supports_deferred_spider_resolution() -> None:
     from scrapy_extension.utils.identity import resolve_identity_template
 

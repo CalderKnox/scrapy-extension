@@ -150,11 +150,20 @@ class _QueueComponentConfig:
                     setting_value=spider_name,
                 ) from exc
         resolved_project_name = project_name or project_name_from_settings(settings)
-        resolved_queue_key = resolve_identity_template(
-            queue_key,
-            spider_name=spider_name,
-            project_name=resolved_project_name,
-        )
+        try:
+            resolved_queue_key = resolve_identity_template(
+                queue_key,
+                spider_name=spider_name,
+                project_name=resolved_project_name,
+            )
+        except ValueError as exc:
+            # A field value carrying ':' composes keys that collide across
+            # (project, spider) pairs; reject it at the factory checkpoint.
+            raise ConfigurationError(
+                str(exc),
+                setting_name="SCRAPY_QUEUE_KEY",
+                setting_value=queue_key,
+            ) from exc
         try:
             _validate_key_name(
                 resolved_queue_key.replace("{spider}", "spider").replace(

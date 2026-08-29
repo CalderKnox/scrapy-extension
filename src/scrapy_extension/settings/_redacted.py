@@ -645,8 +645,9 @@ class _CanonicalScalarEnvironmentSource(PydanticBaseSettingsSource):
 
     def __call__(self) -> dict[str, Any]:
         """Return source values with canonical bundled scalar text normalized."""
-        self._source._set_current_state(self.current_state)
-        self._source._set_settings_sources_data(self.settings_sources_data)
+        _sync_wrapped_source_state(
+            self._source, self.current_state, self.settings_sources_data
+        )
         values = self._source()
         fields = _trusted_settings_fields(self.settings_cls)
         if fields is None or not isinstance(values, Mapping):
@@ -665,6 +666,34 @@ class _CanonicalScalarEnvironmentSource(PydanticBaseSettingsSource):
                     normalized[field_name],
                 )
         return normalized
+
+
+def _sync_wrapped_source_state(
+    source: PydanticBaseSettingsSource,
+    current_state: dict[str, Any],
+    settings_sources_data: Any,
+) -> None:
+    """Forward delegation state into the wrapped pydantic-settings source.
+
+    This is the single façade over the pydantic-settings private delegation
+    surface (``_set_current_state`` / ``_set_settings_sources_data``); the
+    package pins the dependency tightly and pins the surface with an import
+    smoke test, so an upstream rename fails here with a named contract
+    violation instead of an opaque ``AttributeError`` deep inside ``__call__``.
+    """
+    for attribute, value in (
+        ("_set_current_state", current_state),
+        ("_set_settings_sources_data", settings_sources_data),
+    ):
+        setter = getattr(source, attribute, None)
+        if not callable(setter):
+            raise RuntimeError(
+                "pydantic-settings no longer provides the private delegation "
+                f"method {attribute!r} on {type(source).__name__!r}; the "
+                "pydantic-settings pin must be updated together with "
+                "_sync_wrapped_source_state in settings/_redacted.py."
+            )
+        setter(value)
 
 
 class RedactedBaseSettings(BaseSettings):

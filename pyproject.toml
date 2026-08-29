@@ -44,7 +44,12 @@ dependencies = [
     # 0.6.4 fixes CVE-2026-59884/59885/59886 decoder DoS flaws.
     "pyasn1>=0.6.4,<0.7",
     "pydantic>=2.13.4,<3",
-    "pydantic-settings>=2.15.0,<3",
+    # Pinned tightly: settings/_redacted.py's source-delegation façade
+    # (_sync_wrapped_source_state) calls two private pydantic-settings
+    # methods (_set_current_state/_set_settings_sources_data). Minor releases
+    # may rename private internals without notice; bump only together with
+    # that façade and its import-time surface smoke test.
+    "pydantic-settings>=2.15.0,<2.16",
     "scrapy>=2.17.0,<3",
     "typing-extensions>=4.16.0,<5",
 ]

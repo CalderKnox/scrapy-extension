@@ -1530,12 +1530,12 @@ class BackendDupeFilter:
         if "{spider}" not in self.key and "{project}" not in self.key:
             return
         templated = self.key
-        resolved = resolve_identity_template(
-            templated,
-            spider_name=spider.name,
-            project_name=project_name_from_spider(spider),
-        )
         try:
+            resolved = resolve_identity_template(
+                templated,
+                spider_name=spider.name,
+                project_name=project_name_from_spider(spider),
+            )
             _validate_key_name(resolved, "SCRAPY_DUPEFILTER_KEY")
         except ValueError as exc:
             raise ConfigurationError(

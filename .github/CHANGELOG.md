@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Identity key templates reject `:`-bearing project/spider names.**
+  `scheduler-queue:{project}:{spider}` (and its dupefilter twin) delimit
+  fields with `:`, so a project or spider name containing `:` could compose
+  the same physical key as a different (project, spider) pair — silently
+  sharing one queue or dupefilter across spiders. Substituting such a value
+  now raises `ConfigurationError` at the configuration factories; literal
+  keys without placeholders never embed the names and remain valid.
+
+- **The pydantic-settings private delegation surface is fenced.** The
+  settings source wrapper is the single facade over the two private
+  pydantic-settings delegation methods it needs; the dependency is pinned
+  to `<2.16`, an import-time smoke test fails loudly if the pinned version
+  stops exposing them, and a missing surface raises a named contract
+  error instead of an opaque `AttributeError` during settings loading.
+
 - **Memcached transactions no longer serialize on one shared socket.**
   The backend held one pymemcache client behind a process-global
   operation lock, capping throughput at one in-flight command regardless

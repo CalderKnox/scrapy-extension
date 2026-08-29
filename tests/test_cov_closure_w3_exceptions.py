@@ -45,6 +45,7 @@ from scrapy_extension.settings._redacted import (
     _safe_location,
     _scalar_annotation_kind,
     _secret_annotation_kind,
+    _sync_wrapped_source_state,
     _trusted_settings_fields,
 )
 from scrapy_extension.settings.redis import RedisSettings
@@ -320,6 +321,27 @@ def test_canonical_scalar_source_returns_non_mapping_values_verbatim() -> None:
     stub = _StubEnvironmentSource(RedisSettings, ["not", "a", "mapping"])
     canonical = _CanonicalScalarEnvironmentSource(RedisSettings, stub)
     assert canonical() == ["not", "a", "mapping"]
+
+
+def test_pydantic_settings_private_delegation_surface_is_pinned() -> None:
+    # Import-time smoke test for the tightly-pinned pydantic-settings
+    # dependency: the source-delegation façade in settings/_redacted.py calls
+    # two private methods on every wrapped source. An upstream rename fails
+    # here with a named surface, not as an opaque AttributeError in __call__.
+    from pydantic_settings import EnvSettingsSource
+
+    for attribute in ("_set_current_state", "_set_settings_sources_data"):
+        assert callable(getattr(EnvSettingsSource, attribute, None)), (
+            f"pydantic-settings no longer exposes {attribute!r}; update the pin together with _sync_wrapped_source_state"
+        )
+
+
+def test_sync_wrapped_source_state_fails_loudly_when_surface_is_missing() -> None:
+    class _Surfaceless:
+        pass
+
+    with pytest.raises(RuntimeError, match="_sync_wrapped_source_state"):
+        _sync_wrapped_source_state(_Surfaceless(), {}, None)
 
 
 class _RaisingSettings(RedisSettings):

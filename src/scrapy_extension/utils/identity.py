@@ -38,7 +38,27 @@ def resolve_identity_template(
     spider_name: str | None = None,
     project_name: str | None = None,
 ) -> str:
-    """Substitute known identity placeholders in a backend key template."""
+    """Substitute known identity placeholders in a backend key template.
+
+    Identity templates delimit fields with ``:`` (``scheduler-queue:{project}:
+    {spider}``), so a substituted field value that itself contains ``:``
+    composes the same physical key as a different (project, spider) pair —
+    silently sharing one queue or dupefilter across spiders. A value carrying
+    ``:`` is therefore rejected with ``ValueError`` when its placeholder is
+    substituted; a literal key without placeholders never embeds the values
+    and remains the explicit escape hatch for names that must carry colons.
+    """
+    for field, value, placeholder in (
+        ("project", project_name, "{project}"),
+        ("spider", spider_name, "{spider}"),
+    ):
+        if value is not None and placeholder in template and ":" in value:
+            raise ValueError(
+                f"Identity field {field!r} must not contain ':' — ':' is the "
+                "delimiter of identity key templates, and a value carrying it "
+                "would make distinct (project, spider) pairs collide on one "
+                "backend key."
+            )
     resolved = template
     if project_name is not None:
         resolved = resolved.replace("{project}", project_name)
