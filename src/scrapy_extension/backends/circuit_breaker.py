@@ -246,6 +246,7 @@ class CircuitBreaker:
         reset_timeout: float = 30.0,
         time_fn: Callable[[], float] | None = None,
         failure_exceptions: tuple[type[BaseException], ...] = (BaseException,),
+        on_state_change: Callable[[str, str], None] | None = None,
     ) -> None:
         if isinstance(failure_threshold, bool) or not isinstance(
             failure_threshold, int
@@ -282,6 +283,12 @@ class CircuitBreaker:
         self.reset_timeout = reset_timeout
         self.failure_exceptions = failure_exceptions
         self._time_fn: Callable[[], float] = time_fn or time.monotonic
+        # Optional transition observer (breaker name, new state value). Emitted
+        # strictly OUTSIDE ``_lock`` (see _notify_pending) so a slow or hostile
+        # observer cannot stall the hot path, and must not call back into this
+        # breaker. Emissions are best-effort diagnostics: an observer failure
+        # is swallowed and never perturbs breaker bookkeeping.
+        self._on_state_change = on_state_change
         self._lock = threading.Lock()
         self._state = BreakerState.CLOSED
         self._failure_count = 0
@@ -298,6 +305,12 @@ class CircuitBreaker:
         # so N threads in the reset-timeout window all observe HALF_OPEN and call
         # the backend concurrently — defeating the "single probe" contract.
         self._probe_in_flight: bool = False
+        # Monotonic timestamp of the in-flight probe's claim, for the
+        # probe-deadline re-open below; None whenever the slot is free.
+        self._probe_started_at: float | None = None
+        # State transitions appended under ``_lock`` and drained outside it by
+        # ``_notify_pending`` — each transition is emitted exactly once.
+        self._pending_state_changes: list[BreakerState] = []
 
     # --- introspection (lock-protected reads for test determinism) ---
 
@@ -326,11 +339,15 @@ class CircuitBreaker:
         manual reconnect). Does not invoke any backend.
         """
         with self._lock:
+            if self._state is not BreakerState.CLOSED:
+                self._pending_state_changes.append(BreakerState.CLOSED)
             self._state = BreakerState.CLOSED
             self._epoch += 1
             self._failure_count = 0
             self._last_failure_time = None
             self._probe_in_flight = False
+            self._probe_started_at = None
+        self._notify_pending()
 
     def new_generation(self) -> CircuitBreaker:
         """Return a CLOSED breaker with the same immutable configuration.
@@ -341,8 +358,8 @@ class CircuitBreaker:
         outcome from mutating the new generation's availability state.
 
         Returns:
-            A fresh breaker with identical name, thresholds, clock, and failure
-            exception policy.
+            A fresh breaker with identical name, thresholds, clock, failure
+            exception policy, and transition observer.
         """
         return CircuitBreaker(
             self.name,
@@ -350,7 +367,29 @@ class CircuitBreaker:
             reset_timeout=self.reset_timeout,
             time_fn=self._time_fn,
             failure_exceptions=self.failure_exceptions,
+            on_state_change=self._on_state_change,
         )
+
+    def _notify_pending(self) -> None:
+        """Emit pending state transitions outside the breaker lock.
+
+        Each transition is appended exactly once under ``_lock``; this drain
+        swaps the list under the lock and invokes the observer without it held.
+        An observer exception (including a hostile ``BaseException``) is
+        swallowed — diagnostics must never perturb the hot path — and the
+        remaining transitions of the drain still fire.
+        """
+        with self._lock:
+            pending = self._pending_state_changes
+            self._pending_state_changes = []
+        callback = self._on_state_change
+        if callback is None:
+            return
+        for state in pending:
+            try:
+                callback(self.name, state.value)
+            except BaseException:
+                pass
 
     def _now(self) -> float:
         """Read the current monotonic time via the injected clock."""
@@ -382,10 +421,34 @@ class CircuitBreaker:
                 self._state = BreakerState.HALF_OPEN
                 self._epoch += 1
                 self._probe_in_flight = True
+                self._probe_started_at = now
+                self._pending_state_changes.append(BreakerState.HALF_OPEN)
             else:
                 return _CallAdmission(BreakerState.OPEN, self._epoch)
         elif self._state is BreakerState.HALF_OPEN:
             if self._probe_in_flight:
+                started_at = self._probe_started_at
+                if (
+                    self.reset_timeout > 0
+                    and started_at is not None
+                    and (self._now() - started_at) >= self.reset_timeout
+                ):
+                    # The probe claimed the slot but never settled: a hung call
+                    # would otherwise wedge HALF_OPEN forever (no timer releases
+                    # the slot — only the probe's outcome does). Re-open with a
+                    # fresh failure timestamp so the cool-down window restarts.
+                    # The late probe outcome is fenced by the epoch bump: it can
+                    # neither close the re-opened breaker nor double-count. The
+                    # deadline derives from reset_timeout, so a degenerate
+                    # reset_timeout of 0 (probe immediately) keeps the legacy
+                    # single-probe behavior with no deadline.
+                    self._state = BreakerState.OPEN
+                    self._epoch += 1
+                    self._failure_count = 0
+                    self._last_failure_time = self._now()
+                    self._probe_in_flight = False
+                    self._probe_started_at = None
+                    self._pending_state_changes.append(BreakerState.OPEN)
                 # A probe is already in flight (another thread claimed the slot in this
                 # HALF_OPEN window). Fail fast without issuing a second concurrent probe.
                 return _CallAdmission(BreakerState.OPEN, self._epoch)
@@ -393,6 +456,7 @@ class CircuitBreaker:
             # slot while deliberately leaving the breaker HALF_OPEN. Re-claim it for
             # this call so concurrent callers still observe the single-probe rule.
             self._probe_in_flight = True
+            self._probe_started_at = self._now()
         return _CallAdmission(self._state, self._epoch)
 
     def _record_success(self, admission: _CallAdmission) -> None:
@@ -415,6 +479,8 @@ class CircuitBreaker:
             self._state = BreakerState.CLOSED
             self._epoch += 1
             self._probe_in_flight = False
+            self._probe_started_at = None
+            self._pending_state_changes.append(BreakerState.CLOSED)
 
     def _record_failure(self, admission: _CallAdmission) -> None:
         """Record a failed call, possibly tripping / re-opening the breaker.
@@ -432,11 +498,14 @@ class CircuitBreaker:
             self._epoch += 1
             self._failure_count = 0
             self._probe_in_flight = False
+            self._probe_started_at = None
+            self._pending_state_changes.append(BreakerState.OPEN)
             return
         self._failure_count += 1
         if self._failure_count >= self.failure_threshold:
             self._state = BreakerState.OPEN
             self._epoch += 1
+            self._pending_state_changes.append(BreakerState.OPEN)
 
     def _release_probe(self, admission: _CallAdmission) -> None:
         """Release a non-counted HALF_OPEN call only in its admission epoch."""
@@ -480,8 +549,19 @@ class CircuitBreaker:
         """
         with self._lock:
             admission = self._allow_call()
-            if admission.state is BreakerState.OPEN:
-                raise CircuitBreakerOpenError(self.name)
+            rejected = admission.state is BreakerState.OPEN
+        if rejected:
+            # A rejection can still carry a transition: the stuck-probe
+            # deadline re-open above fires exactly on this arm.
+            self._notify_pending()
+            raise CircuitBreakerOpenError(self.name)
+        if admission.state is BreakerState.HALF_OPEN:
+            # Emit the OPEN -> HALF_OPEN claim before the probe runs so the
+            # telemetry window covers the probe itself, not only its
+            # settlement. The pending list holds exactly this transition and
+            # the lock is free. (A degenerate reset_timeout of 0 skips the
+            # probe deadline entirely — see the deadline arm above.)
+            self._notify_pending()
 
         try:
             result = func(*args, **kwargs)
@@ -524,6 +604,7 @@ class CircuitBreaker:
                 raise
             with self._lock:
                 self._record_failure(admission)
+            self._notify_pending()
             del func
             del args
             del kwargs
@@ -533,6 +614,7 @@ class CircuitBreaker:
         else:
             with self._lock:
                 self._record_success(admission)
+            self._notify_pending()
             return result
 
 

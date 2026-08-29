@@ -1433,3 +1433,144 @@ class TestBackendProxyBaseConstructionSkips:
             proxy.push("queue", b"payload")
 
         assert exc_info.value is signal
+
+
+# ---------------------------------------------------------------------------
+# R144 P2-4 — transition telemetry + HALF_OPEN probe deadline
+# ---------------------------------------------------------------------------
+
+
+class TestBreakerStateTelemetry:
+    def test_full_cycle_emits_transitions_outside_the_lock(self) -> None:
+        clock = FakeClock()
+        events: list[tuple[str, str]] = []
+        lock_held_during_emission: list[bool] = []
+
+        def observer(name: str, state: str) -> None:
+            events.append((name, state))
+            # The emission contract: the breaker lock is NOT held while the
+            # observer runs (a slow/hostile observer cannot stall the hot path).
+            lock_free = breaker._lock.acquire(blocking=False)
+            if lock_free:
+                breaker._lock.release()
+            lock_held_during_emission.append(not lock_free)
+
+        breaker = CircuitBreaker(
+            "redis-backend",
+            failure_threshold=2,
+            reset_timeout=10.0,
+            time_fn=clock,
+            on_state_change=observer,
+        )
+        for _ in range(2):
+            with pytest.raises(RuntimeError):
+                breaker.call(_boom)
+        assert events == [("redis-backend", "open")]
+
+        clock.advance(10.0)
+        assert breaker.call(_ok) == "ok"
+        assert events == [
+            ("redis-backend", "open"),
+            ("redis-backend", "half_open"),
+            ("redis-backend", "closed"),
+        ]
+        assert not any(lock_held_during_emission)
+
+    def test_probe_failure_re_open_emits_open(self) -> None:
+        clock = FakeClock()
+        events: list[str] = []
+        breaker = CircuitBreaker(
+            "b",
+            failure_threshold=1,
+            reset_timeout=5.0,
+            time_fn=clock,
+            on_state_change=lambda _name, state: events.append(state),
+        )
+        with pytest.raises(RuntimeError):
+            breaker.call(_boom)
+        clock.advance(5.0)
+        with pytest.raises(RuntimeError):
+            breaker.call(_boom)
+        assert events == ["open", "half_open", "open"]
+
+    def test_hostile_observer_cannot_break_the_hot_path(self) -> None:
+        def observer(_name: str, _state: str) -> None:
+            raise KeyboardInterrupt("hostile observer")
+
+        breaker = CircuitBreaker(
+            "b",
+            failure_threshold=1,
+            reset_timeout=1.0,
+            time_fn=FakeClock(),
+            on_state_change=observer,
+        )
+        with pytest.raises(RuntimeError):
+            breaker.call(_boom)
+        assert breaker.state is BreakerState.OPEN
+
+    def test_stuck_probe_deadline_reopens_with_fresh_cooldown(self) -> None:
+        clock = FakeClock()
+        events: list[str] = []
+        breaker = CircuitBreaker(
+            "b",
+            failure_threshold=1,
+            reset_timeout=5.0,
+            time_fn=clock,
+            on_state_change=lambda _name, state: events.append(state),
+        )
+        with pytest.raises(RuntimeError):
+            breaker.call(_boom)
+        assert events == ["open"]
+
+        clock.advance(5.0)
+        release_probe = threading.Event()
+        probe_entered = threading.Event()
+
+        def hung_probe() -> Any:
+            probe_entered.set()
+            assert release_probe.wait(timeout=5.0)
+            raise RuntimeError("probe finally failed")
+
+        def run_probe() -> None:
+            with pytest.raises(RuntimeError):
+                breaker.call(hung_probe)
+
+        probe_thread = threading.Thread(target=run_probe)
+        probe_thread.start()
+        assert probe_entered.wait(timeout=5.0)
+        assert events == ["open", "half_open"]
+
+        # While the probe hangs, other callers fail fast.
+        with pytest.raises(CircuitBreakerOpenError):
+            breaker.call(_ok)
+
+        # Once the probe exceeds reset_timeout, the deadline re-opens the
+        # breaker with a fresh cool-down instead of wedging HALF_OPEN forever.
+        clock.advance(5.0)
+        with pytest.raises(CircuitBreakerOpenError):
+            breaker.call(_ok)
+        assert events == ["open", "half_open", "open"]
+        reopened_at = breaker.last_failure_time
+        assert reopened_at is not None
+
+        # The hung probe's eventual outcome is epoch-fenced: it can neither
+        # close the re-opened breaker nor double-count a transition.
+        release_probe.set()
+        probe_thread.join(timeout=5.0)
+        assert breaker.state is BreakerState.OPEN
+        assert breaker.last_failure_time == reopened_at
+        assert events == ["open", "half_open", "open"]
+
+    def test_new_generation_keeps_the_observer(self) -> None:
+        events: list[str] = []
+        breaker = CircuitBreaker(
+            "b",
+            failure_threshold=1,
+            reset_timeout=1.0,
+            time_fn=FakeClock(),
+            on_state_change=lambda _name, state: events.append(state),
+        )
+        replacement = breaker.new_generation()
+        with pytest.raises(RuntimeError):
+            replacement.call(_boom)
+        assert events == ["open"]

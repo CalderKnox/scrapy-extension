@@ -2502,6 +2502,18 @@ class ConnectionManager:
                 "Connection monitor callback raised; ignored.",
             )
 
+    def _notify_breaker_state(self, name: str, state: str) -> None:
+        """Forward one circuit-breaker transition to the attached monitor.
+
+        R144 P2-4: the breaker may be constructed before any monitor is
+        attached (``set_monitor`` runs when the scheduler opens), so the
+        observer reads the CURRENT monitor on every transition instead of
+        capturing one at construction time. The breaker already swallows
+        observer failures at its layer; this rides ``_notify_monitor`` for
+        the manager's diagnostic logging.
+        """
+        self._notify_monitor("on_breaker_state", name, state)
+
     def _dispatch_monitor_events(
         self,
         events: list[_MonitorEvent],
@@ -2741,6 +2753,7 @@ class ConnectionManager:
                 failure_threshold=failure_threshold,
                 reset_timeout=reset_timeout,
                 failure_exceptions=(BackendError,),
+                on_state_change=self._notify_breaker_state,
             )
         else:
             self._breaker = None

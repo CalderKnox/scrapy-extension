@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Circuit-breaker transitions are observable and a hung probe can no
+  longer wedge HALF_OPEN.** The shared breaker now reports every state
+  transition (trip, probe admitted, recovery, re-open) through the new
+  `Monitor.on_breaker_state` hook — recorded as `breaker/<state>` by the
+  stats monitor, emitted outside the breaker lock so a slow observer cannot
+  stall operations. An in-flight recovery probe that exceeds one cool-down
+  window re-opens the breaker with a fresh cooldown instead of blocking
+  recovery forever, and the late probe outcome is epoch-fenced so it can no
+  longer mutate the newer generation's state. Queue `push`/`ack`/`nack`
+  failures now also reach `monitor.on_error` (`errors/push`, `errors/ack`,
+  `errors/nack`) instead of failing silently to telemetry.
+
 - **Sensitive-name redaction fragments live in one canonical registry.**
   The three redaction contexts (exception name/text matching, backend
   transport-diagnostic values, settings-validation values) kept independent

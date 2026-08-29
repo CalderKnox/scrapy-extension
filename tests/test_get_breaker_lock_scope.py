@@ -10,7 +10,7 @@ re-check + construction stay under it).
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from scrapy_extension.backends.base import BackendType
 from scrapy_extension.backends.connectors import ConnectionManager
@@ -90,6 +90,8 @@ def test_get_breaker_enabled_threads_settings_into_circuitbreaker():
         failure_threshold=7,
         reset_timeout=45.0,
         failure_exceptions=(BackendError,),
+        # R144 P2-4: the manager forwards breaker transitions to its monitor.
+        on_state_change=ANY,
     )
 
 
@@ -112,3 +114,35 @@ def test_get_breaker_caches_and_does_not_reconstruct():
         manager._get_breaker()
         manager._get_breaker()
     assert len(constructions) == 1
+
+
+def test_breaker_transitions_reach_the_manager_monitor():
+    """R144 P2-4: the manager's breaker observer forwards transitions to the
+    CURRENT monitor — ``set_monitor`` runs long after breaker construction
+    (scheduler open), so the observer must resolve the monitor lazily."""
+    manager = _make_manager()
+    events: list[tuple[str, str]] = []
+
+    class RecordingMonitor:
+        def on_breaker_state(self, name: str, state: str) -> None:
+            events.append((name, state))
+
+    class EnabledSettings:
+        circuit_breaker_enabled = True
+        circuit_breaker_failure_threshold = 1
+        circuit_breaker_reset_timeout = 30.0
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise BackendError("backend on fire")
+
+    with patch("scrapy_extension.settings.Settings", EnabledSettings):
+        breaker = manager._get_breaker()
+    manager.set_monitor(RecordingMonitor())  # type: ignore[arg-type]
+    assert breaker is not None
+
+    import pytest
+
+    with pytest.raises(BackendError):
+        breaker.call(_boom)
+
+    assert events == [("redis-backend", "open")]

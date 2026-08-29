@@ -71,6 +71,7 @@ class TestNullMonitor:
             ("on_last_pop_epoch", {"epoch": 1_700_000_000.0}),
             ("on_filter_saturation", {"used": 100, "capacity": 200}),
             ("on_error", {"operation": "push", "error": RuntimeError("x")}),
+            ("on_breaker_state", {"name": "redis-backend", "state": "open"}),
             ("on_connect", {"backend_type": "redis"}),
             ("on_disconnect", {"backend_type": "redis", "reason": "shutdown"}),
             ("on_retry", {"backend_type": "redis", "attempt": 1}),
@@ -137,6 +138,17 @@ class TestScrapyStatsMonitor:
         monitor, stats = self._monitor()
         monitor.on_dedup_miss("fp1")
         assert stats.get_value("dupefilter/miss_count") == 1
+
+    def test_on_breaker_state_increments_state_counter(self):
+        """R144 P2-4: each transition increments breaker/<state>."""
+        monitor, stats = self._monitor()
+        monitor.on_breaker_state("redis-backend", "open")
+        monitor.on_breaker_state("redis-backend", "open")
+        monitor.on_breaker_state("redis-backend", "half_open")
+        monitor.on_breaker_state("redis-backend", "closed")
+        assert stats.get_value("breaker/open") == 2
+        assert stats.get_value("breaker/half_open") == 1
+        assert stats.get_value("breaker/closed") == 1
 
     def test_on_queue_depth_sets_gauge(self):
         """on_queue_depth is a gauge (set), not a counter."""
@@ -1096,6 +1108,7 @@ class TestScrapyStatsMonitorResilience:
             ("on_last_pop_epoch", {"epoch": 1_700_000_000.0}),
             ("on_filter_saturation", {"used": 1, "capacity": 10}),
             ("on_error", {"operation": "push", "error": RuntimeError("x")}),
+            ("on_breaker_state", {"name": "redis-backend", "state": "open"}),
             ("on_connect", {"backend_type": "redis"}),
             ("on_disconnect", {"backend_type": "redis", "reason": None}),
             ("on_retry", {"backend_type": "redis", "attempt": 1}),

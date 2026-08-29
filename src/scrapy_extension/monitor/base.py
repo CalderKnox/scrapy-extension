@@ -108,6 +108,11 @@ class Monitor:
       Wired (R14-D) at the ``BackendQueue`` push-except, pop backend-failure,
       and deserialize-fail arms so errors surface as ``errors/push`` /
       ``errors/pop`` instead of being dead observability.
+    - ``on_breaker_state(name, state)`` — a circuit-breaker state transition
+      fired (R144 P2-4). Emitted once per transition (trip, probe admitted,
+      recovery, probe failure or probe-deadline re-open) from the
+      ``ConnectionManager``'s shared breaker; the stats monitor records it as
+      ``breaker/<state>``.
     - ``on_connect(backend_type)`` — a backend connection was established.
       Wired (R14-D) from ``ConnectionManager.connect`` on the success path.
     - ``on_disconnect(backend_type, reason)`` — a backend was disconnected.
@@ -251,6 +256,21 @@ class Monitor:
         Args:
             operation: The operation name (e.g. ``"push"``, ``"pop"``).
             error: The exception that was raised.
+        """
+
+    def on_breaker_state(self, name: str, state: str) -> None:
+        """Record a circuit-breaker state transition (R144 P2-4).
+
+        Emitted once per transition — ``closed → open`` (trip), ``open →
+        half_open`` (probe admitted), ``half_open → closed`` (recovery), and
+        ``half_open → open`` (probe failure or probe-deadline re-open). Default
+        no-op so existing subclasses and :class:`NullMonitor` keep working
+        unchanged.
+
+        Args:
+            name: The breaker's diagnostic name (e.g. ``"redis-backend"``).
+            state: The new state value (``"open"``, ``"half_open"``,
+                ``"closed"``).
         """
 
     def on_connect(self, backend_type: str) -> None:

@@ -287,6 +287,19 @@ class ScrapyStatsMonitor(Monitor):
         self._stats.inc_value(f"errors/{operation}")
 
     @_stats_safe
+    def on_breaker_state(self, name: str, state: str) -> None:
+        """Increment ``breaker/<state>`` (R144 P2-4).
+
+        Args:
+            name: The breaker's diagnostic name (recorded nowhere — the
+                counter is keyed by state; the name stays out of stats keys
+                so backend identifiers cannot leak into telemetry).
+            state: The new state value (``"open"``, ``"half_open"``,
+                ``"closed"``).
+        """
+        self._stats.inc_value(f"breaker/{state}")
+
+    @_stats_safe
     def on_connect(self, backend_type: str) -> None:
         """Increment ``backend/connect_count`` (R14-D connection-lifecycle).
 

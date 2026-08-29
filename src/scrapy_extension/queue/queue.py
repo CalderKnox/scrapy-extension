@@ -516,7 +516,14 @@ class BackendQueue:
         Raises:
             SerializationError: If the request cannot be serialized.
         """
-        self._push_with_durability(request, priority)
+        try:
+            self._push_with_durability(request, priority)
+        except Exception as error:
+            # Mirror the pop seam (R144 P2-4): count data-plane failures as
+            # ``errors/push``; deserialization failures keep their own signal.
+            if not isinstance(error, SerializationError):
+                self._notify_operation_error("push", error)
+            raise
 
     # Preserve the stable public hook identity so scheduler dispatch cannot
     # bypass a direct class-level monkeypatch of ``BackendQueue.push``.
@@ -1455,6 +1462,21 @@ class BackendQueue:
         self._operation_context.post_commit_push = False
         return committed
 
+    def _notify_operation_error(self, operation: str, error: BaseException) -> None:
+        """Best-effort ``monitor.on_error`` that never masks the real failure.
+
+        R144 P2-4: the ack/nack seams previously had no observability — an
+        acknowledgement failure re-raised to the scheduler without ever
+        reaching a stats collector.
+        """
+        try:
+            self._monitor.on_error(operation, error)
+        except BaseException:
+            try:
+                logger.debug("monitor.on_error raised; ignored")
+            except BaseException:
+                pass
+
     def ack(self, *, token: Any | None = None) -> None:
         """Acknowledge the popped request identified by ``token``.
 
@@ -1475,6 +1497,9 @@ class BackendQueue:
         self._begin_operation("ack")
         try:
             self._ack(token=token)
+        except Exception as error:
+            self._notify_operation_error("ack", error)
+            raise
         finally:
             self._end_operation()
 
@@ -1502,6 +1527,9 @@ class BackendQueue:
         self._begin_operation("nack")
         try:
             self._nack(token=token)
+        except Exception as error:
+            self._notify_operation_error("nack", error)
+            raise
         finally:
             self._end_operation()
 

@@ -2714,3 +2714,98 @@ class TestBackendQueueDepthSampling:
         assert all(r == 7 for r in results)
         # But the backend RPC only fired at most ceil(20/5) = 4 times.
         assert backend.queue_len.call_count <= 4
+
+
+class TestAckNackPushErrorTelemetry:
+    """R144 P2-4: ack/nack/push failures reach ``monitor.on_error``."""
+
+    def _queue_with_recorder(self, mock_connection_manager, mock_spider):
+        queue = BackendQueue(
+            connection_manager=mock_connection_manager,
+            queue_name="test_queue",
+            spider=mock_spider,
+        )
+        recorded: list[tuple[str, BaseException]] = []
+
+        class _RecordingMonitor:
+            def on_error(self, operation: str, error: BaseException) -> None:
+                recorded.append((operation, error))
+
+        queue._monitor = _RecordingMonitor()
+        return queue, recorded
+
+    def test_ack_failure_emits_on_error(
+        self, mock_connection_manager, mock_spider
+    ) -> None:
+        queue, recorded = self._queue_with_recorder(
+            mock_connection_manager, mock_spider
+        )
+        failure = QueueError("ack failed", queue_name="test_queue", operation="ack")
+        mock_connection_manager.get_queue_backend.return_value.ack.side_effect = failure
+
+        with pytest.raises(QueueError):
+            queue.ack(token="opaque")
+
+        assert [(operation, error is failure) for operation, error in recorded] == [
+            ("ack", True)
+        ]
+
+    def test_nack_failure_emits_on_error(
+        self, mock_connection_manager, mock_spider
+    ) -> None:
+        queue, recorded = self._queue_with_recorder(
+            mock_connection_manager, mock_spider
+        )
+        failure = QueueError("nack failed", queue_name="test_queue", operation="nack")
+        mock_connection_manager.get_queue_backend.return_value.nack.side_effect = (
+            failure
+        )
+
+        with pytest.raises(QueueError):
+            queue.nack(token="opaque")
+
+        assert [(operation, error is failure) for operation, error in recorded] == [
+            ("nack", True)
+        ]
+
+    def test_push_failure_emits_on_error_except_serialization(
+        self, mock_connection_manager, mock_spider, mocker
+    ) -> None:
+        queue, recorded = self._queue_with_recorder(
+            mock_connection_manager, mock_spider
+        )
+        request = Request(url="https://example.com")
+
+        failure = QueueError("push failed", queue_name="test_queue", operation="push")
+        mocker.patch.object(queue, "_push_with_durability", side_effect=failure)
+        with pytest.raises(QueueError):
+            queue.push(request)
+        assert [operation for operation, _error in recorded] == ["push"]
+
+        # Deserialization-shaped failures keep their own signal (mirrors pop).
+        mocker.patch.object(
+            queue,
+            "_push_with_durability",
+            side_effect=SerializationError("unserializable"),
+        )
+        with pytest.raises(SerializationError):
+            queue.push(request)
+        assert [operation for operation, _error in recorded] == ["push"]
+
+    def test_hostile_monitor_does_not_mask_ack_failure(
+        self, mock_connection_manager, mock_spider
+    ) -> None:
+        queue, _recorded = self._queue_with_recorder(
+            mock_connection_manager, mock_spider
+        )
+
+        class _HostileMonitor:
+            def on_error(self, operation: str, error: BaseException) -> None:
+                raise KeyboardInterrupt("hostile monitor")
+
+        queue._monitor = _HostileMonitor()
+        failure = QueueError("ack failed", queue_name="test_queue", operation="ack")
+        mock_connection_manager.get_queue_backend.return_value.ack.side_effect = failure
+
+        with pytest.raises(QueueError):
+            queue.ack(token="opaque")
