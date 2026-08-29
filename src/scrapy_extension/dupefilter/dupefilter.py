@@ -6,6 +6,7 @@ This module provides a Scrapy dupefilter component using backend set interfaces.
 from __future__ import annotations
 
 import logging
+import math
 import sys
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterator
@@ -38,11 +39,13 @@ from scrapy_extension.utils._config import (
     parse_float_setting,
     parse_int_setting,
 )
+from scrapy_extension.utils._drain import bounded_drain_wait
 from scrapy_extension.utils.identity import (
     DEFAULT_DUPEFILTER_KEY_TEMPLATE,
     project_name_from_spider,
     resolve_identity_template,
 )
+from scrapy_extension.utils.reactor import DEFAULT_REACTOR_IO_TIMEOUT_S
 from scrapy_extension.utils.request import request_fingerprint
 
 if TYPE_CHECKING:
@@ -327,6 +330,7 @@ class BackendDupeFilter:
         clear_on_open: bool = False,
         owns_connection_manager: bool = True,
         connection_manager_lease: ConnectionManagerLease | None = None,
+        drain_timeout_s: float = DEFAULT_REACTOR_IO_TIMEOUT_S,
     ) -> None:
         """Initialize the dupefilter.
 
@@ -418,6 +422,17 @@ class BackendDupeFilter:
         self._active_operations = 0
         self._active_operations_by_epoch: dict[int, int] = {}
         self._active_operation_threads: dict[int, int] = {}
+        # P2-3: lifecycle drains are deadline-bounded; a hung membership or
+        # backend call escalates instead of wedging clear/close forever.
+        if (
+            isinstance(drain_timeout_s, bool)
+            or not math.isfinite(drain_timeout_s)
+            or drain_timeout_s <= 0
+        ):
+            raise ValueError(
+                f"drain_timeout_s must be a finite float > 0, got {drain_timeout_s!r}"
+            )
+        self._drain_timeout_s = drain_timeout_s
         self._lifecycle_transition_thread_id: int | None = None
         self._close_requested = False
         # Operations enqueue complete telemetry batches under the lifecycle lock.
@@ -605,19 +620,33 @@ class BackendDupeFilter:
         include_reservations: bool,
         include_legacy_reservations: bool = True,
     ) -> None:
-        """Wait until admitted calls and selected receipts have settled."""
+        """Wait until admitted calls and selected receipts have settled.
+
+        P2-3: the wait is deadline-bounded (``drain_timeout_s``) — a hung
+        admitted call escalates to :class:`BackendOperationTimeout` instead of
+        wedging the lifecycle transition forever. Control exceptions arriving
+        during the drain are preserved and re-raised after it completes (the
+        generation-gate discipline); the caller keeps the lifecycle lock.
+        """
         if self._active_operation_threads.get(get_ident(), 0):
             raise RuntimeError(
                 "dupefilter lifecycle transition re-entered an active operation"
             )
-        while self._active_operations or (
-            include_reservations
-            and (
-                self._active_reservations
-                or (include_legacy_reservations and self._legacy_reservations)
-            )
-        ):
-            self._lifecycle_condition.wait()
+        bounded_drain_wait(
+            self._lifecycle_condition,
+            lambda: bool(
+                self._active_operations
+                or (
+                    include_reservations
+                    and (
+                        self._active_reservations
+                        or (include_legacy_reservations and self._legacy_reservations)
+                    )
+                )
+            ),
+            timeout_s=self._drain_timeout_s,
+            operation="backend-dupefilter-quiescence-drain",
+        )
 
     def _discard_any_reservation_locked(
         self,

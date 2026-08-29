@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Queue and dupefilter lifecycle drains are deadline-bounded.** A hung
+  backend call can no longer wedge `BackendQueue.close()` or the dupefilter's
+  clear/close quiescence forever: both waits now escalate loudly to
+  `BackendOperationTimeout` after the reactor I/O budget, while control
+  exceptions arriving mid-drain are preserved and re-raised after the drain
+  completes (the generation-gate discipline). The queue's per-thread
+  operation lease is also reconciled in one gate section — the previous
+  two-step release could be interrupted between its steps, desynchronizing
+  the counts and stranding close on a lease nobody could release.
+
 - **Circuit-breaker transitions are observable and a hung probe can no
   longer wedge HALF_OPEN.** The shared breaker now reports every state
   transition (trip, probe admitted, recovery, re-open) through the new

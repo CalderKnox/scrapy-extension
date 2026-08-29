@@ -46,6 +46,7 @@ from scrapy_extension.queue.strategies.base import (
     normalize_queue_timeout,
 )
 from scrapy_extension.queue.strategies.passthrough import PassthroughQueueStrategy
+from scrapy_extension.utils._drain import bounded_drain_wait
 from scrapy_extension.utils.identity import project_name_from_spider
 from scrapy_extension.utils.reactor import (
     DEFAULT_REACTOR_IO_TIMEOUT_S,
@@ -317,6 +318,11 @@ class BackendQueue:
         # permanently stops admission on this instance; a scheduler reopen builds a
         # fresh BackendQueue around the reopened strategy.
         self._operation_gate = threading.Condition()
+        # P2-3: per-thread lease accounting lives UNDER the gate (the
+        # generation-gate reconcile pattern) — the previous thread-local
+        # counter was released in a separate step from the shared counter and
+        # an interrupt between the steps desynchronized them, wedging close.
+        self._active_operation_threads: dict[int, int] = {}
         self._operation_context = threading.local()
         self._accepting_operations = True
         self._active_operations = 0
@@ -1422,6 +1428,7 @@ class BackendQueue:
 
     def _begin_operation(self, operation: str) -> None:
         """Admit one lifecycle-bound mutating operation."""
+        thread_id = threading.get_ident()
         with self._operation_gate:
             if not self._accepting_operations:
                 raise QueueError(
@@ -1430,18 +1437,27 @@ class BackendQueue:
                     operation=operation,
                 )
             self._active_operations += 1
-        active_operations = getattr(self._operation_context, "active_operations", 0)
-        self._operation_context.active_operations = active_operations + 1
+            self._active_operation_threads[thread_id] = (
+                self._active_operation_threads.get(thread_id, 0) + 1
+            )
 
     def _end_operation(self) -> None:
-        """Release one operation lease and wake a waiting close."""
-        active_operations = getattr(self._operation_context, "active_operations", 0)
-        if active_operations <= 1:
-            self._operation_context.active_operations = 0
-        else:
-            self._operation_context.active_operations = active_operations - 1
+        """Release one operation lease and wake a waiting close.
+
+        P2-3: the thread's lease and the shared counter are reconciled in ONE
+        gate section (the generation-gate pattern). The previous two-step
+        release — thread-local count first, shared count under the gate —
+        could be interrupted between the steps, desynchronizing the counts and
+        leaving close waiting on a lease nobody could release anymore.
+        """
+        thread_id = threading.get_ident()
         with self._operation_gate:
             self._active_operations -= 1
+            owned = self._active_operation_threads.get(thread_id, 0)
+            if owned <= 1:
+                self._active_operation_threads.pop(thread_id, None)
+            else:
+                self._active_operation_threads[thread_id] = owned - 1
             if self._active_operations == 0:
                 self._operation_gate.notify_all()
 
@@ -1450,11 +1466,13 @@ class BackendQueue:
 
         ``close()`` cannot wait for an operation that is executing on this same
         thread: callbacks invoked by a backend or strategy would otherwise wait
-        forever for their own stack frame to return.  The check is thread-local
-        and deliberately happens before close publishes its lifecycle fence, so
-        rejecting this re-entry leaves both managers and close ownership intact.
+        forever for their own stack frame to return.  The check reads the
+        gate-held per-thread lease table and deliberately happens before close
+        publishes its lifecycle fence, so rejecting this re-entry leaves both
+        managers and close ownership intact.
         """
-        return getattr(self._operation_context, "active_operations", 0) > 0
+        with self._operation_gate:
+            return self._active_operation_threads.get(threading.get_ident(), 0) > 0
 
     def _consume_post_commit_push(self) -> bool:
         """Consume the current thread's interrupted push commit marker."""
@@ -1855,14 +1873,20 @@ class BackendQueue:
                     self._strategy.begin_close()
                     self._begin_close_complete = True
                 with self._operation_gate:
-                    while self._active_operations > 0:
-                        self._operation_gate.wait()
-                with self._operation_gate:
-                    while (
-                        self._active_operations > 0
-                        or self._pending_replacement_settlements
-                    ):
-                        self._operation_gate.wait()
+                    # P2-3: drain in-flight operations and replacement
+                    # settlements under an explicit deadline — a hung backend
+                    # call escalates to BackendOperationTimeout instead of
+                    # wedging close forever. (Subsumes the former separate
+                    # unbounded operations-only wait that ran directly above.)
+                    bounded_drain_wait(
+                        self._operation_gate,
+                        lambda: (
+                            self._active_operations > 0
+                            or bool(self._pending_replacement_settlements)
+                        ),
+                        timeout_s=self._reactor_io_timeout,
+                        operation="backend-queue-close-drain",
+                    )
                 if not self._checkpoint_complete:
                     if not lossy:
                         self._persist_snapshot()
