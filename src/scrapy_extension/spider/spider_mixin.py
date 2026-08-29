@@ -12,7 +12,7 @@ import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydispatch.errors import DispatcherKeyError
 from scrapy import Spider, signals
@@ -24,6 +24,15 @@ from scrapy_extension.exceptions import ConfigurationError
 from scrapy_extension.monitor import NullMonitor
 from scrapy_extension.schedule._dupefilter_compat import (
     _backend_dupefilter_lifecycle,
+)
+from scrapy_extension.spider._shortcuts import (
+    BACKEND_SHORTCUT_BUILDERS,
+    build_elasticsearch_shortcuts,
+    build_kafka_shortcuts,
+    build_mongodb_shortcuts,
+    build_rabbitmq_shortcuts,
+    build_redis_shortcuts,
+    build_rocketmq_shortcuts,
 )
 from scrapy_extension.utils.identity import (
     DEFAULT_DUPEFILTER_KEY_TEMPLATE,
@@ -472,78 +481,32 @@ class BackendSpiderMixin(Spider):
         assert primary_error is not None
         raise primary_error
 
+    # P3-4 L4: the shortcut builders and their dispatch table live in
+    # spider/_shortcuts.py; these one-line delegates keep the pinned method
+    # surface stable for subclasses and tests.
     def _build_redis_settings(self) -> dict[str, Any]:
         """Build Redis-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.redis_host is not None:
-            shortcuts["host"] = self.redis_host
-        if self.redis_port is not None:
-            shortcuts["port"] = self.redis_port
-        if self.redis_db is not None:
-            shortcuts["db"] = self.redis_db
-        if self.redis_password is not None:
-            shortcuts["password"] = self.redis_password
-        return shortcuts
+        return build_redis_shortcuts(self)
 
     def _build_mongodb_settings(self) -> dict[str, Any]:
         """Build MongoDB-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.mongodb_uri is not None:
-            shortcuts["uri"] = self.mongodb_uri
-        if self.mongodb_db is not None:
-            shortcuts["database"] = self.mongodb_db
-        return shortcuts
+        return build_mongodb_shortcuts(self)
 
     def _build_kafka_settings(self) -> dict[str, Any]:
         """Build Kafka-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.kafka_bootstrap_servers is not None:
-            shortcuts["bootstrap_servers"] = self.kafka_bootstrap_servers
-        return shortcuts
+        return build_kafka_shortcuts(self)
 
     def _build_rabbitmq_settings(self) -> dict[str, Any]:
         """Build RabbitMQ-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.rabbitmq_url is not None:
-            shortcuts["url"] = self.rabbitmq_url
-        return shortcuts
+        return build_rabbitmq_shortcuts(self)
 
     def _build_elasticsearch_settings(self) -> dict[str, Any]:
         """Build ElasticSearch-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.elasticsearch_hosts is not None:
-            shortcuts["hosts"] = self.elasticsearch_hosts
-        if self.elasticsearch_cloud_id is not None:
-            shortcuts["cloud_id"] = self.elasticsearch_cloud_id
-        if self.elasticsearch_api_key is not None:
-            shortcuts["api_key"] = self.elasticsearch_api_key
-        return shortcuts
+        return build_elasticsearch_shortcuts(self)
 
     def _build_rocketmq_settings(self) -> dict[str, Any]:
         """Build RocketMQ-specific shortcut settings."""
-        shortcuts: dict[str, Any] = {}
-        if self.rocketmq_namesrv_address is not None:
-            shortcuts["namesrv_address"] = self.rocketmq_namesrv_address
-        if self.rocketmq_access_key is not None:
-            shortcuts["access_key"] = self.rocketmq_access_key
-        if self.rocketmq_secret_key is not None:
-            shortcuts["secret_key"] = self.rocketmq_secret_key
-        if self.rocketmq_tls_enabled is not None:
-            shortcuts["tls_enabled"] = self.rocketmq_tls_enabled
-        return shortcuts
-
-    # Map of backend value -> shortcut-settings builder. Extracted as a
-    # class-level constant so ``_build_backend_settings`` stays a flat
-    # dispatch (no per-backend branching), keeping cyclomatic complexity
-    # bounded as backends are added.
-    _BACKEND_SHORTCUT_BUILDERS: ClassVar[dict[str, str]] = {
-        "redis": "_build_redis_settings",
-        "mongodb": "_build_mongodb_settings",
-        "kafka": "_build_kafka_settings",
-        "rabbitmq": "_build_rabbitmq_settings",
-        "elasticsearch": "_build_elasticsearch_settings",
-        "rocketmq": "_build_rocketmq_settings",
-    }
+        return build_rocketmq_shortcuts(self)
 
     def _build_backend_settings(self) -> dict[str, Any]:
         """Build backend settings from shortcut attributes.
@@ -562,15 +525,15 @@ class BackendSpiderMixin(Spider):
         if self.backend_settings:
             settings.update(self.backend_settings)
 
-        # Add shortcut settings based on backend type (no per-backend branching —
-        # dispatch via the _BACKEND_SHORTCUT_BUILDERS table).
+        # Add shortcut settings based on backend type (no per-backend
+        # branching — dispatch via the hoisted BACKEND_SHORTCUT_BUILDERS table).
         # ``backend_type`` may be a ``BackendType`` enum (its ``.value`` is the
         # registry key) or a plain registry-key string (round-5 R5-1: the public
         # ``resolve_backend_config`` API now returns strings). Accept both.
         backend_value = self._backend_type_name()
-        builder_name = self._BACKEND_SHORTCUT_BUILDERS.get(backend_value or "")
-        if builder_name is not None:
-            settings.update(getattr(self, builder_name)())
+        builder = BACKEND_SHORTCUT_BUILDERS.get(backend_value or "")
+        if builder is not None:
+            settings.update(builder(self))
 
         return settings
 

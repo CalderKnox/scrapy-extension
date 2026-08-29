@@ -31,7 +31,7 @@ from scrapy_extension.exceptions._redaction import (
     serialization_error_boundary,
     storage_operation_error_boundary,
 )
-from scrapy_extension.monitor.base import Monitor, NullMonitor
+from scrapy_extension.monitor import Monitor, NullMonitor
 from scrapy_extension.storage.strategies import (
     BatchedStorageStrategy,
     StorageStrategy,

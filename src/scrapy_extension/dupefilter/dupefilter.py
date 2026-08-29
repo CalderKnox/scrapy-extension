@@ -32,8 +32,7 @@ from scrapy_extension.exceptions.base import (
     ConfigurationError,
     QueueError,
 )
-from scrapy_extension.monitor import NullMonitor, ScrapyStatsMonitor
-from scrapy_extension.monitor.base import Monitor
+from scrapy_extension.monitor import Monitor, NullMonitor, ScrapyStatsMonitor
 from scrapy_extension.utils._config import (
     get_bool_setting,
     parse_float_setting,

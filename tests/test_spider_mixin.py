@@ -2958,3 +2958,27 @@ class TestIntegration:
         assert ESSpider()._build_backend_settings()["hosts"] == [
             "http://localhost:9200"
         ]
+
+
+def test_shortcut_builders_hoisted_table_matches_mixin_delegates() -> None:
+    """P3-4 L4: the hoisted dispatch table drives ``_build_backend_settings``.
+
+    The builder logic lives in ``spider/_shortcuts.py``; the mixin keeps
+    one-line delegates as the stable pinned surface. The table and the
+    delegates must stay in lockstep.
+    """
+    from scrapy_extension.spider._shortcuts import BACKEND_SHORTCUT_BUILDERS
+    from scrapy_extension.spider.spider_mixin import BackendSpiderMixin
+
+    assert set(BACKEND_SHORTCUT_BUILDERS) == {
+        "redis",
+        "mongodb",
+        "kafka",
+        "rabbitmq",
+        "elasticsearch",
+        "rocketmq",
+    }
+    for backend, builder in BACKEND_SHORTCUT_BUILDERS.items():
+        assert callable(builder)
+        delegate = getattr(BackendSpiderMixin, f"_build_{backend}_settings", None)
+        assert callable(delegate), backend

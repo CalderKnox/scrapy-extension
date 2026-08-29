@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
-from scrapy_extension.monitor.base import Monitor, NullMonitor
+from scrapy_extension.monitor import Monitor, NullMonitor
 from scrapy_extension.queue.strategies.base import (
     QueueStrategy,
     QueueStrategyRestoreError,

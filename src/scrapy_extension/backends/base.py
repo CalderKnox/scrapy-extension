@@ -33,6 +33,9 @@ from typing import Any, ClassVar, NoReturn, Protocol, cast
 
 from pydantic import SecretStr
 
+# P3-1: BackendType lives in the dependency-free core.types leaf; re-exported
+# here so the 30+ existing backends.base importers keep working unchanged.
+from scrapy_extension.core.types import BackendType
 from scrapy_extension.exceptions.base import VALIDATION_VALUE_FRAGMENTS
 
 #: Legacy bytes marker retained for reading payloads written before the escaped
@@ -511,62 +514,6 @@ def _get_mode_text(mode: object) -> str:
         return str(mode)
     except (TypeError, ValueError):
         return "<invalid-mode>"
-
-
-class BackendType(str, Enum):
-    """Supported backend types for distributed crawling.
-
-    Attributes:
-        REDIS: Redis backend for distributed crawling.
-        MONGODB: MongoDB backend for distributed crawling.
-        KAFKA: Kafka backend for distributed crawling.
-        RABBITMQ: RabbitMQ backend for distributed crawling.
-        ELASTICSEARCH: ElasticSearch backend for distributed crawling.
-        ROCKETMQ: RocketMQ backend for distributed crawling.
-        PULSAR: Pulsar backend for distributed crawling (queue-only).
-        MEMCACHED: Memcached backend (StorageBackend — KV with TTL).
-        SQS: Amazon SQS backend (queue-only MQ).
-        DYNAMODB: DynamoDB backend (StorageBackend — NoSQL KV).
-    """
-
-    REDIS = "redis"
-    MONGODB = "mongodb"
-    KAFKA = "kafka"
-    RABBITMQ = "rabbitmq"
-    ELASTICSEARCH = "elasticsearch"
-    ROCKETMQ = "rocketmq"
-    PULSAR = "pulsar"
-    MEMCACHED = "memcached"
-    SQS = "sqs"
-    DYNAMODB = "dynamodb"
-
-    @classmethod
-    def _missing_(cls, value: object) -> BackendType | None:
-        """Reject unknown values with a descriptive error.
-
-        Round-14 R14-B note: USER-FACING backend-type validation is routed
-        through ``Settings._validate_backend_type`` (a ``field_validator``),
-        which accepts ANY registry-known 3rd-party string AND raises
-        ``ConfigurationError`` (the project's config-error family) for unknown
-        values — never pydantic ``ValidationError``. This ``_missing_`` hook
-        is a DEFENSIVE backstop for direct ``BackendType(x)`` calls that
-        bypass the settings layer (e.g. internal code paths). It keeps the
-        pre-R14-B ``ValueError`` so enum semantics remain conventional for
-        low-level callers; operators hitting this path through ``Settings``
-        see ``ConfigurationError`` instead (see
-        ``settings/base.py::_validate_backend_type``).
-
-        Args:
-            value: The value that did not match any member.
-
-        Raises:
-            ValueError: Always — ``_missing_`` must return ``None`` or a
-                member; we choose to raise for fail-fast UX.
-        """
-        valid = ", ".join(repr(m.value) for m in cls)
-        rendered_value = _safe_diagnostic_value(value)
-        msg = f"{rendered_value} is not a valid {cls.__name__}. Valid values: {valid}."
-        raise ValueError(msg)
 
 
 class Backend(ABC):

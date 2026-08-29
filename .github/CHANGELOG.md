@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Backend type identity lives in a dependency-free core leaf.**
+  `BackendType` and the circuit-breaker reset ceiling moved to
+  `scrapy_extension.core.types`; their former homes re-export them, so all
+  existing imports keep working. `settings/base.py` no longer imports the
+  backend package at module level (the settings↔backends cycle is broken),
+  the backend shortcut-settings builders moved out of the spider mixin into
+  `spider/_shortcuts.py` behind the same pinned method surface, and the
+  monitor package `__init__` is now the single import seam for monitor
+  consumers.
+
 - **Driver-handle close failures have one shared outcome.** The same
   event — a backend driver's `close()` raising — previously produced four
   different behaviors across the ten backends; redis suppressed ordinary

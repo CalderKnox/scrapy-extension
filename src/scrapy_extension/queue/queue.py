@@ -28,8 +28,12 @@ from scrapy_extension.backends.base import (
 )
 from scrapy_extension.exceptions import QueueError, SerializationError
 from scrapy_extension.exceptions._redaction import serialization_error_boundary
-from scrapy_extension.monitor import NullMonitor, ScrapyStatsMonitor
-from scrapy_extension.monitor.base import DEFAULT_POP_RATE_WINDOW_S, Monitor
+from scrapy_extension.monitor import (
+    DEFAULT_POP_RATE_WINDOW_S,
+    Monitor,
+    NullMonitor,
+    ScrapyStatsMonitor,
+)
 from scrapy_extension.queue.snapshot import (
     DEFAULT_SNAPSHOT_CHUNK_BYTES,
     DEFAULT_SNAPSHOT_MAX_BYTES,

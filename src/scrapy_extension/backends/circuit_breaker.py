@@ -65,7 +65,9 @@ __all__ = [
 # process lifetime) that test is always False, so the breaker wedges OPEN
 # forever — permanent fail-fast with no self-heal. Mirrors throttle's
 # ``THROTTLE_MAX_MIN_INTERVAL_S`` ceiling discipline.
-CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S: float = 3600.0
+# P3-1: the ceiling lives in the dependency-free core.types leaf
+# (settings imports it without executing the backend graph); re-exported here.
+from scrapy_extension.core.types import CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S
 
 _SAFE_QUEUE_OPERATIONS = frozenset(
     {"push", "pop", "ack", "nack", "queue_len", "clear_queue"}

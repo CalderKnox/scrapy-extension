@@ -21,7 +21,20 @@ points. The wiring is additive — existing stat keys are unchanged.
 
 from __future__ import annotations
 
-__all__ = ["Monitor", "NullMonitor", "ScrapyStatsMonitor"]
+# P3-4 L5: the package init is the one seam for monitor consumers — every
+# public name the components use is re-exported here so no consumer needs
+# to reach into the private base/stats module paths.
+__all__ = [
+    "DEFAULT_POP_RATE_WINDOW_S",
+    "Monitor",
+    "NullMonitor",
+    "ScrapyStatsMonitor",
+]
 
-from scrapy_extension.monitor.base import Monitor, NullMonitor
+
+from scrapy_extension.monitor.base import (
+    DEFAULT_POP_RATE_WINDOW_S,
+    Monitor,
+    NullMonitor,
+)
 from scrapy_extension.monitor.stats import ScrapyStatsMonitor

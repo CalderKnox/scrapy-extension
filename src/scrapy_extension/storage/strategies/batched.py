@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING
 
 from scrapy_extension.exceptions import StorageBackpressureError, StorageError
 from scrapy_extension.exceptions._redaction import storage_operation_error_boundary
-from scrapy_extension.monitor.base import Monitor, NullMonitor
+from scrapy_extension.monitor import Monitor, NullMonitor
 from scrapy_extension.storage.strategies.base import StorageStrategy
 
 if TYPE_CHECKING:

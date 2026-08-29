@@ -83,7 +83,7 @@ from scrapy_extension.exceptions import (
     QueueError,
 )
 from scrapy_extension.exceptions._redaction import configuration_error_boundary
-from scrapy_extension.monitor.base import Monitor, NullMonitor
+from scrapy_extension.monitor import Monitor, NullMonitor
 from scrapy_extension.utils.reactor import (
     MAX_REACTOR_IO_TIMEOUT_S,
 )

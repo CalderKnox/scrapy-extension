@@ -1090,3 +1090,40 @@ class TestSettingsPackageLazyExports:
         assert "Settings" in settings_pkg.__all__
         assert "RedisSettings" in settings_pkg.__all__
         assert len(settings_pkg.__all__) == 23
+
+
+def test_settings_base_imports_no_backends_at_module_level() -> None:
+    """P3-1: the settings<->backends cycle is broken via ``core.types``.
+
+    ``BackendType`` and the breaker ceiling live in the dependency-free leaf;
+    ``settings/base.py`` must keep no module-level backends import (the only
+    allowed reference is the deliberate cold-path registry lookup inside the
+    backend-type validator).
+    """
+    import ast
+    import inspect
+
+    from scrapy_extension.settings import base as settings_base
+
+    tree = ast.parse(inspect.getsource(settings_base))
+    module_level_backends_imports = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.module is not None
+        and node.module.startswith("scrapy_extension.backends")
+    ]
+    assert module_level_backends_imports == []
+
+
+def test_backend_type_identity_is_shared_across_all_three_homes() -> None:
+    """P3-1: ``backends.base`` and ``circuit_breaker`` re-export the leaf names."""
+    import scrapy_extension.backends.base as backends_base
+    import scrapy_extension.backends.circuit_breaker as circuit_breaker
+    import scrapy_extension.core.types as core_types
+
+    assert backends_base.BackendType is core_types.BackendType
+    assert (
+        circuit_breaker.CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S
+        is core_types.CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S
+    )

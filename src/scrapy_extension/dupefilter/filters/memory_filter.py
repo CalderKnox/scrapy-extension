@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from scrapy_extension.dupefilter.filters.base import MembershipFilter
 
 if TYPE_CHECKING:
-    from scrapy_extension.monitor.base import Monitor
+    from scrapy_extension.monitor import Monitor
 
 logger = logging.getLogger(__name__)
 

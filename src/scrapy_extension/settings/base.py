@@ -12,9 +12,11 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 from typing_extensions import Self
 
-from scrapy_extension.backends.base import BackendType
-from scrapy_extension.backends.circuit_breaker import (
+# P3-1: type identity and the breaker ceiling come from the dependency-free
+# core leaf — settings no longer executes the backend graph at import time.
+from scrapy_extension.core.types import (
     CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S,
+    BackendType,
 )
 from scrapy_extension.exceptions.base import ConfigurationError
 from scrapy_extension.settings._redacted import RedactedBaseSettings
@@ -106,9 +108,10 @@ class Settings(RedactedBaseSettings):
             except ValueError:
                 pass
             # Not a bundled member — is it a registered 3rd-party backend?
-            # Imported lazily to avoid an import cycle at module-load time
-            # (registry imports exceptions, which is fine, but settings is imported
-            # extremely early — keep the registry import inside the validator).
+            # Imported lazily: the registry pulls the full backend package
+            # graph, which settings must not execute at module-load time (the
+            # BackendType cycle is broken via core.types; this lookup is the
+            # remaining deliberate cold-path import).
             from scrapy_extension.backends.registry import get_descriptor
 
             # ``get_descriptor`` keeps public lookup errors static and lists only
