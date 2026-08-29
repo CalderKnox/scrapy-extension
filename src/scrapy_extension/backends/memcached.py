@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
-from threading import Lock
+from threading import Condition, Lock
 from typing import Any, ParamSpec, TypeVar
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
@@ -262,7 +262,10 @@ class MemcachedBackend(Backend, StorageBackend):
 
     Attributes:
         config: MemcachedSettings instance.
-        _client: The pymemcache Client (None until connected).
+        _client: The validated connect-probe pymemcache Client (None until
+            connected). Each operating thread owns a separate client built
+            from the same validated snapshot; the probe is the connecting
+            thread's client.
     """
 
     def __init__(self, config: MemcachedSettings) -> None:
@@ -275,9 +278,14 @@ class MemcachedBackend(Backend, StorageBackend):
         self._client: Any = None
         self._connection_snapshot: _MemcachedConnectionSnapshot | None = None
         # pymemcache's ordinary Client owns one request/response socket and is not
-        # thread-safe. Serialize every SDK transaction with connect/disconnect so
-        # replies cannot cross-wire and teardown cannot race an active operation.
-        self._operation_lock = Lock()
+        # thread-safe, so a socket must never be shared across threads. Instead of
+        # one process-global lock serializing every transaction on one shared
+        # client, each operating thread gets its own client built lazily from the
+        # validated connection snapshot (pymemcache opens no socket until the
+        # first command, so construction performs no I/O under the lifecycle
+        # lock). Transactions no longer serialize against each other; only
+        # teardown waits: disconnect drains the in-flight count, then closes
+        # every distinct client exactly once.
         self._connect_lock = Lock()
         self._disconnect_lock = Lock()
         self._connect_local = threading.local()
@@ -285,7 +293,14 @@ class MemcachedBackend(Backend, StorageBackend):
         self._disconnecting = False
         self._disconnect_owner: int | None = None
         self._lifecycle_lock = Lock()
+        # Notified under _lifecycle_lock when an operation leaves its socket.
+        self._operation_condition = Condition(self._lifecycle_lock)
         self._lifecycle_generation = 0
+        # thread ident -> that thread's client for the live generation; a
+        # finished thread keeps its client until disconnect (bounded by the
+        # crawl's thread count, not by operations).
+        self._thread_clients: dict[int, Any] = {}
+        self._operations_in_flight = 0
 
     @configuration_error_boundary(
         "Memcached configuration is invalid.",
@@ -387,21 +402,24 @@ class MemcachedBackend(Backend, StorageBackend):
                 raise startup_error
             published = False
             try:
-                with self._operation_lock:
-                    with self._lifecycle_lock:
-                        # A concurrent disconnect fences this private probe by advancing the
-                        # lifecycle generation. Never resurrect a client after teardown.
-                        publish = (
-                            generation == self._lifecycle_generation
-                            and not self._disconnecting
-                        )
-                        if publish:
-                            # Install the snapshot first; assigning _client last is
-                            # the mirror's ownership commit point.  An interruption
-                            # before that assignment leaves no live client to leak.
-                            self._connection_snapshot = snapshot
-                            self._client = candidate
-                            published = True
+                with self._lifecycle_lock:
+                    # A concurrent disconnect fences this private probe by advancing the
+                    # lifecycle generation. Never resurrect a client after teardown.
+                    publish = (
+                        generation == self._lifecycle_generation
+                        and not self._disconnecting
+                    )
+                    if publish:
+                        # Install the snapshot first; assigning _client last is
+                        # the mirror's ownership commit point.  An interruption
+                        # before that assignment leaves no live client to leak.
+                        self._connection_snapshot = snapshot
+                        self._client = candidate
+                        # The probe client belongs to this thread's socket; later
+                        # operations on this thread reuse it instead of paying
+                        # for a duplicate construction.
+                        self._thread_clients[threading.get_ident()] = candidate
+                        published = True
             except BaseException:
                 # Publication is the ownership transfer.  If control flow is
                 # interrupted before that transfer, the private socket still belongs
@@ -433,26 +451,56 @@ class MemcachedBackend(Backend, StorageBackend):
                 pass
 
     @contextmanager
-    def _operation(self, operation: str) -> Iterator[None]:
-        """Serialize one socket transaction and mark its owning thread."""
+    def _operation(self, operation: str) -> Iterator[Any]:
+        """Bind this thread's client and account the transaction for teardown."""
         previous_depth = int(getattr(self._operation_local, "depth", 0))
         if previous_depth:
             raise BackendConnectionError(
                 f"Cannot run Memcached {operation} re-entrantly.",
                 backend_type="memcached",
             )
-        with self._operation_lock:
+        with self._lifecycle_lock:
+            if self._disconnecting:
+                raise BackendConnectionError(
+                    f"Cannot run Memcached {operation} while disconnecting.",
+                    backend_type="memcached",
+                )
+            client = self._thread_client_locked()
+            self._operations_in_flight += 1
+        self._operation_local.depth = previous_depth + 1
+        try:
+            yield client
+        finally:
+            self._operation_local.depth = previous_depth
             with self._lifecycle_lock:
-                if self._disconnecting:
-                    raise BackendConnectionError(
-                        f"Cannot run Memcached {operation} while disconnecting.",
-                        backend_type="memcached",
-                    )
-            self._operation_local.depth = previous_depth + 1
-            try:
-                yield
-            finally:
-                self._operation_local.depth = previous_depth
+                self._operations_in_flight -= 1
+                self._operation_condition.notify_all()
+
+    def _thread_client_locked(self) -> Any:
+        """Return this thread's client for the live generation.
+
+        The caller holds ``_lifecycle_lock``. Registration happens before the
+        first command, and pymemcache opens no socket until that first command,
+        so constructing a client here performs no I/O while the lock is held
+        (``default_noreply=False`` for the same commit-boundary reason as the
+        connect probe -- see :meth:`connect`).
+        """
+        snapshot = self._connection_snapshot
+        if snapshot is None:
+            # Never connected or already disconnected: preserve the legacy
+            # None-client path so operations surface the same StorageError.
+            return None
+        ident = threading.get_ident()
+        client = self._thread_clients.get(ident)
+        if client is None:
+            client = MemcachedClient(
+                (snapshot.host, snapshot.port),
+                connect_timeout=snapshot.connect_timeout,
+                timeout=snapshot.socket_timeout,
+                default_noreply=False,
+            )
+            self._thread_clients[ident] = client
+        return client
 
     @contextmanager
     def _disconnect_barrier(self) -> Iterator[bool]:
@@ -483,22 +531,33 @@ class MemcachedBackend(Backend, StorageBackend):
                         self._disconnecting = False
 
     def disconnect(self) -> None:
-        """Detach, drain, and close the Memcached client."""
+        """Detach, drain, and close every Memcached client."""
         with self._disconnect_barrier() as owns_barrier:
             if not owns_barrier:
                 return
-            with self._operation_lock:
-                with self._lifecycle_lock:
-                    self._lifecycle_generation += 1
-                    client = self._client
-                    self._client = None
-                    self._connection_snapshot = None
-                if client is not None:
-                    cleanup = _swallow()
-                    with cleanup:
-                        client.close()
-                    if cleanup.did_suppress:
-                        _log_suppressed_cleanup_error()
+            with self._lifecycle_lock:
+                self._lifecycle_generation += 1
+                # Snapshot every distinct live client once (the probe and the
+                # per-thread registry usually alias the same instances).
+                clients: list[Any] = []
+                for client in (self._client, *self._thread_clients.values()):
+                    if client is not None and client not in clients:
+                        clients.append(client)
+                self._client = None
+                self._connection_snapshot = None
+                self._thread_clients.clear()
+                # Drain: each in-flight transaction holds its client reference;
+                # wait for the last one to leave its socket before closing.
+                # In-flight commands are bounded by socket_timeout, so this
+                # wait inherits the same bound the lock handoff had.
+                while self._operations_in_flight:
+                    self._operation_condition.wait()
+            for client in clients:
+                cleanup = _swallow()
+                with cleanup:
+                    client.close()
+                if cleanup.did_suppress:
+                    _log_suppressed_cleanup_error()
 
     def is_connected(self) -> bool:
         """Return True if the client has been created."""
@@ -511,9 +570,7 @@ class MemcachedBackend(Backend, StorageBackend):
         Returns:
             True if stats() succeeds.
         """
-        with self._operation("ping"):
-            with self._lifecycle_lock:
-                client = self._client
+        with self._operation("ping") as client:
             if client is None:
                 return False
             try:
@@ -549,9 +606,7 @@ class MemcachedBackend(Backend, StorageBackend):
         """
         _validate_memcached_key(key, "key")
         _validate_ttl(ttl)
-        with self._operation("store"):
-            with self._lifecycle_lock:
-                client = self._client
+        with self._operation("store") as client:
             try:
                 if ttl is None:
                     expire = 0
@@ -594,9 +649,7 @@ class MemcachedBackend(Backend, StorageBackend):
                 silently swallowed to ``return None``).
         """
         _validate_memcached_key(key, "key")
-        with self._operation("retrieve"):
-            with self._lifecycle_lock:
-                client = self._client
+        with self._operation("retrieve") as client:
             try:
                 return _validate_get_response(client.get(key))
             except Exception as e:
@@ -624,9 +677,7 @@ class MemcachedBackend(Backend, StorageBackend):
                 silently swallowed to ``return False``).
         """
         _validate_memcached_key(key, "key")
-        with self._operation("delete"):
-            with self._lifecycle_lock:
-                client = self._client
+        with self._operation("delete") as client:
             try:
                 return _validate_delete_response(client.delete(key))
             except Exception as e:
@@ -654,9 +705,7 @@ class MemcachedBackend(Backend, StorageBackend):
                 silently swallowed to ``return False``).
         """
         _validate_memcached_key(key, "key")
-        with self._operation("exists"):
-            with self._lifecycle_lock:
-                client = self._client
+        with self._operation("exists") as client:
             try:
                 return _validate_get_response(client.get(key)) is not None
             except Exception as e:
@@ -705,9 +754,8 @@ class MemcachedBackend(Backend, StorageBackend):
             raise NotImplementedError(
                 _MEMCACHED_CLEAR_STORAGE_PREFIX_UNSUPPORTED_MESSAGE
             )
-        with self._operation("clear_storage"):
+        with self._operation("clear_storage") as client:
             with self._lifecycle_lock:
-                client = self._client
                 snapshot = self._connection_snapshot
             if snapshot is None:
                 # Lifecycle state, not a capability gap (never-connected or

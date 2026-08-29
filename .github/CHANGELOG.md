@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Memcached transactions no longer serialize on one shared socket.**
+  The backend held one pymemcache client behind a process-global
+  operation lock, capping throughput at one in-flight command regardless
+  of caller concurrency. Each operating thread now owns a client built
+  lazily from the validated connection snapshot (pymemcache opens no
+  socket until the first command, so registration performs no I/O under
+  the lifecycle lock); transactions run concurrently on their own
+  sockets, re-entrancy and while-disconnecting guards are unchanged, and
+  disconnect still drains in-flight transactions before closing every
+  distinct client exactly once. Thread clients are held until
+  disconnect, bounded by the crawl's thread count.
+
 - **Backend settings classes load lazily from the settings package.**
   `scrapy_extension.settings` eagerly imported all sixteen submodules, so
   every `settings.<submodule>` import — including the root package's own

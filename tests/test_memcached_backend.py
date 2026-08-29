@@ -6,8 +6,9 @@ import socket
 import subprocess
 import sys
 import traceback
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from time import monotonic
+from typing import Any
 
 import pytest
 
@@ -40,6 +41,40 @@ def _connected(mocker):
     mocker.patch.object(memcached_mod, "MemcachedClient", return_value=client)
     b.connect()
     return b, client
+
+
+def _connected_distinct_clients(
+    mocker,
+    get_side_effect=None,
+    set_side_effect=None,
+    stats_side_effect=None,
+) -> tuple[MemcachedBackend, list[Any]]:
+    """Connect with a factory that hands every thread its own mock client.
+
+    Mirrors the per-thread client registry: the connect probe is the first
+    constructed client, and each operating thread builds exactly one more.
+    Side-effect hooks are installed at construction so lazily built thread
+    clients behave exactly like the probe.
+    """
+    b = _make_backend()
+    clients: list[Any] = []
+
+    def factory(*_args: object, **_kwargs: object) -> Any:
+        client = mocker.MagicMock()
+        client.stats.return_value = {}
+        client.set.return_value = True
+        if get_side_effect is not None:
+            client.get.side_effect = get_side_effect
+        if set_side_effect is not None:
+            client.set.side_effect = set_side_effect
+        if stats_side_effect is not None:
+            client.stats.side_effect = stats_side_effect
+        clients.append(client)
+        return client
+
+    mocker.patch.object(memcached_mod, "MemcachedClient", side_effect=factory)
+    b.connect()
+    return b, clients
 
 
 class TestMemcachedBackendType:
@@ -613,12 +648,10 @@ class TestMemcachedStorageOps:
         backend.disconnect()
         client.close.assert_called_once_with()
 
-    def test_single_socket_operations_do_not_overlap(self, mocker) -> None:
-        backend, client = _connected(mocker)
+    def test_distinct_thread_clients_run_concurrently(self, mocker) -> None:
         get_entered = Event()
         release_get = Event()
-        store_attempted = Event()
-        set_entered = Event()
+        store_entered = Event()
         errors: list[BaseException] = []
 
         def blocking_get(_key):
@@ -627,11 +660,12 @@ class TestMemcachedStorageOps:
             return b"value"
 
         def observed_set(*_args, **_kwargs):
-            set_entered.set()
+            store_entered.set()
             return True
 
-        client.get.side_effect = blocking_get
-        client.set.side_effect = observed_set
+        backend, clients = _connected_distinct_clients(
+            mocker, get_side_effect=blocking_get, set_side_effect=observed_set
+        )
 
         def retrieve() -> None:
             try:
@@ -640,9 +674,9 @@ class TestMemcachedStorageOps:
                 errors.append(error)
 
         def store() -> None:
-            store_attempted.set()
             try:
                 backend.store("write-key", b"value")
+                backend.store("write-key-2", b"value")
             except BaseException as error:  # pragma: no cover - assertion aid
                 errors.append(error)
 
@@ -651,15 +685,23 @@ class TestMemcachedStorageOps:
         retrieve_thread.start()
         assert get_entered.wait(timeout=2.0)
         store_thread.start()
-        assert store_attempted.wait(timeout=2.0)
-        overlapped = set_entered.wait(timeout=0.2)
+        # The pre-P1-7 design serialized both threads onto one shared socket
+        # via a process-global operation lock; one client per thread means the
+        # store must enter while the retrieve is still in flight.
+        overlapped = store_entered.wait(timeout=2.0)
         release_get.set()
         retrieve_thread.join(timeout=2.0)
         store_thread.join(timeout=2.0)
 
-        assert overlapped is False
-        assert set_entered.is_set()
+        assert overlapped is True
         assert errors == []
+        # Exactly the probe plus one client per operating thread: the second
+        # store reuses its thread's registered client instead of rebuilding.
+        assert len(clients) == 3
+        assert clients[1] is not clients[2]
+        # The connecting thread's probe client is never borrowed by others.
+        clients[0].get.assert_not_called()
+        clients[0].set.assert_not_called()
 
     @pytest.mark.parametrize("stats_response", [None, b"stats", [], True])
     def test_ping_rejects_malformed_stats_response(
@@ -676,42 +718,49 @@ class TestMemcachedStorageOps:
 
         assert backend.ping() is True
 
-    def test_ping_does_not_overlap_storage_operation(self, mocker) -> None:
-        backend, client = _connected(mocker)
-        stats_entered = Event()
-        release_stats = Event()
-        retrieve_attempted = Event()
+    def test_ping_on_distinct_thread_client_does_not_wait_for_storage(
+        self, mocker
+    ) -> None:
         get_entered = Event()
+        release_get = Event()
+        ping_entered = Event()
+        errors: list[BaseException] = []
 
-        def blocking_stats():
-            stats_entered.set()
-            assert release_stats.wait(timeout=2.0)
-            return {}
-
-        def observed_get(_key):
+        def blocking_get(_key):
             get_entered.set()
+            assert release_get.wait(timeout=2.0)
             return b"value"
 
-        client.stats.side_effect = blocking_stats
-        client.get.side_effect = observed_get
+        def observed_stats(*_args, **_kwargs):
+            ping_entered.set()
+            return {b"version": b"1.6"}
+
+        backend, clients = _connected_distinct_clients(
+            mocker, get_side_effect=blocking_get, stats_side_effect=observed_stats
+        )
+
         ping_thread = Thread(target=backend.ping)
 
         def retrieve() -> None:
-            retrieve_attempted.set()
-            backend.retrieve("key")
+            try:
+                backend.retrieve("key")
+            except BaseException as error:  # pragma: no cover - assertion aid
+                errors.append(error)
 
         retrieve_thread = Thread(target=retrieve)
-        ping_thread.start()
-        assert stats_entered.wait(timeout=2.0)
         retrieve_thread.start()
-        assert retrieve_attempted.wait(timeout=2.0)
-        overlapped = get_entered.wait(timeout=0.2)
-        release_stats.set()
+        assert get_entered.wait(timeout=2.0)
+        ping_thread.start()
+        # Ping builds its own thread client, so it must complete without
+        # waiting for the in-flight storage transaction to drain.
+        overlapped = ping_entered.wait(timeout=2.0)
+        release_get.set()
         ping_thread.join(timeout=2.0)
         retrieve_thread.join(timeout=2.0)
 
-        assert overlapped is False
-        assert get_entered.is_set()
+        assert overlapped is True
+        assert errors == []
+        assert len(clients) == 3
 
     def test_disconnect_waits_for_active_storage_operation(self, mocker) -> None:
         backend, client = _connected(mocker)
@@ -743,6 +792,60 @@ class TestMemcachedStorageOps:
         assert returned_during_operation is False
         assert backend.is_connected() is False
         client.close.assert_called_once()
+
+    def test_disconnect_drains_and_closes_all_thread_clients(self, mocker) -> None:
+        first_entered = Event()
+        second_entered = Event()
+        release_get = Event()
+        disconnect_returned = Event()
+        entered_lock = Lock()
+        entered_count = 0
+
+        def blocking_get(_key):
+            nonlocal entered_count
+            with entered_lock:
+                entered_count += 1
+                if entered_count == 1:
+                    first_entered.set()
+                else:
+                    second_entered.set()
+            assert release_get.wait(timeout=2.0)
+            return b"value"
+
+        backend, clients = _connected_distinct_clients(
+            mocker, get_side_effect=blocking_get
+        )
+
+        def retrieve(key: str) -> None:
+            backend.retrieve(key)
+
+        first_thread = Thread(target=retrieve, args=("first-key",))
+        second_thread = Thread(target=retrieve, args=("second-key",))
+        first_thread.start()
+        second_thread.start()
+        assert first_entered.wait(timeout=2.0)
+        assert second_entered.wait(timeout=2.0)
+
+        def disconnect() -> None:
+            backend.disconnect()
+            disconnect_returned.set()
+
+        disconnect_thread = Thread(target=disconnect)
+        disconnect_thread.start()
+        returned_while_in_flight = disconnect_returned.wait(timeout=0.2)
+        release_get.set()
+        first_thread.join(timeout=2.0)
+        second_thread.join(timeout=2.0)
+        disconnect_thread.join(timeout=2.0)
+
+        # Drain semantics survive the per-client split: teardown waits for the
+        # last in-flight transaction, then closes every distinct client (the
+        # probe plus both thread clients) exactly once.
+        assert returned_while_in_flight is False
+        assert backend.is_connected() is False
+        assert len(clients) == 3
+        for client in clients:
+            client.close.assert_called_once_with()
 
     def test_store_sets_with_ttl(self, mocker) -> None:
         b, client = _connected(mocker)
