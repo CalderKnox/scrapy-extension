@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Driver-handle close failures have one shared outcome.** The same
+  event — a backend driver's `close()` raising — previously produced four
+  different behaviors across the ten backends; redis suppressed ordinary
+  close failures silently with no diagnostic at all. A shared
+  `close_handles` helper now defines the taxonomy: every handle is
+  attempted, ordinary failures are suppressed with one static diagnostic
+  (redis now emits it), and the first process-control exception is
+  returned for exact re-raise after the remaining handles close. The
+  three duplicated private swallow helpers are collapsed into one.
+
 - **Queue and dupefilter lifecycle drains are deadline-bounded.** A hung
   backend call can no longer wedge `BackendQueue.close()` or the dupefilter's
   clear/close quiescence forever: both waits now escalate loudly to

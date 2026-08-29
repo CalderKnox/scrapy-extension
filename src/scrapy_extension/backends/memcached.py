@@ -39,6 +39,7 @@ except ImportError as e:
         "Install with: pip install scrapy-extension[memcached]"
     ) from e
 
+from scrapy_extension.backends._close import close_handles, swallow_close_failures
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -552,12 +553,14 @@ class MemcachedBackend(Backend, StorageBackend):
                 # wait inherits the same bound the lock handoff had.
                 while self._operations_in_flight:
                     self._operation_condition.wait()
-            for client in clients:
-                cleanup = _swallow()
-                with cleanup:
-                    client.close()
-                if cleanup.did_suppress:
-                    _log_suppressed_cleanup_error()
+            # P2-5: one shared close outcome — ordinary close failures surface
+            # one static diagnostic, and a control exception is re-raised only
+            # after every distinct client has been attempted.
+            failed, control_error = close_handles(*clients)
+            if failed:
+                _log_suppressed_cleanup_error()
+            if control_error is not None:
+                raise control_error
 
     def is_connected(self) -> bool:
         """Return True if the client has been created."""
@@ -781,33 +784,7 @@ class MemcachedBackend(Backend, StorageBackend):
                 )
 
 
-class _swallow:
-    """Suppress regular cleanup errors and report that suppression to callers.
-
-    ``__exit__`` deliberately does not log: it executes while the cleanup
-    exception remains active in ``sys.exc_info()``.  The caller can inspect
-    :attr:`did_suppress` after the ``with`` statement has unwound and emit
-    static telemetry without exposing that exception to a logging handler.
-    """
-
-    def __init__(self) -> None:
-        self.did_suppress = False
-
-    def __enter__(self) -> _swallow:
-        self.did_suppress = False
-        return self
-
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
-        if exc_type is None:
-            return False
-        # R-swallow: suppress only regular cleanup Exceptions -- NEVER BaseException
-        # (KeyboardInterrupt / SystemExit / GeneratorExit). Pre-fix this returned
-        # True for any non-None exc_type, trapping Ctrl+C during close()/disconnect
-        # (the operator's shutdown signal disappeared into a debug log).
-        if not isinstance(exc, Exception):
-            return False
-        self.did_suppress = True
-        return True
+_swallow = swallow_close_failures
 
 
 def _log_suppressed_cleanup_error() -> None:

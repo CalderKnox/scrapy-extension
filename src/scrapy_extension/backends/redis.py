@@ -45,6 +45,7 @@ except ImportError as e:
         "Redis backend requires 'redis'. Install with: pip install scrapy-extension[redis]"
     ) from e
 
+from scrapy_extension.backends._close import close_handles
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -608,16 +609,18 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
                 if isinstance(controls, (list, tuple)):
                     handles.extend(controls)
         unique = {id(handle): handle for handle in handles if handle is not None}
-        pending_interrupt: BaseException | None = None
-        for handle in unique.values():
+        # P2-5: one shared outcome for driver-close failures — suppressed
+        # ordinary errors surface a static diagnostic (redis was the silent
+        # contextlib.suppress outlier), and the exact control exception is
+        # re-raised after every handle has been attempted.
+        failed, control_error = close_handles(*unique.values())
+        if failed:
             try:
-                with contextlib.suppress(Exception):
-                    handle.close()
-            except BaseException as exc:
-                if pending_interrupt is None:
-                    pending_interrupt = exc
-        if pending_interrupt is not None:
-            raise pending_interrupt
+                logger.debug("Suppressed redis cleanup error")
+            except BaseException:
+                pass
+        if control_error is not None:
+            raise control_error
 
     def _build_and_publish_generation(
         self,

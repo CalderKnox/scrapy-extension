@@ -42,6 +42,7 @@ except ImportError as e:
         "Install with: pip install scrapy-extension[dynamodb]"
     ) from e
 
+from scrapy_extension.backends._close import swallow_close_failures
 from scrapy_extension.backends._redaction import _redact
 from scrapy_extension.backends.base import (
     Backend,
@@ -1037,7 +1038,7 @@ class DynamoDBBackend(Backend, StorageBackend):
                 ConditionExpression="expire_at = :exp",
                 ExpressionAttributeValues={":exp": raw_expiry},
             )
-        if cleanup.suppressed_error:
+        if cleanup.did_suppress:
             # The context manager has completed its suppression before this
             # diagnostic runs, so a logging extension cannot observe the raw delete
             # error through ``sys.exc_info()``.
@@ -1364,26 +1365,4 @@ class DynamoDBBackend(Backend, StorageBackend):
                 raise StorageError(msg, operation="clear_storage", key=None) from e
 
 
-class _swallow:
-    """Context manager that records and swallows ordinary cleanup errors."""
-
-    def __init__(self) -> None:
-        self.suppressed_error = False
-
-    def __enter__(self) -> _swallow:
-        self.suppressed_error = False
-        return self
-
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
-        if exc_type is None:
-            return False
-        # R-swallow: suppress only regular cleanup Exceptions -- NEVER BaseException
-        # (KeyboardInterrupt / SystemExit / GeneratorExit). Pre-fix this returned
-        # True for any non-None exc_type, trapping Ctrl+C during the lazy-reap
-        # delete_item (the operator's shutdown signal disappeared into a debug log).
-        if not isinstance(exc, Exception):
-            return False
-        # The caller emits a fixed diagnostic only after this context manager has
-        # completed suppression; direct BaseException remains observable.
-        self.suppressed_error = True
-        return True
+_swallow = swallow_close_failures

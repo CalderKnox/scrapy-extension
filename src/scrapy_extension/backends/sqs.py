@@ -49,6 +49,7 @@ except ImportError as e:
         "SQS backend requires 'boto3'. Install with: pip install scrapy-extension[sqs]"
     ) from e
 
+from scrapy_extension.backends._close import swallow_close_failures
 from scrapy_extension.backends._redaction import _diagnostic_repr, _redact
 from scrapy_extension.backends.base import (
     Backend,
@@ -1633,32 +1634,7 @@ class SqsBackend(Backend, QueueBackend):
                     ) from purge_error
 
 
-class _swallow:
-    """Suppress regular cleanup errors and report that suppression to callers.
-
-    ``__exit__`` runs with the cleanup exception active.  It only records the
-    outcome; the outer teardown emits its static diagnostic after the ``with``
-    statement completes.
-    """
-
-    def __init__(self) -> None:
-        self.did_suppress = False
-
-    def __enter__(self) -> _swallow:
-        self.did_suppress = False
-        return self
-
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
-        if exc_type is None:
-            return False
-        # R-swallow: suppress only regular cleanup Exceptions -- NEVER BaseException
-        # (KeyboardInterrupt / SystemExit / GeneratorExit). Pre-fix this returned
-        # True for any non-None exc_type, trapping Ctrl+C during close()/disconnect
-        # (the operator's shutdown signal disappeared into a debug log).
-        if not isinstance(exc, Exception):
-            return False
-        self.did_suppress = True
-        return True
+_swallow = swallow_close_failures
 
 
 def _log_suppressed_cleanup_error() -> None:
