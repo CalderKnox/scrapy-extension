@@ -19,24 +19,10 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from scrapy_extension.exceptions.base import TRANSPORT_DIAGNOSTIC_FRAGMENTS
+
 __all__ = ["_RedactedStr"]
 
-_SENSITIVE_DIAGNOSTIC_FRAGMENTS = (
-    "password",
-    "secret",
-    "token",
-    "credential",
-    "authorization",
-    "api_key",
-    "api-key",
-    "apikey",
-    "pass",
-    "pwd",
-    "private_key",
-    "private-key",
-    "receipt",
-    "marker",
-)
 _URI_PREFIX = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 _SENSITIVE_HEADER = re.compile(
     r"^[ \t]*(?:authorization|proxy-authorization|cookie|set-cookie|"
@@ -95,7 +81,7 @@ def _diagnostic_repr(value: Any) -> str:
     if value == "token=None":
         return repr(value)
     lowered = value.lower()
-    if any(fragment in lowered for fragment in _SENSITIVE_DIAGNOSTIC_FRAGMENTS):
+    if any(fragment in lowered for fragment in TRANSPORT_DIAGNOSTIC_FRAGMENTS):
         return "<redacted>"
     if _SENSITIVE_HEADER.match(value) or _AUTH_SCHEME.match(value):
         return "<redacted>"

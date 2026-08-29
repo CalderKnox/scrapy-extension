@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Sensitive-name redaction fragments live in one canonical registry.**
+  The three redaction contexts (exception name/text matching, backend
+  transport-diagnostic values, settings-validation values) kept independent
+  fragment lists that had drifted apart — the hyphenated `api-key` spelling
+  was missing exactly where `api_key`/`apikey` were present, letting
+  `my-api-key-label` render unredacted in validation messages. Each context
+  now projects a single canonical frozenset (both spellings of every
+  concept) minus explicit, justified exemptions, and contract tests pin the
+  subset, no-orphan, and spelling-pair invariants.
+
 - **Identity key templates reject `:`-bearing project/spider names.**
   `scheduler-queue:{project}:{spider}` (and its dupefilter twin) delimit
   fields with `:`, so a project or spider name containing `:` could compose

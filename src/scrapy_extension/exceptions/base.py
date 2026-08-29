@@ -43,26 +43,75 @@ _AUTH_SCHEME_CREDENTIAL = re.compile(
 # any ``x:y@`` — or ``:y@``, since an empty username still carries a password —
 # prefix before the first "/" is checked structurally.
 _SCHEMELESS_USERINFO = re.compile(r"^[^/\s:@]*:[^/\s@]*@")
-_SENSITIVE_NAME_FRAGMENTS = (
-    "password",
-    "secret",
-    "api_key",
-    "apikey",
-    "token",
-    "credential",
-    "authorization",
-    "pass",
-    "pwd",
-    "private_key",
-    "privatekey",
-    "api-key",
-    "header",
-    "cookie",
-    "access_key",
-    "secret_key",
-    "marker",
-    "uri",
-    "url",
+# Canonical registry of every sensitive name fragment this package redacts,
+# in both the underscore and hyphen spelling where both exist. The three
+# redaction contexts PROJECT this registry (canonical minus explicit
+# per-context exemptions) instead of keeping independent copies — the three
+# former lists had already drifted apart (the hyphenated "api-key" spelling
+# was missing exactly where "api_key"/"apikey" were present). A fragment
+# added here therefore lands in every context unless a context explicitly
+# exempts it; keep each exemption justified next to its projection.
+SENSITIVE_NAME_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "password",
+        "secret",
+        "api_key",
+        "api-key",
+        "apikey",
+        "token",
+        "credential",
+        "authorization",
+        "pass",
+        "pwd",
+        "private_key",
+        "private-key",
+        "privatekey",
+        "access_key",
+        "access-key",
+        "secret_key",
+        "secret-key",
+        "header",
+        "cookie",
+        "uri",
+        "url",
+        "receipt",
+        "marker",
+    }
+)
+
+# Exception field/setting-name and sanitized-text matching: every fragment
+# except "receipt" — a queue acknowledgement receipt is identified by its
+# field shape elsewhere, and a field merely named "receipt" is not secret.
+EXCEPTION_NAME_FRAGMENTS: frozenset[str] = SENSITIVE_NAME_FRAGMENTS - frozenset(
+    {"receipt"}
+)
+
+# Backend transport-diagnostic value matching: header-shaped lines and
+# URI/URL-shaped text carry dedicated structural checks (regex prefix and
+# userinfo probes), and one-word "privatekey" without a separator is not a
+# credential signal in transport values; every credential fragment stays.
+TRANSPORT_DIAGNOSTIC_FRAGMENTS: frozenset[str] = SENSITIVE_NAME_FRAGMENTS - frozenset(
+    {"header", "cookie", "uri", "url", "privatekey"}
+)
+
+# Settings-validation value matching: the narrowest context by design —
+# validation echo values are configuration scalars, not transport material,
+# so only the classic credential fragments and the header/URI name shapes
+# redact here.
+VALIDATION_VALUE_FRAGMENTS: frozenset[str] = SENSITIVE_NAME_FRAGMENTS - frozenset(
+    {
+        "pass",
+        "pwd",
+        "private_key",
+        "private-key",
+        "privatekey",
+        "access_key",
+        "access-key",
+        "secret_key",
+        "secret-key",
+        "receipt",
+        "marker",
+    }
 )
 
 
@@ -71,7 +120,7 @@ def _contains_sensitive_fragment(value: str) -> bool:
     normalized = value.lower().replace("-", "_")
     return any(
         fragment.replace("-", "_") in normalized
-        for fragment in _SENSITIVE_NAME_FRAGMENTS
+        for fragment in EXCEPTION_NAME_FRAGMENTS
     )
 
 

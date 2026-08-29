@@ -33,6 +33,8 @@ from typing import Any, ClassVar, NoReturn, Protocol, cast
 
 from pydantic import SecretStr
 
+from scrapy_extension.exceptions.base import VALIDATION_VALUE_FRAGMENTS
+
 #: Legacy bytes marker retained for reading payloads written before the escaped
 #: codec. New writes use ``_CODEC_TAG`` and escape marker-shaped user dicts.
 _BYTES_TAG = "__b64__"
@@ -416,19 +418,7 @@ class JSONSerializer:
 # key-derived physical name (mirrors TOPIC_NAME_PATTERN in kafka.py).
 KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+\Z")
 _SAFE_DIAGNOSTIC_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*\Z")
-_SENSITIVE_DIAGNOSTIC_FRAGMENTS = (
-    "password",
-    "secret",
-    "token",
-    "credential",
-    "authorization",
-    "api_key",
-    "apikey",
-    "header",
-    "cookie",
-    "uri",
-    "url",
-)
+_SENSITIVE_DIAGNOSTIC_FRAGMENTS = VALIDATION_VALUE_FRAGMENTS
 
 
 def _safe_diagnostic_label(value: object, fallback: str) -> str:

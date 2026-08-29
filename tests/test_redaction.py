@@ -818,3 +818,57 @@ def test_json_serializer_persists_only_caller_explicit_secret_unwrap(
 
     assert type(unwrapped) in {str, bytes}
     assert serializer.deserialize(encoded) == {"credential": unwrapped}
+
+
+def test_sensitive_fragment_registry_unifies_all_contexts() -> None:
+    from scrapy_extension.exceptions.base import (
+        EXCEPTION_NAME_FRAGMENTS,
+        SENSITIVE_NAME_FRAGMENTS,
+        TRANSPORT_DIAGNOSTIC_FRAGMENTS,
+        VALIDATION_VALUE_FRAGMENTS,
+    )
+
+    projections = (
+        EXCEPTION_NAME_FRAGMENTS,
+        TRANSPORT_DIAGNOSTIC_FRAGMENTS,
+        VALIDATION_VALUE_FRAGMENTS,
+    )
+    # Projections are subsets of the canonical registry, never parallel lists.
+    for projection in projections:
+        assert projection <= SENSITIVE_NAME_FRAGMENTS
+    # No orphan fragments: every canonical fragment is live in some context.
+    assert SENSITIVE_NAME_FRAGMENTS <= set().union(
+        *(projection for projection in projections)
+    )
+    # Spelling pairs stay complete in the canonical registry: every hyphen
+    # spelling has its underscore twin (this is exactly the drift — the
+    # hyphenated "api-key" — that had escaped the validation context).
+    for fragment in SENSITIVE_NAME_FRAGMENTS:
+        if "-" in fragment:
+            assert fragment.replace("-", "_") in SENSITIVE_NAME_FRAGMENTS
+
+
+def test_validation_context_closes_the_api_key_spelling_drift() -> None:
+    from scrapy_extension.backends.base import _safe_diagnostic_value
+
+    assert _safe_diagnostic_value("my-api-key-label") == "<redacted>"
+    assert _safe_diagnostic_value("my_api_key_label") == "<redacted>"
+    # The validation context keeps its deliberately narrower scope: "pass"
+    # is exempt there, so ordinary prose stays diagnosable.
+    assert _safe_diagnostic_value("passenger-count") == repr("passenger-count")
+
+
+def test_transport_context_keeps_receipt_and_marker_value_shapes() -> None:
+    from scrapy_extension.backends._redaction import _diagnostic_repr
+
+    assert _diagnostic_repr("opaque receipt handle") == "<redacted>"
+    assert _diagnostic_repr("payload marker text") == "<redacted>"
+
+
+def test_exception_context_distinguishes_name_and_value_shapes() -> None:
+    from scrapy_extension.exceptions.base import _contains_sensitive_fragment
+
+    assert _contains_sensitive_fragment("secret_key") is True
+    assert _contains_sensitive_fragment("marker_field") is True
+    # "receipt" stays a transport shape, not a sensitive field name.
+    assert _contains_sensitive_fragment("receipt_handle") is False
