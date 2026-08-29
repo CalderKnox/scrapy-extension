@@ -50,6 +50,7 @@ except ImportError as e:
         "MongoDB backend requires 'pymongo'. Install with: pip install scrapy-extension[mongodb]"
     ) from e
 
+from scrapy_extension.backends._json_codec import secret_value
 from scrapy_extension.backends._redaction import _redact
 from scrapy_extension.backends.base import (
     Backend,
@@ -59,7 +60,6 @@ from scrapy_extension.backends.base import (
     StorageBackend,
     _hash_item,
     _validate_ttl,
-    secret_value,
 )
 from scrapy_extension.exceptions import (
     BackendConnectionError,

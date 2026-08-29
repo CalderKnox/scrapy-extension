@@ -47,6 +47,7 @@ except ImportError as e:
     ) from e
 
 from scrapy_extension.backends._close import close_handles
+from scrapy_extension.backends._json_codec import secret_value
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -54,7 +55,6 @@ from scrapy_extension.backends.base import (
     SetBackend,
     StorageBackend,
     _validate_ttl,
-    secret_value,
 )
 from scrapy_extension.exceptions import (
     BackendConnectionError,

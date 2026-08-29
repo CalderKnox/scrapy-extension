@@ -38,6 +38,7 @@ from scrapy_extension.backends._generation import (
     GenerationRecord,
     GenerationUnavailable,
 )
+from scrapy_extension.backends._json_codec import secret_value
 from scrapy_extension.backends._redaction import _diagnostic_repr, _redact
 from scrapy_extension.backends.base import (
     Backend,
@@ -45,7 +46,6 @@ from scrapy_extension.backends.base import (
     QueueBackend,
     _DurablePushRequired,
     _QueuePushReceipt,
-    secret_value,
 )
 from scrapy_extension.exceptions import (
     BackendConnectionError,
