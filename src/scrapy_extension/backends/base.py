@@ -21,7 +21,6 @@ import binascii
 import hashlib
 import json
 import math
-import re
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -33,8 +32,10 @@ from typing import Any, ClassVar, NoReturn, Protocol, cast
 
 from pydantic import SecretStr
 
-# P3-1: BackendType lives in the dependency-free core.types leaf; re-exported
-# here so the 30+ existing backends.base importers keep working unchanged.
+# P3-1: BackendType lives in the dependency-free core.types leaf and is
+# re-exported here (an __all__ member) for the existing backends.base
+# importers; the key-name grammar moved with it — consumers import
+# validate_key_name from the leaf directly.
 from scrapy_extension.core.types import BackendType
 from scrapy_extension.exceptions.base import VALIDATION_VALUE_FRAGMENTS
 
@@ -419,16 +420,7 @@ class JSONSerializer:
 # Uses \Z instead of $ so the pattern only matches at the string's absolute
 # end: $ would accept a trailing newline ("queue\n") and leak it into every
 # key-derived physical name (mirrors TOPIC_NAME_PATTERN in kafka.py).
-KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+\Z")
-_SAFE_DIAGNOSTIC_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*\Z")
 _SENSITIVE_DIAGNOSTIC_FRAGMENTS = VALIDATION_VALUE_FRAGMENTS
-
-
-def _safe_diagnostic_label(value: object, fallback: str) -> str:
-    """Keep static field labels out of validation exception injection paths."""
-    if type(value) is str and _SAFE_DIAGNOSTIC_LABEL.fullmatch(value):
-        return value
-    return fallback
 
 
 def _safe_diagnostic_value(value: object) -> str:
@@ -441,39 +433,6 @@ def _safe_diagnostic_value(value: object) -> str:
     ):
         return "<redacted>"
     return repr(value)
-
-
-def _validate_key_name(
-    name: str,
-    field_name: str = "name",
-    *,
-    max_length: int | None = None,
-) -> None:
-    """Validate key/queue/set/index names without echoing caller input.
-
-    ``max_length`` optionally bounds the byte length of the logical name for
-    backends with a server-side key limit (Memcached: 250 bytes). Length
-    limits for other backends stay with their own pre-IO checks (DynamoDB
-    partition keys, the snapshot repository's per-backend map) so the
-    documented per-backend contracts are unchanged.
-    """
-    invalid = False
-    safe_field_name = _safe_diagnostic_label(field_name, "name")
-    try:
-        invalid = (
-            not name
-            or KEY_NAME_PATTERN.match(name) is None
-            or (max_length is not None and len(name) > max_length)
-        )
-    finally:
-        # Validation failures are frequently translated at a public boundary.
-        # Do not retain the supplied key in this private traceback frame.
-        name = ""
-    if invalid:
-        raise ValueError(
-            f"Invalid {safe_field_name}. Only alphanumeric, dots, underscores, "
-            "hyphens, and colons allowed."
-        )
 
 
 def _validate_ttl(ttl: int | None) -> None:

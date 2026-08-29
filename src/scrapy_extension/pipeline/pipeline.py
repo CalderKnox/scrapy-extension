@@ -18,7 +18,8 @@ from twisted.internet.defer import Deferred, succeed
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure as TwistedFailure
 
-from scrapy_extension.backends.base import JSONSerializer, _validate_key_name
+from scrapy_extension.backends.base import JSONSerializer
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     BackendError,
@@ -26,8 +27,6 @@ from scrapy_extension.exceptions import (
     SerializationError,
     StorageBackpressureError,
     StorageError,
-)
-from scrapy_extension.exceptions._redaction import (
     serialization_error_boundary,
     storage_operation_error_boundary,
 )

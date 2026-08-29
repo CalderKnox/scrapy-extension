@@ -28,6 +28,7 @@ from threading import Condition, Lock
 from typing import Any, ParamSpec, TypeVar
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     from pymemcache.client.base import Client as MemcachedClient
@@ -44,11 +45,10 @@ from scrapy_extension.backends.base import (
     Backend,
     BackendType,
     StorageBackend,
-    _validate_key_name,
     _validate_ttl,
 )
-from scrapy_extension.exceptions import BackendConnectionError
-from scrapy_extension.exceptions._redaction import (
+from scrapy_extension.exceptions import (
+    BackendConnectionError,
     backend_connection_error_boundary,
     configuration_error_boundary,
     storage_operation_error_boundary,

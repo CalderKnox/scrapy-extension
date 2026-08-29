@@ -1127,3 +1127,35 @@ def test_backend_type_identity_is_shared_across_all_three_homes() -> None:
         circuit_breaker.CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S
         is core_types.CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S
     )
+
+
+def test_no_cross_package_reach_through_into_private_redaction_module() -> None:
+    """P3-6: the exceptions package init is the only seam for its helpers."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "src" / "scrapy_extension"
+    offenders = []
+    for path in root.rglob("*.py"):
+        if "exceptions" in path.parts[-2:-1] or (
+            path.name == "__init__.py" and path.parent.name == "exceptions"
+        ):
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "from scrapy_extension.exceptions._redaction import" in text:
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []
+
+
+def test_key_validation_consumers_use_the_public_leaf() -> None:
+    """P3-6: non-backend layers import validate_key_name from core.types."""
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent / "src" / "scrapy_extension"
+    offenders = []
+    for path in root.rglob("*.py"):
+        if "backends" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "_validate_key_name" in text and "core.types" not in text:
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []

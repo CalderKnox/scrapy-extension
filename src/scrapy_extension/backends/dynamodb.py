@@ -29,6 +29,7 @@ from functools import wraps
 from typing import Any
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import boto3
@@ -48,11 +49,11 @@ from scrapy_extension.backends.base import (
     Backend,
     BackendType,
     StorageBackend,
-    _validate_key_name,
     _validate_ttl,
 )
-from scrapy_extension.exceptions import BackendConnectionError, ConfigurationError
-from scrapy_extension.exceptions._redaction import (
+from scrapy_extension.exceptions import (
+    BackendConnectionError,
+    ConfigurationError,
     backend_connection_error_boundary,
     configuration_error_boundary,
     storage_operation_error_boundary,

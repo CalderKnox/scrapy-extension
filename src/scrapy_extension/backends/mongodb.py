@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 # Import the distribution's top-level package before its bundled ``bson``
 # namespace. When the optional extra is absent, this preserves the actionable
@@ -57,7 +58,6 @@ from scrapy_extension.backends.base import (
     SetBackend,
     StorageBackend,
     _hash_item,
-    _validate_key_name,
     _validate_ttl,
     secret_value,
 )
@@ -65,8 +65,6 @@ from scrapy_extension.exceptions import (
     BackendConnectionError,
     ConfigurationError,
     QueueError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     queue_operation_error_boundary,

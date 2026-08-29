@@ -17,7 +17,7 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 from typing_extensions import Self
 
-from scrapy_extension.exceptions._redaction import configuration_error_boundary
+from scrapy_extension.exceptions import configuration_error_boundary
 from scrapy_extension.exceptions.base import ConfigurationError
 from scrapy_extension.settings._endpoint_validation import (
     has_invalid_percent_escape,

@@ -38,7 +38,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING
 
-from scrapy_extension.backends.base import _validate_key_name
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.queue.strategies._names import (
     CURRENT_FANOUT_NAME_GENERATION,
     ensure_fanout_backend_supported,

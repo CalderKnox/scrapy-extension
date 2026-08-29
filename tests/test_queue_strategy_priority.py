@@ -387,8 +387,8 @@ def test_v2_namespaces_cannot_cross_collide_between_fanout_strategies():
 
 def test_derived_bucket_names_are_backend_portable_and_collision_resistant():
     """Strategy-created names must not introduce Kafka-invalid ``:`` separators."""
-    from scrapy_extension.backends.base import _validate_key_name
     from scrapy_extension.backends.kafka import _validate_topic_name
+    from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
     s, _ = _strategy(levels=3)
     names = {s._bucket_queue("jobs:tenant-a", level) for level in range(3)}

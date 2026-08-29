@@ -164,8 +164,8 @@ def test_v2_worker_name_is_distinct_from_literal_passthrough_queue():
 
 def test_derived_worker_names_are_backend_portable_and_distinct():
     """Logical names and worker IDs cannot inject Kafka-invalid separators."""
-    from scrapy_extension.backends.base import _validate_key_name
     from scrapy_extension.backends.kafka import _validate_topic_name
+    from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
     first, _ = _strategy(worker_id="region:a")
     second, _ = _strategy(worker_id="region.a")

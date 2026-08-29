@@ -22,7 +22,7 @@ from twisted.internet.defer import Deferred, DeferredList, fail
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure as TwistedFailure
 
-from scrapy_extension.backends.base import BackendType, _validate_key_name
+from scrapy_extension.backends.base import BackendType
 from scrapy_extension.backends.circuit_breaker import CircuitBreakerOpenError
 from scrapy_extension.backends.connectors import (
     _CONNECTION_MANAGER_SCOPE_KEY,
@@ -33,6 +33,7 @@ from scrapy_extension.backends.connectors import (
     resolve_backend_config,
 )
 from scrapy_extension.backends.registry import has_capability
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     BackendError,

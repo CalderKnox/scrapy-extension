@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import pika
@@ -44,15 +45,12 @@ from scrapy_extension.backends.base import (
     QueueBackend,
     _DurablePushRequired,
     _QueuePushReceipt,
-    _validate_key_name,
     secret_value,
 )
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     ConfigurationError,
     QueueError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     queue_operation_error_boundary,

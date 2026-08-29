@@ -46,8 +46,8 @@ from scrapy_extension.exceptions import (
     BackendError,
     QueueError,
     StorageError,
+    sanitize_backend_error,
 )
-from scrapy_extension.exceptions._redaction import sanitize_backend_error
 from scrapy_extension.exceptions.base import _looks_sensitive_text
 
 __all__ = [

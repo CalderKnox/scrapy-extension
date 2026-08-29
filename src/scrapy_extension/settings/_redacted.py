@@ -18,7 +18,7 @@ from pydantic_settings import (
 )
 from typing_extensions import Self
 
-from scrapy_extension.exceptions._redaction import sanitize_configuration_error
+from scrapy_extension.exceptions import sanitize_configuration_error
 from scrapy_extension.exceptions.base import ConfigurationError
 from scrapy_extension.settings._aws import _AWS_SAFE_CONFIGURATION_MESSAGES
 from scrapy_extension.settings._broker_endpoints import (

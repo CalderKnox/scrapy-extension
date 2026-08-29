@@ -12,7 +12,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, cast
 
-from scrapy_extension.backends.base import BackendType, _validate_key_name
+from scrapy_extension.backends.base import BackendType
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 DEFAULT_SNAPSHOT_MAX_BYTES = 128 * 1024 * 1024
 MAX_SNAPSHOT_CHUNK_BYTES = 256 * 1024

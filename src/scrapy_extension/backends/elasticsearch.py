@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import ValidationError
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     from elasticsearch import (
@@ -42,7 +43,6 @@ from scrapy_extension.backends.base import (
     QueueBackend,
     SetBackend,
     StorageBackend,
-    _validate_key_name,
     _validate_ttl,
     secret_value,
 )
@@ -54,8 +54,6 @@ from scrapy_extension.exceptions import (
     SetOutcomeIndeterminateError,
     StorageError,
     StorageOutcomeIndeterminateError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     queue_operation_error_boundary,

@@ -19,8 +19,8 @@ from weakref import ReferenceType, WeakSet, ref
 from scrapy import Spider
 from twisted.internet.defer import Deferred
 
-from scrapy_extension.backends.base import _validate_key_name
 from scrapy_extension.backends.circuit_breaker import CircuitBreakerOpenError
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.dupefilter.filters.base import FilterFull, MembershipFilter
 from scrapy_extension.dupefilter.filters.memory_filter import (
     DEFAULT_MEMORY_MAXSIZE,

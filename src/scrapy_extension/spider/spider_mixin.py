@@ -20,6 +20,7 @@ from twisted.internet.defer import Deferred
 from twisted.internet.threads import deferToThread
 from twisted.python.failure import Failure as TwistedFailure
 
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import ConfigurationError
 from scrapy_extension.monitor import NullMonitor
 from scrapy_extension.schedule._dupefilter_compat import (
@@ -551,7 +552,6 @@ class BackendSpiderMixin(Spider):
 
         if self._backend_type_name() not in CONSUMER_SCOPED_BACKENDS:
             return
-        from scrapy_extension.backends.base import _validate_key_name
 
         _validate_key_name(queue_name, "queue_name")
         claimed = self._consumer_queue_name

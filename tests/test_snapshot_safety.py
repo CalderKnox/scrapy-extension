@@ -16,10 +16,11 @@ import pytest
 
 import scrapy_extension.backends.memcached as memcached_mod
 import scrapy_extension.queue.snapshot as snapshot_mod
-from scrapy_extension.backends.base import BackendType, _validate_key_name
+from scrapy_extension.backends.base import BackendType
 from scrapy_extension.backends.dynamodb import DynamoDBBackend
 from scrapy_extension.backends.elasticsearch import ElasticSearchBackend
 from scrapy_extension.backends.memcached import MemcachedBackend
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import QueueError
 from scrapy_extension.monitor import NullMonitor
 from scrapy_extension.queue.queue import BackendQueue

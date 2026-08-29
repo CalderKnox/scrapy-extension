@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from scrapy_extension.backends.base import _validate_key_name
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     ConfigurationError,
 )

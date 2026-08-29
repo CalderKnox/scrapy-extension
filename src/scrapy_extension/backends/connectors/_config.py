@@ -43,8 +43,8 @@ from scrapy_extension.backends.registry import (
 )
 from scrapy_extension.exceptions import (
     ConfigurationError,
+    configuration_error_boundary,
 )
-from scrapy_extension.exceptions._redaction import configuration_error_boundary
 from scrapy_extension.utils._config import (
     parse_bool_setting,
     parse_float_setting,

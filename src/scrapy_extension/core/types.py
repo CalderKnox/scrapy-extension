@@ -10,11 +10,17 @@ re-export their former names, so every existing import keeps working.
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 from scrapy_extension.exceptions.base import _looks_sensitive_text
 
-__all__ = ["CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S", "BackendType"]
+__all__ = [
+    "CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S",
+    "KEY_NAME_PATTERN",
+    "BackendType",
+    "validate_key_name",
+]
 
 
 class BackendType(str, Enum):
@@ -82,3 +88,53 @@ class BackendType(str, Enum):
 # Policy ceiling (reject, not clamp): an OPEN breaker must always be able to
 # recover, so the reset timeout is bounded even for pathological configs.
 CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S: float = 3600.0
+
+
+# P3-6: the key/queue/set-name grammar is a package-wide identity contract
+# (P0-1: anchored with ``\Z`` so a trailing newline cannot leak into every
+# key-derived physical name). It lives here — dependency-free — so the
+# scheduler, dupefilter, pipeline, and snapshot layers validate through the
+# public leaf instead of reaching into ``backends.base`` privates.
+KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+\Z")
+
+_SAFE_DIAGNOSTIC_LABEL = re.compile(r"^[A-Za-z][A-Za-z0-9_.]*\Z")
+
+
+def _safe_diagnostic_label(value: object, fallback: str) -> str:
+    """Keep static field labels out of validation exception injection paths."""
+    if type(value) is str and _SAFE_DIAGNOSTIC_LABEL.fullmatch(value):
+        return value
+    return fallback
+
+
+def validate_key_name(
+    name: str,
+    field_name: str = "name",
+    *,
+    max_length: int | None = None,
+) -> None:
+    """Validate key/queue/set/index names without echoing caller input.
+
+    ``max_length`` optionally bounds the byte length of the logical name for
+    backends with a server-side key limit (Memcached: 250 bytes). Length
+    limits for other backends stay with their own pre-IO checks (DynamoDB
+    partition keys, the snapshot repository's per-backend map) so the
+    documented per-backend contracts are unchanged.
+    """
+    invalid = False
+    safe_field_name = _safe_diagnostic_label(field_name, "name")
+    try:
+        invalid = (
+            not name
+            or KEY_NAME_PATTERN.match(name) is None
+            or (max_length is not None and len(name) > max_length)
+        )
+    finally:
+        # Validation failures are frequently translated at a public boundary.
+        # Do not retain the supplied key in this private traceback frame.
+        name = ""
+    if invalid:
+        raise ValueError(
+            f"Invalid {safe_field_name}. Only alphanumeric, dots, underscores, "
+            "hyphens, and colons allowed."
+        )

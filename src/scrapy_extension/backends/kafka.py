@@ -67,8 +67,6 @@ from scrapy_extension.exceptions import (
     ConfigurationError,
     QueueError,
     QueueOutcomeIndeterminateError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     queue_operation_error_boundary,

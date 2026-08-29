@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 from scrapy.http import FormRequest, JsonRequest, Request, XmlRpcRequest
 
-from scrapy_extension.backends.base import (
-    JSONSerializer,
-    QueueBackend,
-    _validate_key_name,
+from scrapy_extension.backends.base import JSONSerializer, QueueBackend
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
+from scrapy_extension.exceptions import (
+    QueueError,
+    SerializationError,
+    serialization_error_boundary,
 )
-from scrapy_extension.exceptions import QueueError, SerializationError
-from scrapy_extension.exceptions._redaction import serialization_error_boundary
 from scrapy_extension.monitor import (
     DEFAULT_POP_RATE_WINDOW_S,
     Monitor,

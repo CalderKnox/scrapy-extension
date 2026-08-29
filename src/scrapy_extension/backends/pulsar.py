@@ -33,6 +33,7 @@ from scrapy_extension.backends._generation import (
     GenerationUnavailable,
 )
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import pulsar
@@ -49,14 +50,11 @@ from scrapy_extension.backends.base import (
     Backend,
     BackendType,
     QueueBackend,
-    _validate_key_name,
 )
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     ConfigurationError,
     QueueError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     not_implemented_error_boundary,

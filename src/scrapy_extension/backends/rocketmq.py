@@ -48,14 +48,12 @@ from scrapy_extension.backends.base import (
     Backend,
     BackendType,
     QueueBackend,
-    _validate_key_name,
 )
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     ConfigurationError,
     QueueError,
-)
-from scrapy_extension.exceptions._redaction import (
     backend_connection_error_boundary,
     configuration_error_boundary,
     control_exception_traceback_boundary,

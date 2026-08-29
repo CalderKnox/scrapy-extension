@@ -2705,13 +2705,13 @@ class TestKeyNameAbsoluteEndAnchoring:
         ],
     )
     def test_trailing_line_breaks_rejected(self, name: str) -> None:
-        from scrapy_extension.backends.base import _validate_key_name
+        from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
         with pytest.raises(ValueError, match="Invalid name"):
             _validate_key_name(name)
 
     def test_clean_name_still_accepted(self) -> None:
-        from scrapy_extension.backends.base import KEY_NAME_PATTERN
+        from scrapy_extension.core.types import KEY_NAME_PATTERN
 
         assert KEY_NAME_PATTERN.match("jobs.worker-1:v2") is not None
 
@@ -2728,7 +2728,7 @@ class TestKeyNameLengthBounds:
     """
 
     def test_default_validator_is_unbounded(self) -> None:
-        from scrapy_extension.backends.base import _validate_key_name
+        from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
         _validate_key_name("a" * 300)
 

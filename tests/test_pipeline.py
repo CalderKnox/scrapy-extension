@@ -13,7 +13,8 @@ from scrapy import Field, Item
 from scrapy.exceptions import ScrapyDeprecationWarning
 from scrapy.pipelines import ItemPipelineManager
 
-from scrapy_extension.backends.base import JSONSerializer, _validate_key_name
+from scrapy_extension.backends.base import JSONSerializer
+from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     BackendConnectionError,
     BackendError,
