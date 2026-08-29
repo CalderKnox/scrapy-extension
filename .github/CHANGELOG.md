@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **DynamoDB data-plane operations run on the thread-safe client API.**
+  The published generation now carries `resource.meta.client`, and every
+  data-plane call (`put_item` / `get_item` / `delete_item` / `scan`, plus
+  the clear-fence conditional deletes, lazy TTL reaps, and the
+  `DescribeTable` health check) goes through it with `TableName` threaded
+  from the snapshot. Table lifecycle (create / load / wait-until-exists)
+  stays on the Resource under the connect lock, where it is safe. The
+  global operation lock is retained for now — the lease conversion
+  (the throughput payoff) is phase 2 and stays gated on the integration
+  suite and benchmarks.
+
 - **Backend type identity lives in a dependency-free core leaf.**
   `BackendType` and the circuit-breaker reset ceiling moved to
   `scrapy_extension.core.types`; their former homes re-export them, so all

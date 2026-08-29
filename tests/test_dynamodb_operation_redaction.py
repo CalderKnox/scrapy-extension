@@ -81,6 +81,13 @@ def _backend(mocker: Any) -> tuple[DynamoDBBackend, Any]:
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     session = mocker.MagicMock()
     session.resource.return_value = resource
     mocker.patch.object(boto3.session, "Session", return_value=session)
@@ -205,7 +212,7 @@ def test_dynamodb_storage_boundary_rebuilds_exact_connection_error(
 ) -> None:
     backend, _table = _backend(mocker)
     error = BackendConnectionError(_MARKER, backend_type="plugin")
-    mocker.patch.object(backend, "_table_for_operation_locked", side_effect=error)
+    mocker.patch.object(backend, "_generation_for_operation_locked", side_effect=error)
 
     with pytest.raises(BackendConnectionError) as exc_info:
         backend.store(_MARKER, _MARKER.encode())
@@ -223,7 +230,7 @@ def test_dynamodb_storage_boundary_preserves_plugin_storage_subclass(
     backend, _table = _backend(mocker)
     plugin_error = _PluginStorageError(_MARKER, operation="plugin", key=_MARKER)
     mocker.patch.object(
-        backend, "_table_for_operation_locked", side_effect=plugin_error
+        backend, "_generation_for_operation_locked", side_effect=plugin_error
     )
 
     with pytest.raises(_PluginStorageError) as exc_info:

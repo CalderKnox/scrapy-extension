@@ -18,6 +18,13 @@ def _connected(mocker, **overrides):
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     session = mocker.MagicMock()
     session.resource.return_value = resource
     mocker.patch.object(boto3.session, "Session", return_value=session)
@@ -32,7 +39,7 @@ class TestDynamoDBErrorPaths:
 
     def test_ping_failure(self, mocker) -> None:
         b, table = _connected(mocker)
-        table.load.side_effect = RuntimeError("down")
+        table.describe_table.side_effect = RuntimeError("down")
         assert b.ping() is False
 
     def test_disconnect(self, mocker) -> None:

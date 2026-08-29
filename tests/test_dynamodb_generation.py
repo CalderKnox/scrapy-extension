@@ -30,6 +30,13 @@ def _resource(mocker: Any, table: Any | None = None) -> tuple[Any, Any]:
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     return resource, table
 
 
@@ -708,7 +715,7 @@ def test_ping_requires_a_data_plane_usable_table_status(
     resource, table = _resource(mocker)
     _patch_resource(mocker, return_value=resource)
     backend.connect()
-    table.table_status = table_status
+    table.describe_table.return_value = {"Table": {"TableStatus": table_status}}
 
     assert backend.ping() is expected
 
@@ -720,7 +727,7 @@ def test_ping_requires_a_data_plane_usable_table_status(
         ("delete", "delete_item"),
         ("exists", "get_item"),
         ("ttl", "get_item"),
-        ("ping", "load"),
+        ("ping", "describe_table"),
         ("clear_storage", "scan"),
     ],
 )
@@ -731,13 +738,14 @@ def test_every_sdk_operation_is_serialized_behind_store(
     resource, table = _resource(mocker)
     _patch_resource(mocker, return_value=resource)
     backend.connect()
-    table.load.reset_mock()
+    table.describe_table.reset_mock()
     table.get_item.reset_mock()
     table.delete_item.reset_mock()
     table.scan.reset_mock()
     table.get_item.return_value = {}
     table.delete_item.return_value = {}
     table.scan.return_value = {"Items": []}
+    table.describe_table.return_value = {"Table": {"TableStatus": "ACTIVE"}}
     observed_lock = _ObservedRLock()
     contender_attempted = observed_lock.observe(method_name)
     backend._operation_lock = observed_lock

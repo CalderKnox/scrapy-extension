@@ -37,6 +37,13 @@ def _connected(mocker, **settings: Any) -> tuple[DynamoDBBackend, Any, Any]:
                     attributes[name] = values[token.replace("#", ":", 1)]
         return {"Attributes": attributes}
 
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     table.delete_item.side_effect = successful_conditional_delete
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
@@ -64,6 +71,7 @@ def _revision_item(key: str, revision: str = _OLD_REVISION) -> dict[str, Any]:
 
 def _assert_revision_delete(call: Any, key: str, revision: Any) -> None:
     assert call.kwargs == {
+        "TableName": "scrapy-extension",
         "Key": {"pk": key},
         "ConditionExpression": "#revision = :revision",
         "ExpressionAttributeNames": {"#revision": _REVISION},
@@ -200,6 +208,7 @@ def test_quiesced_override_conditionally_deletes_legacy_row_without_claim(
 
     table.update_item.assert_not_called()
     assert table.delete_item.call_args.kwargs == {
+        "TableName": "scrapy-extension",
         "Key": {"pk": "legacy"},
         "ConditionExpression": (
             "attribute_exists(pk) AND attribute_not_exists(#revision) "
@@ -380,10 +389,10 @@ def test_real_resource_conditional_delete_api_shape_with_stubber() -> None:
             "  stubber.add_response('delete_item', wire, expected)",
             "  stubber.add_response('delete_item', legacy_wire, legacy_expected)",
             "  DynamoDBBackend._delete_clear_item(",
-            "    table, item, allow_unfenced_legacy_clear=False",
+            "    client, 'scrapy-extension', item, allow_unfenced_legacy_clear=False",
             "  )",
             "  DynamoDBBackend._delete_clear_item(",
-            "    table, legacy, allow_unfenced_legacy_clear=True",
+            "    client, 'scrapy-extension', legacy, allow_unfenced_legacy_clear=True",
             "  )",
             "  stubber.assert_no_pending_responses()",
         )
@@ -466,6 +475,7 @@ def test_prefix_clear_validates_scope_and_paginates(mocker) -> None:
 
     assert table.scan.call_count == 2
     assert table.scan.call_args_list[0].kwargs == {
+        "TableName": "scrapy-extension",
         "ConsistentRead": True,
         "FilterExpression": "begins_with(pk, :p)",
         "ExpressionAttributeValues": {":p": "tenant-a:"},

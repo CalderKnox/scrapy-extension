@@ -19,6 +19,13 @@ def _connected(mocker) -> tuple[DynamoDBBackend, Any]:
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     session.resource.return_value = resource
     mocker.patch.object(
         dynamodb_module.boto3.session,

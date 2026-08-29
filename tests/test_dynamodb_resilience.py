@@ -55,6 +55,14 @@ def _connected_backend(mocker) -> tuple[DynamoDBBackend, Any]:
     table.load.return_value = None
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
+    table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     session = mocker.MagicMock()
     session.resource.return_value = resource
     mocker.patch(
@@ -138,9 +146,10 @@ def test_ping_returns_true_on_successful_load(mocker) -> None:
     """Line 157: ping() returns True when ``table.load()`` succeeds — the
     health-check contract for a connected backend."""
     backend, table = _connected_backend(mocker)
-    table.load.reset_mock()
+    table.describe_table.reset_mock()
+    table.describe_table.return_value = {"Table": {"TableStatus": "ACTIVE"}}
     assert backend.ping() is True
-    table.load.assert_called_once()
+    table.describe_table.assert_called_once_with(TableName="scrapy-extension")
 
 
 # ---------------------------------------------------------------------------

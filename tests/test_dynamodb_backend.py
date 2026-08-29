@@ -58,6 +58,13 @@ def _connected(mocker):
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client; alias
+    # the methods onto the table mock so either handle observes the same calls.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     _patch_resource(mocker, return_value=resource)
     b.connect()
     return b, table
@@ -315,7 +322,9 @@ class TestDynamoDBStorageOps:
 
         assert b.retrieve("key1") is None
 
-        table.get_item.assert_called_once_with(Key={"pk": "key1"}, ConsistentRead=True)
+        table.get_item.assert_called_once_with(
+            TableName="scrapy-extension", Key={"pk": "key1"}, ConsistentRead=True
+        )
 
     def test_retrieve_expired_deletes_and_returns_none(self, mocker) -> None:
         b, table = _connected(mocker)
@@ -324,6 +333,7 @@ class TestDynamoDBStorageOps:
         }
         assert b.retrieve("key1") is None
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "key1"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -334,7 +344,7 @@ class TestDynamoDBStorageOps:
         table.delete_item.return_value = {"Attributes": {"pk": "key1"}}
         assert b.delete("key1") is True
         table.delete_item.assert_called_once_with(
-            Key={"pk": "key1"}, ReturnValues="ALL_OLD"
+            TableName="scrapy-extension", Key={"pk": "key1"}, ReturnValues="ALL_OLD"
         )
 
     @pytest.mark.parametrize(
@@ -480,7 +490,9 @@ class TestDynamoDBStorageOps:
 
         assert b.exists("k") is False
 
-        table.get_item.assert_called_once_with(Key={"pk": "k"}, ConsistentRead=True)
+        table.get_item.assert_called_once_with(
+            TableName="scrapy-extension", Key={"pk": "k"}, ConsistentRead=True
+        )
 
     def test_exists_false_for_expired(self, mocker) -> None:
         b, table = _connected(mocker)
@@ -496,6 +508,7 @@ class TestDynamoDBStorageOps:
         }
         assert b.exists("k") is False
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "k"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -525,7 +538,9 @@ class TestDynamoDBStorageOps:
 
         assert b.ttl("k") is None
 
-        table.get_item.assert_called_once_with(Key={"pk": "k"}, ConsistentRead=True)
+        table.get_item.assert_called_once_with(
+            TableName="scrapy-extension", Key={"pk": "k"}, ConsistentRead=True
+        )
 
     def test_ttl_none_with_null_expire_at(self, mocker) -> None:
         """A persisted null expiry is the same permanent-value sentinel as absence."""
@@ -550,6 +565,7 @@ class TestDynamoDBStorageOps:
         }
         assert b.ttl("k") is None
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "k"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -576,6 +592,7 @@ class TestDynamoDBStorageOps:
         assert getattr(b, operation)("k") is expected
 
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "k"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -602,6 +619,7 @@ class TestDynamoDBStorageOps:
 
         assert raised.value is interrupt
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "k"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -626,6 +644,7 @@ class TestDynamoDBStorageOps:
         }
         assert b.retrieve("k") is None
         table.delete_item.assert_called_once_with(
+            TableName="scrapy-extension",
             Key={"pk": "k"},
             ConditionExpression="expire_at = :exp",
             ExpressionAttributeValues={":exp": 1.0},
@@ -915,6 +934,10 @@ def test_dynamodb_credentials_redacted_in_resource_kwargs(mocker):
     captured: dict[str, object] = {}
 
     class _FakeResource:
+        # The published generation carries the thread-safe client
+        # (resource.meta.client) for the data plane.
+        meta = mocker.MagicMock()
+
         def Table(self, name: str) -> object:
             table = mocker.MagicMock()
             table.load.side_effect = _make_client_error("ResourceNotFoundException")

@@ -615,6 +615,12 @@ def test_dynamodb_contract_accepts_maximum_snapshot_chunk(mocker: Any) -> None:
     table.table_status = "ACTIVE"
     resource.Table.return_value = table
     table.meta.client = resource.meta.client
+    # R144 P2-1 phase 1: the data plane runs on the thread-safe client.
+    table.put_item = resource.meta.client.put_item
+    table.get_item = resource.meta.client.get_item
+    table.delete_item = resource.meta.client.delete_item
+    table.scan = resource.meta.client.scan
+    table.describe_table = resource.meta.client.describe_table
     session = MagicMock()
     session.resource.return_value = resource
     mocker.patch.object(boto3.session, "Session", return_value=session)

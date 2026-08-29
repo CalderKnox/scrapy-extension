@@ -7,10 +7,14 @@ is auto-created on connect if missing (PAY_PER_REQUEST, hash key ``pk``).
 
 boto3 resource API (stable):
 - ``boto3.session.Session().resource("dynamodb", region_name=, endpoint_url=, ...)``
-- ``resource.Table(name)`` / ``resource.create_table(...)``
-- ``table.load()`` / ``table.wait_until_exists()``
-- ``table.put_item(Item=)`` / ``get_item(Key=)`` / conditional ``delete_item(...)``
-- ``table.scan()`` / revision-conditioned ``delete_item(...)`` for clears
+- ``resource.Table(name)`` / ``resource.create_table(...)`` (lifecycle only)
+- ``table.load()`` / ``table.wait_until_exists()`` (connect-time, under the
+  connect lock — the Resource API is not thread-safe)
+- client ``put_item(TableName=, Item=)`` / ``get_item(TableName=, Key=)`` /
+  conditional ``delete_item(TableName=, ...)`` — the data plane runs on the
+  thread-safe ``resource.meta.client``
+- client ``scan(TableName=)`` / revision-conditioned ``delete_item(...)`` for
+  clears; ``describe_table`` for the health check
 """
 
 from __future__ import annotations
@@ -194,6 +198,11 @@ class _DynamoDBGeneration:
 
     session: Any
     resource: Any
+    # The boto3 client is thread-safe where the Resource is not; the data
+    # plane (put/get/delete/scan + describe_table health check) runs on it.
+    # Table lifecycle (create/load/wait) stays on the Resource under the
+    # connect lock — a single-threaded admin path.
+    client: Any
     table: Any
     snapshot: _DynamoDBConnectionSnapshot
 
@@ -564,6 +573,7 @@ class DynamoDBBackend(Backend, StorageBackend):
             return _DynamoDBGeneration(
                 session=session,
                 resource=resource,
+                client=resource.meta.client,
                 table=table,
                 snapshot=snapshot,
             )
@@ -599,10 +609,6 @@ class DynamoDBBackend(Backend, StorageBackend):
                 key=key,
             )
         return generation
-
-    def _table_for_operation_locked(self, operation: str, key: str | None) -> Any:
-        """Return the authoritative table or raise the stable storage contract."""
-        return self._generation_for_operation_locked(operation, key).table
 
     @staticmethod
     def _validated_scan_page(
@@ -687,7 +693,8 @@ class DynamoDBBackend(Backend, StorageBackend):
     @classmethod
     def _delete_clear_item(
         cls,
-        table: Any,
+        client: Any,
+        table_name: str,
         item: dict[str, Any],
         *,
         allow_unfenced_legacy_clear: bool,
@@ -740,7 +747,7 @@ class DynamoDBBackend(Backend, StorageBackend):
                 "ReturnValues": "ALL_OLD",
             }
         try:
-            response = table.delete_item(**delete_kwargs)
+            response = client.delete_item(TableName=table_name, **delete_kwargs)
         except Exception as exc:
             if _is_conditional_check_failed(exc):
                 raise cls._clear_concurrent_write_error() from None
@@ -938,14 +945,17 @@ class DynamoDBBackend(Backend, StorageBackend):
             return self._generation is not None
 
     def ping(self) -> bool:
-        """Health check via table.load()."""
+        """Health check via DescribeTable on the thread-safe client."""
         with self._operation("ping"):
             generation = self._generation
             if generation is None:
                 return False
             try:
-                generation.table.load()
-                return generation.table.table_status in _DDB_USABLE_TABLE_STATUSES
+                response = generation.client.describe_table(
+                    TableName=generation.snapshot.table_name
+                )
+                status = response["Table"]["TableStatus"]
+                return status in _DDB_USABLE_TABLE_STATUSES
             except Exception:
                 return False
 
@@ -1017,7 +1027,10 @@ class DynamoDBBackend(Backend, StorageBackend):
         return expire_at, epoch
 
     def _lazy_reap_if_expired(
-        self, table: Any, expiry: tuple[Any, float] | None, key: str
+        self,
+        generation: _DynamoDBGeneration,
+        expiry: tuple[Any, float] | None,
+        key: str,
     ) -> bool:
         """Lazy-reap an expired item; return True if expired (caller treats as absent).
 
@@ -1034,7 +1047,8 @@ class DynamoDBBackend(Backend, StorageBackend):
         raw_expiry, _ = expiry
         cleanup = _swallow()
         with cleanup:
-            table.delete_item(
+            generation.client.delete_item(
+                TableName=generation.snapshot.table_name,
                 Key={"pk": key},
                 ConditionExpression="expire_at = :exp",
                 ExpressionAttributeValues={":exp": raw_expiry},
@@ -1085,9 +1099,11 @@ class DynamoDBBackend(Backend, StorageBackend):
             item["expire_at"] = expire_at
         _validate_item_size(key, data, expire_at)
         with self._operation("store"):
-            table = self._table_for_operation_locked("store", key)
+            generation = self._generation_for_operation_locked("store", key)
             try:
-                table.put_item(Item=item)
+                generation.client.put_item(
+                    TableName=generation.snapshot.table_name, Item=item
+                )
             except Exception as e:
                 if _is_resource_not_found(e):
                     # Table vanished mid-operation — treat as storage failure too, but
@@ -1121,9 +1137,13 @@ class DynamoDBBackend(Backend, StorageBackend):
         """
         _validate_partition_key(key)
         with self._operation("retrieve"):
-            table = self._table_for_operation_locked("retrieve", key)
+            generation = self._generation_for_operation_locked("retrieve", key)
             try:
-                resp = table.get_item(Key={"pk": key}, ConsistentRead=True)
+                resp = generation.client.get_item(
+                    TableName=generation.snapshot.table_name,
+                    Key={"pk": key},
+                    ConsistentRead=True,
+                )
             except Exception as e:
                 msg = f"Failed to retrieve key {key!r} from DynamoDB"
                 raise StorageError(msg, operation="retrieve", key=key) from e
@@ -1131,7 +1151,7 @@ class DynamoDBBackend(Backend, StorageBackend):
             if item is None:
                 return None
             expiry = self._validated_expiry(item, "retrieve", key)
-            if self._lazy_reap_if_expired(table, expiry, key):
+            if self._lazy_reap_if_expired(generation, expiry, key):
                 return None
             value = item.get("value", _MISSING)
             if isinstance(value, (bytes, bytearray)):
@@ -1171,9 +1191,13 @@ class DynamoDBBackend(Backend, StorageBackend):
         """
         _validate_partition_key(key)
         with self._operation("delete"):
-            table = self._table_for_operation_locked("delete", key)
+            generation = self._generation_for_operation_locked("delete", key)
             try:
-                resp = table.delete_item(Key={"pk": key}, ReturnValues="ALL_OLD")
+                resp = generation.client.delete_item(
+                    TableName=generation.snapshot.table_name,
+                    Key={"pk": key},
+                    ReturnValues="ALL_OLD",
+                )
             except Exception as e:
                 # Preserve the SDK exception as the cause without copying its message:
                 # endpoint URLs and provider diagnostics can contain operator secrets.
@@ -1205,9 +1229,13 @@ class DynamoDBBackend(Backend, StorageBackend):
         """
         _validate_partition_key(key)
         with self._operation("exists"):
-            table = self._table_for_operation_locked("exists", key)
+            generation = self._generation_for_operation_locked("exists", key)
             try:
-                resp = table.get_item(Key={"pk": key}, ConsistentRead=True)
+                resp = generation.client.get_item(
+                    TableName=generation.snapshot.table_name,
+                    Key={"pk": key},
+                    ConsistentRead=True,
+                )
             except Exception as e:
                 msg = f"Failed to check existence of key {key!r} in DynamoDB"
                 raise StorageError(msg, operation="exists", key=key) from e
@@ -1215,7 +1243,7 @@ class DynamoDBBackend(Backend, StorageBackend):
             if item is None:
                 return False
             expiry = self._validated_expiry(item, "exists", key)
-            return not self._lazy_reap_if_expired(table, expiry, key)
+            return not self._lazy_reap_if_expired(generation, expiry, key)
 
     @storage_operation_error_boundary(
         "ttl",
@@ -1241,9 +1269,13 @@ class DynamoDBBackend(Backend, StorageBackend):
         """
         _validate_partition_key(key)
         with self._operation("ttl"):
-            table = self._table_for_operation_locked("ttl", key)
+            generation = self._generation_for_operation_locked("ttl", key)
             try:
-                resp = table.get_item(Key={"pk": key}, ConsistentRead=True)
+                resp = generation.client.get_item(
+                    TableName=generation.snapshot.table_name,
+                    Key={"pk": key},
+                    ConsistentRead=True,
+                )
             except Exception as e:
                 msg = f"Failed to read TTL of key {key!r} in DynamoDB"
                 raise StorageError(msg, operation="ttl", key=key) from e
@@ -1259,7 +1291,7 @@ class DynamoDBBackend(Backend, StorageBackend):
             # returned 0 for an expired key without reaping, conflating "about to
             # expire" with "expired long ago" and leaving the dead row to linger until
             # a retrieve/exists/clear_storage touched it.
-            if self._lazy_reap_if_expired(table, expiry, key):
+            if self._lazy_reap_if_expired(generation, expiry, key):
                 return None
             return max(0, int(expiry[1] - time.time()))
 
@@ -1310,7 +1342,8 @@ class DynamoDBBackend(Backend, StorageBackend):
         # generation during any conditional claim or delete RPC.
         with self._operation("clear_storage"):
             generation = self._generation_for_operation_locked("clear_storage", None)
-            table = generation.table
+            client = generation.client
+            table_name = generation.snapshot.table_name
             try:
                 # Paginate: a single ``scan`` returns at most ~1 MB per page; without
                 # following ``LastEvaluatedKey`` a large table is silently partial-clear
@@ -1320,7 +1353,8 @@ class DynamoDBBackend(Backend, StorageBackend):
                 # page while detecting non-adjacent pagination cycles.
                 seen_cursor_digests: set[bytes] = set()
                 while True:
-                    scan = table.scan(
+                    scan = client.scan(
+                        TableName=table_name,
                         **scan_kwargs,
                         **({"ExclusiveStartKey": last_key} if last_key else {}),
                     )
@@ -1348,7 +1382,8 @@ class DynamoDBBackend(Backend, StorageBackend):
                         seen_cursor_digests.add(cursor_digest)
                     for item in items:
                         self._delete_clear_item(
-                            table,
+                            generation.client,
+                            generation.snapshot.table_name,
                             item,
                             allow_unfenced_legacy_clear=(
                                 generation.snapshot.allow_unfenced_legacy_clear
