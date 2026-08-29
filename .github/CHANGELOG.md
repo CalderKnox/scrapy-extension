@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The JSON wire codec lives in its own module.** The escaped recursive
+  codec (round-trip markers, escaped-dict collision guards, SecretStr
+  terminal rejection, `Serializer`, `secret_value`, `JSONSerializer`)
+  moved verbatim from `backends/base.py` to `backends/_json_codec.py`,
+  halving the backend-interface module. `JSONSerializer` and `Serializer`
+  still import from `scrapy_extension.backends.base`; the wire format and
+  every serializer contract are unchanged.
+
 - **DynamoDB data-plane operations run on the thread-safe client API.**
   The published generation now carries `resource.meta.client`, and every
   data-plane call (`put_item` / `get_item` / `delete_item` / `scan`, plus
