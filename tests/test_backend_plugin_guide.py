@@ -10,7 +10,13 @@ from typing import Any
 
 import pytest
 
-_GUIDE_PATH = Path(__file__).resolve().parents[1] / "docs" / "backend-plugins.md"
+_GUIDE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "docs"
+    / "06-guides"
+    / "developer-guides"
+    / "backend-plugins.md"
+)
 _BACKEND_EXAMPLE = re.compile(
     r"### `mybackend_plugin/backends\.py` .*?\n\n```python\n(.*?)\n```",
     re.DOTALL,

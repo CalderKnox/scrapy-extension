@@ -10,7 +10,11 @@ import pytest
 from scrapy_extension.exceptions import ConfigurationError
 from scrapy_extension.settings import MongoDBSettings, RedisSettings
 
-_DOCUMENTS = ("README.md", ".github/CHANGELOG.md", "docs/06-guides/user-guides/migration-guide.md")
+_DOCUMENTS = (
+    "README.md",
+    ".github/CHANGELOG.md",
+    "docs/06-guides/user-guides/migration-guide.md",
+)
 _LOCAL_EXCEPTION = (
     "authenticated plaintext is preserved only for direct, literal-loopback "
     "standalone redis and mongodb development connections."

@@ -35,7 +35,9 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _README = (_REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
-_RUNBOOK = (_REPOSITORY_ROOT / "docs" / "runbook.md").read_text(encoding="utf-8")
+_RUNBOOK = (_REPOSITORY_ROOT / "docs" / "05-runbooks" / "runbook.md").read_text(
+    encoding="utf-8"
+)
 _STABILITY = (_REPOSITORY_ROOT / ".github" / "STABILITY.md").read_text(encoding="utf-8")
 _SECURITY = (_REPOSITORY_ROOT / ".github" / "SECURITY.md").read_text(encoding="utf-8")
 _CHANGELOG = (_REPOSITORY_ROOT / ".github" / "CHANGELOG.md").read_text(encoding="utf-8")

@@ -49,7 +49,7 @@ def test_shipped_guidance_uses_uv_and_loopback_socket_allowlists() -> None:
         repository_root / "README.md",
         repository_root / "examples" / "README.md",
         repository_root / ".github" / "CONTRIBUTING.md",
-        repository_root / "docs" / "runbook.md",
+        repository_root / "docs" / "05-runbooks" / "runbook.md",
         repository_root / "tests" / "integration" / "docker-compose.yml",
         *sorted((repository_root / "tests" / "integration").glob("test_*.py")),
     ]
