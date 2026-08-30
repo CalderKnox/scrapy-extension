@@ -1,6 +1,6 @@
 # Backend Plugins — Authoring a 3rd-Party Backend
 
-> Back to [Codebase Overview](codebase-deep-insight.md) · [README](../README.md)
+> Back to [Codebase Overview](../../02-design/00-architecture/codebase-deep-insight.md) · [README](../../../README.md)
 
 `scrapy-extension` ships 10 bundled backends (Redis, MongoDB, Kafka, RabbitMQ,
 ElasticSearch, RocketMQ, Pulsar, SQS, Memcached, DynamoDB). You do **not** need to
@@ -8,7 +8,7 @@ fork the package to add another — any installed distribution can register a ba
 through the `scrapy_extension.backends` entry-point group, and it is then selectable
 via `SCRAPY_BACKEND_TYPE` exactly like a bundled one.
 
-This document is the authoring contract for 3rd-party plugin authors. `BackendDescriptor` entry-point registration is currently **Experimental** (see [`STABILITY.md`](../.github/STABILITY.md)): usable, tested, and intended for plugin authors, but still allowed to evolve in a minor `0.x` release until a third-party ecosystem validates the surface. The guide covers the entry-point shape, the descriptor dataclass, the lazy-import rule, bundled-wins precedence, and a worked end-to-end example.
+This document is the authoring contract for 3rd-party plugin authors. `BackendDescriptor` entry-point registration is currently **Experimental** (see [`STABILITY.md`](../../../.github/STABILITY.md)): usable, tested, and intended for plugin authors, but still allowed to evolve in a minor `0.x` release until a third-party ecosystem validates the surface. The guide covers the entry-point shape, the descriptor dataclass, the lazy-import rule, bundled-wins precedence, and a worked end-to-end example.
 
 ## How Registration Works
 
@@ -500,9 +500,9 @@ Also verify the lazy-import rule manually: importing `scrapy_extension.backends.
 
 ## See Also
 
-- [Codebase Overview](codebase-deep-insight.md) — backend implementation
+- [Codebase Overview](../../02-design/00-architecture/codebase-deep-insight.md) — backend implementation
   matrix, multi-mode support, connection management.
-- [README](../README.md) — installation, quick start, backend configuration.
+- [README](../../../README.md) — installation, quick start, backend configuration.
 - `src/scrapy_extension/backends/base.py` — the `Backend` / `QueueBackend` /
   `SetBackend` / `StorageBackend` interfaces your class implements.
 - `src/scrapy_extension/backends/registry.py` — the `BackendDescriptor`

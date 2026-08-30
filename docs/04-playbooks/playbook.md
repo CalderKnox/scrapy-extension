@@ -2,9 +2,9 @@
 
 Operational handbook for engineers working on `scrapy-extension`. This is the
 "how we work here" companion to the user-facing references: behavior contracts
-live in [`README.md`](../README.md) and [`runbook.md`](runbook.md), the plugin
-contract in [`backend-plugins.md`](backend-plugins.md), persisted-state
-semantics in [`migration-guide.md`](migration-guide.md). When this document and
+live in [`README.md`](../README.md) and [`runbook.md`](../05-runbooks/runbook.md), the plugin
+contract in [`backend-plugins.md`](../06-guides/developer-guides/backend-plugins.md), persisted-state
+semantics in [`migration-guide.md`](../06-guides/user-guides/migration-guide.md). When this document and
 the code disagree, the code wins — then fix this document.
 
 Generated from a full-repo deep read (2026-08-15); file:line citations are
@@ -95,7 +95,7 @@ green pytest is **not** a green CI:
    advisory ignore, `PYSEC-2017-83`, with in-file rationale).
 5. Build + verify + smoke-test the package artifacts (3.10 lane): build →
    grep wheel/sdist listings against a forbidden regex (secrets /
-   credentials / key material / `docs/insight` must not ship — overlapping
+   credentials / key material / `docs/08-archive/insight` must not ship — overlapping
    with, not identical to, the broader `source-exclude` list in
    `pyproject.toml`; keep both consistent) → fresh wheel install of `[all]`,
    asserting every `Backend/Mode/Settings` trio imports.
@@ -339,7 +339,7 @@ Break any of these and the suite (rightly) falls over:
 
 ### Add a 3rd-party plugin backend
 
-See [`backend-plugins.md`](backend-plugins.md) for the full contract (surface
+See [`backend-plugins.md`](../06-guides/developer-guides/backend-plugins.md) for the full contract (surface
 is Experimental). Shape: one entry point
 `[project.entry-points."scrapy_extension.backends"] mybackend =
 "pkg.registration:register"` returning a frozen `BackendDescriptor` with
@@ -482,14 +482,14 @@ fidelity, never N==N; zero delivery is `pytest.fail`, not skip.
 | Doc | What it covers |
 |---|---|
 | [`README.md`](../README.md) | install/extras contract, guarantees, testing entry |
-| [`runbook.md`](runbook.md) | operations: strategy tables, Redis namespaces, ack/durability matrix, metrics keys, tuning, release procedure |
-| [`backend-plugins.md`](backend-plugins.md) | 3rd-party backend author contract (Experimental) |
-| [`migration-guide.md`](migration-guide.md) | persisted-state migrations: physical keys, snapshot v2/v3, wire codec, TTL contract, rollback |
+| [`runbook.md`](../05-runbooks/runbook.md) | operations: strategy tables, Redis namespaces, ack/durability matrix, metrics keys, tuning, release procedure |
+| [`backend-plugins.md`](../06-guides/developer-guides/backend-plugins.md) | 3rd-party backend author contract (Experimental) |
+| [`migration-guide.md`](../06-guides/user-guides/migration-guide.md) | persisted-state migrations: physical keys, snapshot v2/v3, wire codec, TTL contract, rollback |
 | `.github/CONTRIBUTING.md` / `STABILITY.md` / `CHANGELOG.md` | dev setup, semver policy, changelog |
 | `.claude/CLAUDE.md` | agent-facing build/test guide (mirrors this playbook's command set) |
-| [`insight/LEDGER.md`](insight/LEDGER.md) | dedup ledger of every scan finding, keyed `(file:line, root-class)` |
+| [`../08-archive/insight/LEDGER.md`](../08-archive/insight/LEDGER.md) | dedup ledger of every scan finding, keyed `(file:line, root-class)` |
 
-`docs/insight/` (~400 files) is **maintainer planning history, not public
+`docs/08-archive/insight/` (~400 files) is **maintainer planning history, not public
 truth** — behavior questions go to README/runbook/migration-guide. Most
 correctness hardening came out of the "R-round" insight loop: parallel opus
 finder agents + adversarial verification (verifiers must confirm quoted

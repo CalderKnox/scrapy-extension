@@ -122,7 +122,7 @@ The default is `scrapy-extension`; it separates queue/set/storage domains but
 does not distinguish two applications. New namespaced keys do not fall back to
 the legacy unnamespaced layout. Drain or migrate persistent deployments before
 upgrading; see the
-[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/migration-guide.md).
+[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md).
 
 Deployment modes:
 
@@ -432,7 +432,7 @@ and cross-field project constraints raise `ConfigurationError`.
 
 The current namespace layout intentionally does not read old unnamespaced keys.
 Do not use `FLUSHDB` as a migration tool on a shared database. Follow the
-[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/migration-guide.md).
+[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md).
 
 **Spider not found**
 

@@ -6,7 +6,7 @@ Entries are keyed by `(file:line, root-class)` and use one of these states:
 
 **Coverage:** This ledger records insight findings through R143 (R141-R143 were produced and landed by the 2026-08-23 deep-insight/fix/verify pipeline). For maintenance
 commits after R140, verify the current state against Git history and the latest
-[`CHANGELOG`](../../.github/CHANGELOG.md); the absence of a later ledger row is
+[`CHANGELOG`](../../../.github/CHANGELOG.md); the absence of a later ledger row is
 not evidence that no maintenance change occurred.
 
 | Round | Finding | Location | Root class | State | Evidence |

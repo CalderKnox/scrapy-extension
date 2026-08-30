@@ -4266,7 +4266,7 @@ Line 278 read: "pytest-xdist (parallel), **hypothesis (property-based)**, pytest
 - `grep -E "hypothesis|faker|mutmut" README.md` → **none** (clean).
 - Every tool now named in the README is in the test deps. ✓
 - `poe test` (README line 275) is a real task (`tasks.test` runs `test-py310`…`test-py314` + `test-py314t`) — the "full matrix" claim holds, and its inclusion of `test-py314` is consistent with R78's CI matrix addition.
-- The `[![License]](LICENSE)` badge + "see [LICENSE]" link (lines 6, 282) now resolve — R77 created the file (previously a broken link).
+- The `[![License]](../../LICENSE)` badge + "see [LICENSE]" link (lines 6, 282) now resolve — R77 created the file (previously a broken link).
 
 ### Observed (not actioned)
 

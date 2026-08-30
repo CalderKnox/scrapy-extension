@@ -13,13 +13,13 @@ _REQUIRED_GUIDANCE = {
         "If item-level removal is required, choose the exact `memory` or `set` "
         "strategy; Cuckoo supports only `clear()` for a whole-filter reset.",
     ),
-    "docs/runbook.md": (
+    "docs/05-runbooks/runbook.md": (
         "tolerates false positives; whole-filter clear only",
         "If item-level removal is required, choose the exact `memory` or `set` "
         "strategy.",
         "Cuckoo supports only `clear()` for a whole-filter reset.",
     ),
-    "docs/migration-guide.md": (
+    "docs/06-guides/user-guides/migration-guide.md": (
         "Callers that require exact per-item removal should select the\n"
         "`memory` or `set` strategy instead.",
     ),

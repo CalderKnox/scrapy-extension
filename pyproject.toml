@@ -198,10 +198,7 @@ source-exclude = [
     "**/.DS_Store",
     # Historical working notes and archived audits are useful in Git but are
     # not user-facing package documentation.
-    "docs/archive/**",
-    "docs/audits/**",
-    "docs/insight/**",
-    "docs/superpowers/**",
+    "docs/08-archive/**",
 ]
 
 [tool.poe]

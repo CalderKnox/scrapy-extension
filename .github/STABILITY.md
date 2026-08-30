@@ -124,7 +124,7 @@ know about:
   guards (SV4), and empty-string + unbounded-int gaps (SV5). Project
   cross-field/capability/unknown-name checks raise `ConfigurationError`;
   Pydantic field type/range/enum failures raise `ValidationError`. See the
-  [settings-validation spec](https://github.com/azwpayne/scrapy-extension/blob/main/docs/insight/SPEC-round8-settings-validation.md).
+  [settings-validation spec](https://github.com/azwpayne/scrapy-extension/blob/main/docs/08-archive/insight/SPEC-round8-settings-validation.md).
 - **U4 — `queue_len` depth sampling.** `BackendQueue(depth_sample_every=100)`
   bounds real backend depth probes while a non-zero cached depth is in its
   sampling window, reclaiming pop-path RTT budget at default config
@@ -181,6 +181,6 @@ correctness-motivated; none are revertible without re-opening the footgun.
   `SerializationError`, and counted rather than redelivered forever.
 
 See the **Breaking** section of [`CHANGELOG.md`](CHANGELOG.md) `[Unreleased]`
-and the [migration guide](../docs/migration-guide.md) for operator steps.
+and the [migration guide](../docs/06-guides/user-guides/migration-guide.md) for operator steps.
 
 For the full change history, see [`CHANGELOG.md`](CHANGELOG.md).

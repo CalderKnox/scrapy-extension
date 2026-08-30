@@ -6,8 +6,8 @@
 > Baseline map: [`ITERATIVE-HARDENING-2026-07-21.md`](./ITERATIVE-HARDENING-2026-07-21.md).
 > Companion plan: [`PLAN-2026-07-23-post-hardening-frontier.md`](./PLAN-2026-07-23-post-hardening-frontier.md).
 > This is maintainer planning, not a public roadmap — for current public
-> behavior see [`../../README.md`](../../README.md); for maturity guarantees
-> see [`../../.github/STABILITY.md`](../../.github/STABILITY.md).
+> behavior see [`../../README.md`](../../../README.md); for maturity guarantees
+> see [`../../.github/STABILITY.md`](../../../.github/STABILITY.md).
 
 **Status legend:** 🔴 top-risk · 🟠 medium · 🟢 low · 🔧 executable
 

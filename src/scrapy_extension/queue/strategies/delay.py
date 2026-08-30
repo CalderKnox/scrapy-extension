@@ -77,7 +77,7 @@ class DelayQueueStrategy(QueueStrategy):
     mixing ``delay`` + ``priority``). R14-F.
 
     Cross-worker holding is not supported in v1 — each process holds its own
-    delayed items. See ``docs/superpowers/specs/2026-06-19-queue-semantics-design.md``.
+    delayed items. See ``docs/08-archive/superpowers/specs/2026-06-19-queue-semantics-design.md``.
 
     Attributes:
         _default_delay: Default delay when push omits an explicit delay.

@@ -248,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return to the colon layout under `legacy_v1`, which hashed them away even
   before the flip; keep worker IDs
   stable across the migration. See
-  [`docs/migration-guide.md`](../docs/migration-guide.md).
+  [`docs/06-guides/user-guides/migration-guide.md`](../docs/06-guides/user-guides/migration-guide.md).
 
 Round-9/14 hardening introduced config-time validators that **refuse to start**
 crawlers carrying unsafe or incoherent config. Each item is security-motivated
@@ -261,7 +261,7 @@ upgrading.
   database must choose distinct `SCRAPY_REDIS_NAMESPACE` values. There is no
   implicit legacy fallback because it could read or delete another
   application's key. Drain or explicitly migrate persistent data before
-  upgrading; see [`docs/migration-guide.md`](../docs/migration-guide.md).
+  upgrading; see [`docs/06-guides/user-guides/migration-guide.md`](../docs/06-guides/user-guides/migration-guide.md).
 - **Redis clients and namespaces now belong to immutable connection
   generations.** While a generation is published, `connect()` is idempotent
   instead of replacing its client; use `disconnect()` / `connect()` after a
@@ -451,7 +451,7 @@ upgrading.
   Botocore FIPS/dual-stack selection remains available when the SQS endpoint
   is unset. Code that depended on `boto3.setup_default_session(...)` or event
   hooks registered only on that global Session must migrate; see
-  [`docs/migration-guide.md`](../docs/migration-guide.md).
+  [`docs/06-guides/user-guides/migration-guide.md`](../docs/06-guides/user-guides/migration-guide.md).
 - **DynamoDB Session/Resource/Table handles now belong to one generation.**
   Every candidate owns a private boto3 Session instead of the process-wide
   default. A live `connect()` is idempotent and candidates are published only
@@ -520,7 +520,7 @@ upgrading.
   repr-redacted snapshot for client and subscription construction, and public
   startup tracebacks suppress driver text. Service URLs are normalized to the
   SDK's case-sensitive scheme and single-prefix cluster syntax; see
-  [`docs/migration-guide.md`](../docs/migration-guide.md).
+  [`docs/06-guides/user-guides/migration-guide.md`](../docs/06-guides/user-guides/migration-guide.md).
 - **Remote Memcached plaintext is now explicit.** Memcached exposes neither
   authentication nor transport encryption through this backend, so a
   non-loopback host now requires
@@ -1087,17 +1087,17 @@ upgrading.
 - **Added:** entry-point plugin registration — 3rd-party backends register
   via `[project.entry-points."scrapy_extension.backends"]`; the bundled 10
   are statically seeded in `backends/registry.py` as dotted-path strings
-  (lazy-import preserved). See [`docs/backend-plugins.md`](../docs/backend-plugins.md).
+  (lazy-import preserved). See [`docs/06-guides/developer-guides/backend-plugins.md`](../docs/06-guides/developer-guides/backend-plugins.md).
 - **Added:** backend-plugin author contract documentation.
 - **Added:** `BackendSpiderMixin` shortcut attributes for ElasticSearch +
   RocketMQ (cloud_id / api_key / namesrv_address / access_key / secret_key).
 - **Added:** `pipeline/storage_skipped` stat counter (distinguishes "no
   items scraped" from "items silently dropped" on storage-unsupported
   backends).
-- **Added:** three v1.0-readiness SPECs (`docs/insight/SPEC-round8-tier1.md`,
+- **Added:** three v1.0-readiness SPECs (`docs/08-archive/insight/SPEC-round8-tier1.md`,
   `SPEC-round8-testing.md`, `SPEC-round8-v1readiness.md`,
   `SPEC-round8-settings-validation.md`) + consolidated execution menu
-  (`docs/insight/EXECUTION-INDEX.md`).
+  (`docs/08-archive/insight/EXECUTION-INDEX.md`).
 - **Security (round 6, landed in this arc):** settings and backend SDK-config
   guards SEC-1..7 — SEC-1 `_RedactedStr` repr protection, SEC-2 MongoDB
   insecure-TLS-in-prod rejection, SEC-3 ES cleartext-credentials-over-http
@@ -1141,7 +1141,7 @@ upgrading.
 
 ### Round 8d — settings validation SPEC
 
-- **Added:** `docs/insight/SPEC-round8-settings-validation.md` — 34-footgun
+- **Added:** `docs/08-archive/insight/SPEC-round8-settings-validation.md` — 34-footgun
   settings-validation hunt resolved into 5 executable units (SV1–SV5).
 
 ### Round 10 — backlog merge sweep (2026-07-04)

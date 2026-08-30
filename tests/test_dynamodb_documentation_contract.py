@@ -14,7 +14,7 @@ _REQUIRED_GUIDANCE = {
         "`_scrapy_revision` to a freshly generated `uuid.uuid4().hex` on every "
         "replacement",
     ),
-    "docs/runbook.md": (
+    "docs/05-runbooks/runbook.md": (
         "Every package `store()` generates `_scrapy_revision` with "
         "`uuid.uuid4().hex`; the required stored grammar is exactly 32 lowercase "
         "hexadecimal characters",
@@ -22,7 +22,7 @@ _REQUIRED_GUIDANCE = {
         "`uuid.uuid4().hex` on every replacement: exactly 32 lowercase hexadecimal "
         "characters",
     ),
-    "docs/migration-guide.md": (
+    "docs/06-guides/user-guides/migration-guide.md": (
         "Package stores generate `_scrapy_revision` with `uuid.uuid4().hex`; the "
         "required stored grammar is exactly 32 lowercase hexadecimal characters",
         "DynamoDB package writes now include the reserved `_scrapy_revision` string "

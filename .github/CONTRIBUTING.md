@@ -109,7 +109,7 @@ uv run poe test-py310    # one version
 > Note: `poe test-py314t` (free-threaded) runs on 3.14t, but `lxml` (a scrapy
 > dependency via `parsel`) re-enables the GIL on import — so it verifies
 > interpreter-compat, not GIL-free concurrency. See
-> `docs/code-review-2026-06-15.md` Round 81.
+> `docs/08-archive/code-review-2026-06-15.md` Round 81.
 
 ## Lint, types, and format
 
@@ -162,7 +162,7 @@ historical audit records:
 - [`README.md`](../README.md) — project overview, configuration, and supported
   backend/component behavior.
 - [`STABILITY.md`](STABILITY.md) — public API and backend maturity commitments.
-- [`docs/runbook.md`](../docs/runbook.md) — deployment, monitoring, and incident
+- [`docs/05-runbooks/runbook.md`](../docs/05-runbooks/runbook.md) — deployment, monitoring, and incident
   operations.
-- [`docs/migration-guide.md`](../docs/migration-guide.md) — upgrade and persisted
+- [`docs/06-guides/user-guides/migration-guide.md`](../docs/06-guides/user-guides/migration-guide.md) — upgrade and persisted
   backlog migration procedures.

@@ -15,7 +15,7 @@ Distributed crawling for Scrapy with pluggable backends (**Redis**, **MongoDB**,
 - [Architecture](#architecture) · [Scrapy Components](#scrapy-components) · [Exceptions](#exceptions)
 - [Examples](#examples) · [Security](#security) · [Testing](#testing) · [License](#license)
 
-> **Deeper docs:** [operations](https://github.com/azwpayne/scrapy-extension/blob/main/docs/runbook.md) · [upgrade and backlog migration](https://github.com/azwpayne/scrapy-extension/blob/main/docs/migration-guide.md) · [plugin authors](https://github.com/azwpayne/scrapy-extension/blob/main/docs/backend-plugins.md) · [API/maturity](https://github.com/azwpayne/scrapy-extension/blob/main/.github/STABILITY.md) · [runnable examples](https://github.com/azwpayne/scrapy-extension/tree/main/examples)
+> **Deeper docs:** [operations](https://github.com/azwpayne/scrapy-extension/blob/main/docs/05-runbooks/runbook.md) · [upgrade and backlog migration](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md) · [plugin authors](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/developer-guides/backend-plugins.md) · [API/maturity](https://github.com/azwpayne/scrapy-extension/blob/main/.github/STABILITY.md) · [runnable examples](https://github.com/azwpayne/scrapy-extension/tree/main/examples)
 
 ## Features
 
@@ -168,7 +168,7 @@ Redis physical keys are now isolated as `<namespace>:set:*`,
 deliberately no fallback to the legacy unnamespaced layout because that could
 read or delete another application's keys in a shared database. Persistent
 deployments must drain or explicitly migrate the old keys before upgrading;
-see the [migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/migration-guide.md#redis-physical-key-layout).
+see the [migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md#redis-physical-key-layout).
 
 Redis topology settings are deliberately explicit:
 
@@ -551,7 +551,7 @@ HTTPS validation. Botocore FIPS/dual-stack endpoint selection remains
 available when the SQS endpoint is unset. A custom
 `boto3.setup_default_session(...)` or event hook attached only to that global
 Session is intentionally not inherited; see the
-[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/migration-guide.md#sqs-private-boto3-sessions).
+[migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md#sqs-private-boto3-sessions).
 
 ### Memcached (standalone, NoSQL KV)
 

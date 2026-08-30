@@ -29,7 +29,7 @@ _REQUIRED_EXCLUDES = {
     "**/*.sqlite3",
     "**/local_settings.py",
     "**/generated-canary*/**",
-    "docs/audits/**",
+    "docs/08-archive/**",
 }
 
 

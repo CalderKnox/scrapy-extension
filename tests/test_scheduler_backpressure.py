@@ -869,7 +869,7 @@ class TestBackpressureStatsNoneAndFallthrough:
 
     Characterization tests — pin that the gate works without a stats collector
     and that an armed gate below threshold falls through to pop.
-    See docs/superpowers/specs/2026-07-02-scheduler-branch-closure-design.md.
+    See docs/08-archive/superpowers/specs/2026-07-02-scheduler-branch-closure-design.md.
     """
 
     def test_G8_pause_without_stats(self) -> None:

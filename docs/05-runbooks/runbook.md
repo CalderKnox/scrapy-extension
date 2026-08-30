@@ -5,7 +5,7 @@ assumes the Scrapy settings wiring is already in place (see
 [`README.md`](../README.md) → *Quick Start*).
 
 Before upgrading a persistent deployment, read the
-[migration guide](migration-guide.md). It covers Redis physical-key changes,
+[migration guide](../06-guides/user-guides/migration-guide.md). It covers Redis physical-key changes,
 strategy snapshot ownership, and queued-request wire compatibility.
 
 For Redis Sentinel deployments with TLS enabled, verify both the Sentinel
@@ -326,7 +326,7 @@ Current keys do not fall back to the legacy raw layout. During an upgrade:
 1. Stop old writers and take a backup.
 2. Prefer draining the legacy request queue with the old version.
 3. Explicitly migrate retained set/storage keys into the selected namespace,
-   using the physical mapping in the [migration guide](migration-guide.md#redis-physical-key-layout).
+   using the physical mapping in the [migration guide](../06-guides/user-guides/migration-guide.md#redis-physical-key-layout).
 4. Start all new workers with the same namespace. Do not run old and new writers
    against one logical backlog: they address different physical keys.
 
@@ -899,7 +899,7 @@ may redeliver according to its normal policy.
 For an upgrade carrying old queued requests, drain with the old version when
 possible. Unmarked legacy bodies can be ambiguous: an old raw UTF-8 body that
 happens to be valid Base64 cannot be distinguished from an intermediate Base64
-wire format. See [queued-request wire format](migration-guide.md#queued-request-wire-format).
+wire format. See [queued-request wire format](../06-guides/user-guides/migration-guide.md#queued-request-wire-format).
 
 ## Secret-bearing payloads
 
@@ -936,7 +936,7 @@ exist; this is the canonical procedure until it lands):
 1. **Bump version:** `uv version <bump>` (or edit `pyproject.toml`
    `[project] version`).
 2. **Sync lockfile:** `uv lock` (verify `uv lock --check` passes).
-3. **Update CHANGELOG:** move the [`Unreleased`](../.github/CHANGELOG.md) entries
+3. **Update CHANGELOG:** move the [`Unreleased`](../../.github/CHANGELOG.md) entries
    into a new `## [X.Y.Z] — YYYY-MM-DD` section.
 4. **Verify source and artifacts before publication:** run `uv run --no-sync ruff check`,
    `uv run --no-sync pytest -m "not integration"`, and
@@ -981,4 +981,4 @@ exist; this is the canonical procedure until it lands):
    confirm `__version__` matches.
 
 For the stability commitment each release makes, see
-[`STABILITY.md`](../.github/STABILITY.md).
+[`STABILITY.md`](../../.github/STABILITY.md).

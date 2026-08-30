@@ -11,7 +11,7 @@ Lazy-import invariant (load-bearing):
   ``_BUNDLED_DESCRIPTORS`` stores dotted-path STRINGS only. It NEVER imports
   a backend module at registry-build time. A 3rd-party plugin's registration
   callable is also expected to return PATH strings, not the imported class —
-  this is the documented 3rd-party contract in ``docs/backend-plugins.md``.
+  this is the documented 3rd-party contract in ``docs/06-guides/developer-guides/backend-plugins.md``.
   This keeps the round-2 promise: ``import scrapy_extension`` works with NO
   optional backend dependency installed; backends load on demand via
   :func:`scrapy_extension.backends.connectors._load_object`.
