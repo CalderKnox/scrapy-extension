@@ -1,31 +1,33 @@
-# \<Feature or component\> design
+# {Feature or component} design
 
 - **Status:** draft
 - **Last updated:** YYYY-MM-DD
-- **Related:** \<RFCs, ADRs, or API docs\>
+- **Related:** {RFCs, ADRs, or API docs}
+
+<!-- Replace every placeholder. Keep one system, feature, or component per file. -->
 
 ## Overview
 
-<What this covers and how it fits into the system.>
+<!-- Scope, audience, and relationship to neighboring components. -->
 
 ## Goals and non-goals
 
-- **Goals:** <...>
-- **Non-goals:** <explicitly out of scope>
+- **Goals:** {...}
+- **Non-goals:** {explicitly out of scope}
 
 ## Architecture
 
-<Components, responsibilities, and interactions. Include diagrams (Mermaid
-is fine) where they help.>
+<!-- Components, responsibilities, interfaces, and interactions. Include
+diagrams (Mermaid is fine) where they improve understanding. -->
 
 ## Data model
 
-<Schemas, storage, and data flow.>
+<!-- Schemas, ownership, storage, lifecycle, and data flow. -->
 
 ## Alternatives considered
 
-<Options rejected and why.>
+<!-- Meaningful alternatives and links to formal ADRs if applicable. -->
 
 ## Open questions
 
-<Unresolved points, with owners.>
+<!-- Unresolved points with owners and target dates, or "None". -->

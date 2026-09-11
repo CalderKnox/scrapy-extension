@@ -5,21 +5,22 @@ is written.
 
 ## Contents
 
-_None yet — number proposals sequentially as `NNNN-<slug>.md`, starting from
-`0001`._
+_None yet._
 
 | RFC | Title | Status |
 | --- | ----- | ------ |
 
 ## Writing an RFC
 
-Copy [_template.md](_template.md) to `NNNN-<slug>.md` and fill it in. Add a
-row to the table above and keep its status current.
+Copy [_template.md](_template.md) to `NNNN-<slug>.md`, numbering sequentially
+from `0001`, and fill it in. Add a row to the table above and keep its status
+current.
 
 ## Lifecycle
 
 `draft → review → accepted / rejected → implemented`
 
-Once an RFC is accepted, move implementation detail into
-[02-design/](../02-design/) or [03-api/](../03-api/) and record the outcome
-in [01-adrs/](../01-adrs/). Do not rewrite accepted RFCs.
+Once an RFC is accepted, move design detail into
+[02-design/](../02-design/) and interface contracts into
+[03-api/](../03-api/), and record the outcome in
+[01-adrs/](../01-adrs/). Do not rewrite accepted RFCs.

@@ -1,19 +1,21 @@
-# NNNN. <Title>
+# NNNN. {Title}
 
 - **Status:** proposed
 - **Date:** YYYY-MM-DD
-- **Deciders:** \<who decided\>
+- **Deciders:** {who decided}
 
-Status is one of: proposed, accepted, rejected, superseded by `NNNN`.
+<!-- Use for a durable, cross-cutting decision. Replace every placeholder. -->
+
+Status values: proposed, accepted, rejected, or superseded by NNNN.
 
 ## Context
 
-<The forces at play: requirements, constraints, and the options considered.>
+<!-- Requirements, constraints, evidence, and options considered. -->
 
 ## Decision
 
-<What was chosen, in one or two sentences.>
+<!-- State the choice unambiguously; link to implementation details. -->
 
 ## Consequences
 
-<The resulting benefits, costs, and constraints.>
+<!-- Positive, negative, and follow-up consequences. -->

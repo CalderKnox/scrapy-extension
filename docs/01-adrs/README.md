@@ -12,7 +12,8 @@ future contributors understand not just *what* the system does but *why*.
 ## Writing an ADR
 
 Copy [_template.md](_template.md) to `NNNN-<slug>.md`. One file per decision;
-add a row to the table above.
+add a row to the table above. For a local, reversible trade-off, use the
+[design-decision template](../02-design/01-decisions/_template.md) instead.
 
 Once a decision is superseded, mark it and link to its replacement — do not
 rewrite history.

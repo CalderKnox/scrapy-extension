@@ -1,30 +1,30 @@
-# NNNN. <Title>
+# NNNN. {Title}
 
 - **Status:** draft
-- **Author:** \<name\>
+- **Author:** {name}
 - **Created:** YYYY-MM-DD
-- **Deciders:** \<who signs off\>
+- **Deciders:** {who signs off}
 
 ## Summary
 
-<One-paragraph overview of the proposal.>
+<!-- One paragraph: what is proposed and what outcome it enables. -->
 
 ## Motivation
 
-<What problem are we solving, and why now?>
+<!-- Problem, affected users, evidence, and why now. -->
 
 ## Detailed design
 
-<The proposed change: approach, alternatives considered, trade-offs.>
+<!-- Proposed approach, interfaces, migration, alternatives, and trade-offs. -->
 
 ## Drawbacks
 
-<Why should we *not* do this?>
+<!-- Costs, risks, and constraints introduced by the proposal. -->
 
 ## Rollout
 
-<How the change ships, and what existing users or deployments must do.>
+<!-- Release, compatibility, observability, and rollback plan. -->
 
 ## Open questions
 
-<Unresolved points to settle during review.>
+<!-- Unresolved points with an owner and target date, or "None". -->

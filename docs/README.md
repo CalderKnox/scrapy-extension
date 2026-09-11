@@ -20,9 +20,11 @@ operating the built system:
 | [07-reference/](07-reference/) | Reference material: glossary, configuration        |
 | [08-archive/](08-archive/)     | Superseded and historical documents                |
 
-Each directory has a `README.md` describing what belongs there — list new
-documents in it. `00-rfcs/`, `01-adrs/`, and `02-design/` also ship a
-`_template.md` scaffold to copy when creating a document.
+Each visible documentation directory has a `README.md` describing what
+belongs there and a local `_template.md` scaffold to copy when creating a
+document. Templates are
+directory-specific, but use the same metadata order, heading style, and
+placeholder conventions.
 
 Maintainer execution history — round-based SPEC/PLAN/TASK records and the
 insight ledger — lives in [08-archive/insight/](08-archive/insight/).
@@ -31,10 +33,31 @@ insight ledger — lives in [08-archive/insight/](08-archive/insight/).
 
 - One topic per file, named in `kebab-case.md`; RFCs and ADRs use
   `NNNN-<slug>.md` numbering.
-- Every subdirectory is indexed by its `README.md`, which GitHub renders
+- Keep the metadata block immediately below the title. Use ISO dates
+  (`YYYY-MM-DD`), lowercase lifecycle statuses, and links rather than copied
+  text.
+- Every directory is indexed by its `README.md`, which GitHub renders
   automatically when browsing; `_template.md` files are scaffolds, not
   documents.
 - Prefer linking from prose over duplicating content.
+
+## Document quality
+
+Run [`scripts/docs-check.sh`](../scripts/docs-check.sh) before committing a
+documentation change. It checks that every visible docs directory has both an
+index and a local template, and that key cross-links remain intact.
+
+`01-adrs/` and `02-design/01-decisions/` are complementary:
+
+| Use | `01-adrs/` | `02-design/01-decisions/` |
+| --- | --- | --- |
+| Scope | Cross-cutting or externally visible architecture | Local implementation or component trade-off |
+| Authority | Durable project decision | Working design note |
+| Change policy | Append a superseding ADR; preserve history | Update as the design evolves |
+
+If a design note gains cross-cutting impact or creates a long-lived
+compatibility promise, promote it to an ADR and link the replacement from the
+original note.
 
 ## Where does my document go?
 

@@ -144,6 +144,7 @@ source-include = [
     "conftest.py",
     "docs/**",
     "examples/**",
+    "scripts/docs-check.sh",
     "tests/**",
     "tools/**",
     "uv.lock",
