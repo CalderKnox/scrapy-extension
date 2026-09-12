@@ -43,9 +43,9 @@ insight ledger — lives in [08-archive/insight/](08-archive/insight/).
 
 ## Document quality
 
-Run [`scripts/docs-check.sh`](../scripts/docs-check.sh) before committing a
-documentation change. It checks that every visible docs directory has both an
-index and a local template, and that key cross-links remain intact.
+The Documentation quality workflow checks every visible docs directory for an
+index and a local template, and verifies key cross-links on pushes and pull
+requests.
 
 `01-adrs/` and `02-design/01-decisions/` are complementary:
 
