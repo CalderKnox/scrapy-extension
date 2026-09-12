@@ -7,8 +7,5 @@ result.
 
 _None yet — add tutorials and list them here._
 
-| Document | Description |
-| -------- | ----------- |
-
 A tutorial is learning-oriented: follow it top to bottom. Task-oriented
 how-tos belong in [developer-guides/](../developer-guides/).

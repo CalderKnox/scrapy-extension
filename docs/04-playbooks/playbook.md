@@ -2,7 +2,7 @@
 
 Operational handbook for engineers working on `scrapy-extension`. This is the
 "how we work here" companion to the user-facing references: behavior contracts
-live in [`README.md`](../README.md) and [`runbook.md`](../05-runbooks/runbook.md), the plugin
+live in [`README.md`](../../README.md) and [`runbook.md`](../05-runbooks/runbook.md), the plugin
 contract in [`backend-plugins.md`](../06-guides/developer-guides/backend-plugins.md), persisted-state
 semantics in [`migration-guide.md`](../06-guides/user-guides/migration-guide.md). When this document and
 the code disagree, the code wins — then fix this document.
@@ -43,7 +43,7 @@ point-in-time and may drift.
   `BackendDupeFilter`, `BackendPipeline`, `BackendQueue`, `BackendSpiderMixin`,
   plus a no-op-default `Monitor` observability protocol.
 - **One connection layer**: a refcounted, thread-safe `ConnectionManager`
-  registry (`backends/connectors.py`) that every component goes through, with
+  registry (`backends/connectors/`) that every component goes through, with
   retry/backoff, optional circuit breaker, and per-component backend
   resolution (queue in Redis, dedup in MongoDB, storage in ES — simultaneously).
 
@@ -95,7 +95,7 @@ green pytest is **not** a green CI:
    advisory ignore, `PYSEC-2017-83`, with in-file rationale).
 5. Build + verify + smoke-test the package artifacts (3.10 lane): build →
    grep wheel/sdist listings against a forbidden regex (secrets /
-   credentials / key material / `docs/08-archive/insight` must not ship — overlapping
+   credentials / key material / `docs/08-archive/` must not ship — overlapping
    with, not identical to, the broader `source-exclude` list in
    `pyproject.toml`; keep both consistent) → fresh wheel install of `[all]`,
    asserting every `Backend/Mode/Settings` trio imports.
@@ -120,7 +120,6 @@ green pytest is **not** a green CI:
    print(f"statement={statement:.2f}% branch={branch:.2f}%")
    PY
    ```
-
 7. Unit matrix 3.10–3.14 (`fail-fast: false`); one 3.12 integration job with
    10 live containerized backends.
 
@@ -133,7 +132,7 @@ Dependabot bumps daily (`rebase-strategy: disabled` — expect frequent
 
 ## Architecture map
 
-```text
+```
 Scrapy crawl
   └─ BackendScheduler ─┐            BackendDupeFilter ──► MembershipFilter
      (SCHEDULER)       │               (DUPEFILTER)        (set/memory/bloom/cuckoo)
@@ -200,9 +199,8 @@ At the runtime/connect boundary, `ConnectionManager` catches settings
 non-retryable rather than becoming opaque driver errors.
 
 **Per-component backend override** (multi-backend coexistence) is resolved by
-`resolve_backend_config(settings, type_key, settings_key,
-required_capabilities)` in `connectors.py`, used by all three component
-factories. Precedence: Scrapy per-component type → Scrapy
+`resolve_backend_config()` in `connectors/_config.py`, used by all three
+component factories. Precedence: Scrapy per-component type → Scrapy
 `SCRAPY_BACKEND_TYPE` → env per-component → env `SCRAPY_BACKEND_TYPE` →
 `"redis"`. Empty string counts as unset. `required_capabilities` fail-fasts
 (e.g. Kafka for dedup is rejected at config time, not first use).
@@ -325,18 +323,19 @@ Break any of these and the suite (rightly) falls over:
    export from `settings/__init__.py`.
 3. Registry + lazy tables: one `BackendDescriptor` in
    `backends/registry.py::_BUNDLED_DESCRIPTORS` (dotted-path strings +
-   capability frozenset); plus the **four dicts** in the two `__init__.py`
-   lazy-import tables (`_BACKEND_MODULES`/`_BACKEND_DEP_MODULES`/
-   `_BACKEND_EXTRAS` and top-level `_OPTIONAL_IMPORTS`/`_OPTIONAL_DEP_MODULES`/
-   `_BACKEND_EXTRAS`) and `__all__`.
+   capability frozenset); plus the **three dicts in each** of the two
+   `__init__.py` lazy-import tables (`_BACKEND_MODULES`/
+   `_BACKEND_DEP_MODULES`/`_BACKEND_EXTRAS` in `backends/__init__.py`;
+   `_OPTIONAL_IMPORTS`/`_OPTIONAL_DEP_MODULES`/`_BACKEND_EXTRAS` at top
+   level) and `__all__`.
 4. `pyproject.toml`: the extra under `[project.optional-dependencies]` **and
    the verbatim-duplicated `all` list** (it's a copy, not a self-reference);
    the dep in `[dependency-groups].test` (tests import backend modules
    directly); the CI smoke tuple in `ci.yml`; the integration service fixture
-   - `SCRAPY_TEST_*` env.
+   + `SCRAPY_TEST_*` env.
 5. Tests: mocked suite + modes wiring; `tests/test_backend_metadata_contract.py`
    cross-checks registry/lazy-extras/pyproject automatically. Update the docs
-   matrix and `.claude/CLAUDE.md`.
+   matrix.
 
 ### Add a 3rd-party plugin backend
 
@@ -360,7 +359,7 @@ first use. The doc's example code block is executed by
    `ensure_fanout_backend_supported` (rejects kafka/rocketmq).
    In-process family: `bind()` → `_bind_single_queue`; implement
    `snapshot()`/`restore()` (versioned JSON, base64 items, *remaining* delays
-   - wall-clock — never absolute monotonic values; corrupt state → start
+   + wall-clock — never absolute monotonic values; corrupt state → start
    clean, never raise).
 3. Add the enum member + factory branch (`strategies/factory.py`); selection
    is purely `SCRAPY_QUEUE_STRATEGY`.
@@ -482,12 +481,11 @@ fidelity, never N==N; zero delivery is `pytest.fail`, not skip.
 
 | Doc | What it covers |
 |---|---|
-| [`README.md`](../README.md) | install/extras contract, guarantees, testing entry |
+| [`README.md`](../../README.md) | install/extras contract, guarantees, testing entry |
 | [`runbook.md`](../05-runbooks/runbook.md) | operations: strategy tables, Redis namespaces, ack/durability matrix, metrics keys, tuning, release procedure |
 | [`backend-plugins.md`](../06-guides/developer-guides/backend-plugins.md) | 3rd-party backend author contract (Experimental) |
 | [`migration-guide.md`](../06-guides/user-guides/migration-guide.md) | persisted-state migrations: physical keys, snapshot v2/v3, wire codec, TTL contract, rollback |
 | `.github/CONTRIBUTING.md` / `STABILITY.md` / `CHANGELOG.md` | dev setup, semver policy, changelog |
-| `.claude/CLAUDE.md` | agent-facing build/test guide (mirrors this playbook's command set) |
 | [`../08-archive/insight/LEDGER.md`](../08-archive/insight/LEDGER.md) | dedup ledger of every scan finding, keyed `(file:line, root-class)` |
 
 `docs/08-archive/insight/` (~400 files) is **maintainer planning history, not public

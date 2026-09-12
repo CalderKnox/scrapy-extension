@@ -9,7 +9,7 @@
 > [`insight/ITERATIVE-HARDENING-2026-07-21.md`](../../08-archive/insight/ITERATIVE-HARDENING-2026-07-21.md);
 > for the active frontier/closeout see
 > [`insight/SPEC-2026-07-23-post-hardening-frontier.md`](../../08-archive/insight/SPEC-2026-07-23-post-hardening-frontier.md).
->
+
 > **Generated:** 2026-07-05 (incremental from `/loop` + author deep-read of core ABCs)
 > **Updated:** 2026-07-09 — §3.2 RocketMQ ack model corrected (it is **deferred-ack**, not atomic-pop; matches `rocketmq.py:66 requires_ack=True`); §3.3 serialization is now **symmetric** (P0 landed, `{"__b64__":...}` marker); test counts refreshed (1,972 passed). For the verified implementation-level risk register, see [`docs/08-archive/insight/DEEP-INSIGHT-2026-07-09-parallel-verified.md`](../../08-archive/insight/DEEP-INSIGHT-2026-07-09-parallel-verified.md).
 > **Updated:** 2026-07-11 — in-session follow-up landed three TDD fixes (adversarially reviewed): (1) circuit breaker now wraps `pop_with_ack` AND `queue.py:_pop_with_ack` unwraps the breaker proxy so MQ per-message ack tokens survive under `SCRAPY_CIRCUIT_BREAKER_ENABLED`; (2) `BackendScheduler.from_settings` warns on strategy+MQ ack bypass; (3) `BackendSpiderMixin.setup_backend` acquires via the `ConnectionManager.get_manager` singleton. Suite re-synced: **2,026 collected / 1,989 passed / 37 skipped; coverage 99.42%; ruff + mypy --strict clean**. Remaining open: spider_mixin `from_settings` routing (issue), ES `StorageError`/`ttl()` (issue).
@@ -24,7 +24,6 @@
 **`scrapy-extension`** is a Scrapy extension that turns a single-process crawler into a **distributed** one by externalizing Scrapy's in-process scheduler state, dedup set, and item sink onto pluggable backends.
 
 **In scope:**
-
 - Distributed request queue (priority-ordered, FIFO within priority)
 - Distributed deduplication (exact or probabilistic membership)
 - Distributed item storage (KV with TTL)
@@ -34,7 +33,6 @@
 - Observability: Scrapy stats hooks
 
 **Out of scope:**
-
 - Scraping logic itself (spiders are user-authored; this package provides the *plumbing*)
 - Proxy rotation, rate limiting at the HTTP layer, JS rendering
 - Backend administration (brokers are externally managed)
@@ -47,7 +45,7 @@
 
 Five layers, each independently substitutable:
 
-```text
+```
 ┌──────────────────────────────────────────────────────────────────┐
 │  L5  Scrapy components    scheduler / dupefilter / queue /        │
 │      (Scrapy-facing)      pipeline / spider_mixin                │
@@ -197,11 +195,11 @@ both `from_settings()` and `from_crawler()`; `BackendSpiderMixin` exposes
 | `BackendPipeline` | `pipeline/pipeline.py` (351 LOC) | Item storage via a `StorageStrategy` + `StorageBackend`; C2 escalation (max consecutive errors) |
 | `BackendSpiderMixin` | `spider/spider_mixin.py` (395 LOC) | Spider mixin; `from_crawler()` performs automatic setup, while direct construction requires explicit `setup_backend()` |
 
-`resolve_backend_config()` (in `connectors.py`) is the central config resolver used by all three component factories — enables **multi-backend coexistence**: queue in Redis, dedup in MongoDB, storage in ElasticSearch, each via independent connection managers keyed separately by `backend_type:settings_hash`.
+`resolve_backend_config()` (in `backends/connectors/`) is the central config resolver used by all three component factories — enables **multi-backend coexistence**: queue in Redis, dedup in MongoDB, storage in ElasticSearch, each via independent connection managers keyed separately by `backend_type:settings_hash`.
 
 ---
 
-## 6. Connection Management (L2) — `backends/connectors.py` (939 LOC)
+## 6. Connection Management (L2) — `backends/connectors/` (939 LOC at snapshot; now a package split across `_manager.py` / `_config.py`)
 
 `ConnectionManager` is the most complex single class in the codebase:
 
@@ -225,13 +223,11 @@ both `from_settings()` and `from_crawler()`; `BackendSpiderMixin` exposes
 ### 7.2 Multi-Backend Coexistence
 
 The killer feature. Override per component:
-
-```text
+```
 SCRAPY_QUEUE_BACKEND_TYPE=redis     + SCRAPY_QUEUE_BACKEND_SETTINGS=...
 SCRAPY_SET_BACKEND_TYPE=mongodb     + SCRAPY_SET_BACKEND_SETTINGS=...
 SCRAPY_STORAGE_BACKEND_TYPE=elasticsearch + SCRAPY_STORAGE_BACKEND_SETTINGS=...
 ```
-
 Unset keys fall back to `SCRAPY_BACKEND_TYPE` / `SCRAPY_BACKEND_SETTINGS`. Each component gets its own `ConnectionManager` (keyed separately in the registry).
 
 ### 7.3 Resilience — four independent mechanisms
@@ -296,7 +292,7 @@ deprecated primary-only compatibility alias), `mongodb.py` (4 modes),
 | `circuit_breaker.py` | **100%** (137/137 stmts, 30/30 branches) — full state machine |
 | `monitor/` (base + stats) | **100%** |
 | `storage/strategies/` | 99-100% (batched.py 98.36% — 1 empty-flush branch) |
-| `connectors.py` | ~90% (84.6% CM-only / 90.1% full L2 suite) — missing the `_registry_key` JSON-failure fallback + the `connect()` contract-violation guard (2026-07-10 re-measure; prior "100%" claim was stale) |
+| `connectors.py` (now the `connectors/` package) | ~90% (84.6% CM-only / 90.1% full L2 suite) — missing the `_registry_key` JSON-failure fallback + the `connect()` contract-violation guard (2026-07-10 re-measure; prior "100%" claim was stale) |
 | Integration suites | 26/26 green (skip-by-default; two-layer gate `SCRAPY_TEST_INTEGRATION=1` + per-backend URL) |
 | Ruff | clean |
 | Type hints | full; `py.typed` marker |
@@ -309,7 +305,6 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 ## 10. Tech Debt & Risk Posture
 
 ### Mature / low-risk
-
 - Backend ABCs and the 4-capability model — stable since early rounds
 - Ack-capability contract — non-obvious but well-tested
 - Circuit breaker — 100% coverage, 31-test suite (2026-07-11; wraps `push`/`pop`/`pop_with_ack`)
@@ -317,7 +312,6 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 - Lazy import with R14-H dep-vs-bug discrimination
 
 ### Architect-deferred (per 2026-07-03 backlog)
-
 - #17 Depth-probe before backpressure gate (MED) — bounded jitter; costs per-pop RPC
 - #18 Snapshot versioning + restore diagnostics (MED) — forward-looking
 - #19 Lock-free-read invariant doc + test (LOW)
@@ -326,13 +320,11 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 - #22 RoundRobin cross-worker fairness doc (LOW)
 
 ### Recent additions (less battle-tested)
-
 - `monitor/stats.py` — Unit F Tier-2; 100% covered but newer
 - `storage/strategies/batched.py` — at-least-once semantics documented; crash-before-flush data loss is a known separate failure mode
 - RocketMQ integration suite — flake-tolerant (skips on apache proxy NPE; string-matches broker error text — fragile to broker version bumps)
 
 ### Operational cautions
-
 - `monitor/` and `StorageStrategy` are NOT in package `__all__` — internal-only surface (deliberate; separate API-export decision pending)
 - RocketMQ `queue_len` permanently `NotImplementedError` (apache 5.x SimpleConsumer has no depth API) — all 3 callers gracefully degrade, but operators reading depth stats need to know
 - Batched storage + crash = in-flight batch lost — documented but worth flagging in ops guides
@@ -361,20 +353,17 @@ This is a **mature, deliberately-evolved** codebase. Each round left the code mo
 ## 12. Onboarding Map
 
 **Read in this order:**
-
-1. `CLAUDE.md` (project root) — system overview, source structure, capability matrix
+1. `README.md` (project root) — system overview, capability matrix
 2. `src/scrapy_extension/backends/base.py` — the 4 ABCs + ack contract (this is the contract everything else implements)
 3. `src/scrapy_extension/exceptions/base.py` — error model + secret redaction
 4. `src/scrapy_extension/settings/base.py` — global config (cross-validated)
-5. `src/scrapy_extension/backends/connectors.py` — `ConnectionManager` (the lifecycle + registry + retry + breaker wiring)
+5. `src/scrapy_extension/backends/connectors/` — `ConnectionManager` (the lifecycle + registry + retry + breaker wiring; `_manager.py`, with `resolve_backend_config` in `_config.py`)
 6. Pick ONE backend impl (e.g. `redis.py`) — see how the ABCs are realized
 7. The 3 strategy ABCs (`dupefilter/filters/base.py`, `queue/strategies/base.py`, `storage/strategies/base.py`) — see the pluggability shape
 8. `schedule/scheduler.py` — see how everything is wired into Scrapy
 9. `docs/05-runbooks/runbook.md` — operational settings reference
-10. `.omc/plans/backlog-2026-07-03.md` — architect-deferred items + discounted false-positives
 
 **Run to verify health:**
-
 ```bash
 uv sync
 uv run pytest -q                    # ~13s, 1989 passed / 37 skipped (2026 collected)

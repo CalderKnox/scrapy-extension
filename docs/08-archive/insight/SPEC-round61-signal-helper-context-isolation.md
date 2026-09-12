@@ -21,7 +21,6 @@ open/setup rollback but missed the **nested signal-registration helper** each on
 calls — both of which have their own inline-except rollback.
 
 **Site 1 — `BackendSpiderMixin._connect_signals`** (`src/scrapy_extension/spider/spider_mixin.py:374-392`):
-
 ```python
         try:
             for handler, signal in handlers:
@@ -42,7 +41,6 @@ calls — both of which have their own inline-except rollback.
 ```
 
 **Site 2 — `BackendScheduler._connect_ack_signals`** (`src/scrapy_extension/schedule/scheduler.py:1559-1594`):
-
 ```python
         try:
             for handler, signal in signal_handlers:
@@ -101,7 +99,6 @@ change `logger.exception(...)` → `logger.error(...)`; change the trailing bare
 registration failure propagates) are preserved exactly.
 
 Site 1 (`spider_mixin.py`) becomes:
-
 ```python
         registration_failure: BaseException | None = None
         try:

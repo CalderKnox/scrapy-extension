@@ -116,7 +116,6 @@ is the single biggest operability gap: the signals are observable but the knobs
 that govern them are not configurable without code changes.
 
 **Files + rules:**
-
 - `settings/base.py`: add `SCRAPY_QUEUE_DEPTH_SAMPLE_EVERY`, `SCRAPY_QUEUE_MAX_ITEM_BYTES`,
   `SCRAPY_QUEUE_DELAY_MAX_HELD`, `SCRAPY_MONITOR_BACKPRESSURE_THRESHOLD`,
   `SCRAPY_MONITOR_POP_RATE_WINDOW_S` (the orphaned `queue_max_item_bytes`/`pipeline_max_item_bytes`
@@ -159,8 +158,7 @@ but the observability surface is **half-wired**:
   wired from `connectors.py` (stats: `backend/{connect,retry,disconnect}_count`).
 
 **Fix:** wire `on_error` at the push/pop/deserialize fail arms; add `saturation`
-
-- `capacity` to `BloomMembershipFilter`; emit `on_filter_saturation` from
++ `capacity` to `BloomMembershipFilter`; emit `on_filter_saturation` from
 memory-filter eviction; fix `on_pop` docstring/stat-name (or split); add the 3
 connection-lifecycle hooks.
 
@@ -249,7 +247,6 @@ priority survives delay; retries don't storm; RR bounded.
 
 **Rationale:** Total coverage is 95.19% but **propped up by tiny fully-covered
 files**; the backend layer (where bugs live) is 87-95%. Systematic blind spots:
-
 - **HIGH — MongoDB `not-connected` guards** (`mongodb.py` 13 branches across 3
   collections) — the primary corruption-prevention contract, entirely untested.
 - **HIGH — registry 3rd-party-plugin error paths** (`registry.py:203-282`) —
@@ -281,7 +278,6 @@ tests the new behavior too). **Touches only `tests/` + `conftest.py`.**
 ## R14-H — Lazy-import hygiene + polish `[HIGH + LOWs]`
 
 **Rationale:** cleanup bundle.
-
 - **HIGH — misleading install hint.** `__init__.py:138-144` (mirror
   `backends/__init__.py:42-52`) wraps **any** `ImportError` as "requires
   additional dependencies. Install with: pip install scrapy-extension[redis]" —

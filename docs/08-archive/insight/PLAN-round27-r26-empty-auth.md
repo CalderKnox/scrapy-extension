@@ -33,7 +33,7 @@ In `tests/test_elasticsearch_backend.py`, after the existing
   bug). Encodes WHY: an empty env-var value is the same operator error as an
   unset one, and must surface at the same fail-fast point.
 - `test_cloud_mode_empty_basic_auth_fails_at_construction` — CLOUD + cloud_id
-  - `username=""` + `password=""` → must raise `ValidationError`.
+  + `username=""` + `password=""` → must raise `ValidationError`.
 - `test_standalone_empty_api_key_http_not_blocked` — STANDALONE + `http://`
   host + `api_key=""` → must NOT raise the cleartext-credentials error (the
   docstring-permitted no-auth-http dev config). Asserts the false-positive is

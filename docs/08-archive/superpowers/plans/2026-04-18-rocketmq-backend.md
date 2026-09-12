@@ -12,7 +12,7 @@
 
 ## File Structure
 
-```text
+```
 src/scrapy_extension/
 ├── backends/
 │   ├── __init__.py       # Add RocketMQBackend export
@@ -31,7 +31,6 @@ pyproject.toml                  # Add rocketmq-client-python dependency
 ## Task 1: Complete RocketMQSettings
 
 **Files:**
-
 - Modify: `src/scrapy_extension/settings/rocketmq.py`
 
 - [ ] **Step 1: Write RocketMQSettings implementation**
@@ -103,7 +102,6 @@ git commit -m "feat(rocketmq): complete RocketMQSettings implementation"
 ## Task 2: Add ROCKETMQ to BackendType Enum
 
 **Files:**
-
 - Modify: `src/scrapy_extension/backends/base.py:75-90`
 
 - [ ] **Step 1: Add ROCKETMQ to BackendType**
@@ -148,10 +146,9 @@ git commit -m "feat(rocketmq): add ROCKETMQ to BackendType enum"
 ## Task 3: Update Settings Exports
 
 **Files:**
-
 - Modify: `src/scrapy_extension/settings/__init__.py`
 
-- [ ] **Step 1: Add RocketMQ exports to settings/**init**.py**
+- [ ] **Step 1: Add RocketMQ exports to settings/__init__.py**
 
 Edit `src/scrapy_extension/settings/__init__.py`, add import:
 
@@ -186,10 +183,9 @@ git commit -m "feat(rocketmq): export RocketMQSettings and RocketMQMode"
 ## Task 4: Update Backends Exports
 
 **Files:**
-
 - Modify: `src/scrapy_extension/backends/__init__.py`
 
-- [ ] **Step 1: Add RocketMQBackend export to backends/**init**.py**
+- [ ] **Step 1: Add RocketMQBackend export to backends/__init__.py**
 
 Edit `src/scrapy_extension/backends/__init__.py`, add import:
 
@@ -223,7 +219,6 @@ git commit -m "feat(rocketmq): export RocketMQBackend"
 ## Task 5: Implement RocketMQBackend
 
 **Files:**
-
 - Create: `src/scrapy_extension/backends/rocketmq.py`
 
 - [ ] **Step 1: Write minimal stub to verify imports work**
@@ -728,7 +723,6 @@ git commit -m "feat(rocketmq): implement RocketMQBackend with all interfaces"
 ## Task 6: Add Dependency
 
 **Files:**
-
 - Modify: `pyproject.toml`
 
 - [ ] **Step 1: Add rocketmq-client-python dependency**
@@ -759,7 +753,6 @@ git commit -m "chore(rocketmq): add rocketmq-client-python dependency"
 ## Task 7: Write RocketMQ Backend Tests
 
 **Files:**
-
 - Create: `tests/test_rocketmq_backend.py`
 
 - [ ] **Step 1: Write test imports and basic tests**
@@ -989,7 +982,6 @@ Expected: All tests pass
 ## Self-Review Checklist
 
 **1. Spec coverage:**
-
 - [x] Complete RocketMQSettings implementation (Task 1)
 - [x] Add ROCKETMQ to BackendType (Task 2)
 - [x] RocketMQBackend with QueueBackend (Task 5)
@@ -1002,7 +994,6 @@ Expected: All tests pass
 **2. Placeholder scan:** No TBD, TODO, or incomplete steps found.
 
 **3. Type consistency:**
-
 - BackendType.ROCKETMQ matches specification
 - RocketMQSettings fields match specification
 - All method signatures match base class interfaces

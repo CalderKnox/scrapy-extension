@@ -1540,6 +1540,7 @@ name = "pyasn1-modules"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "protego" },
     { name = "pyasn1" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
@@ -2188,7 +2189,6 @@ name = "scrapy-extension"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "protego" },
     { name = "pyasn1" },
     { name = "pydantic" },
     { name = "pydantic-settings" },

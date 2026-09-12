@@ -43,7 +43,6 @@ self.flush()
 ```
 
 **Docs corrections.**
-
 - L46 "this timeout never fires in normal operation" → qualify: fires only
   when a flush exceeds the per-acquire bound (cross-region backend + large
   batch); ms-latency healthy stores never hit it.

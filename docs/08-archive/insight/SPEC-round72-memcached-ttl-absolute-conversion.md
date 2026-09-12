@@ -54,13 +54,10 @@ Convert only oversized relative TTLs to the absolute timestamp Memcached expects
 
 1. Add `import time` to the imports.
 2. Add a module constant near the other `_MEMCACHED_*` storage constants:
-
    ```python
    _MEMCACHED_MAX_RELATIVE_TTL_SECONDS = 60 * 60 * 24 * 30  # 2_592_000
    ```
-
 3. In `MemcachedBackend.store`, replace the single `client.set` call's `expire` with a 3-way computation:
-
    ```python
    if ttl is None:
        expire = 0

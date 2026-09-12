@@ -86,7 +86,6 @@ Tier-3 = deferred.
 ### Tier 1 — v1.0 readiness + quick wins
 
 #### U1 — README Guarantees table `[F02, critic V1, H/S]`
-
 **Why:** "Distributed" marketing is one layer above reality; the first prod
 incident is a user re-crawling the entire site because Bloom/Cuckoo are
 per-process. **Files:** `README.md` (new "Guarantees" section: per-feature
@@ -96,7 +95,6 @@ N/A (docs). **Acceptance:** a new user can answer "is feature X cross-worker
 safe?" from the README alone. Default `set` called out as distributed-exact.
 
 #### U2 — Operability signals `[F03, critic O1/V2, H/M]`
-
 **Why:** An operator paged on a 0-req/min crawl sees counters stop but cannot
 distinguish backend-down / queue-empty / throttle-pinned / dedup-saturated /
 worker-crash. **Files:** `monitor/base.py` + `monitor/stats.py` (new hooks
@@ -107,7 +105,6 @@ test. **Acceptance:** a stuck crawl produces a diagnostic signal, not just
 flat counters.
 
 #### U3 — Multi-backend e2e integration test `[F01, critic M1, H/L]`
-
 **Why:** `test_three_backends_coexist_from_one_settings` only asserts
 `from_settings` resolves 3 backend types — **no request flows through
 Redis-queue → MongoDB-dedup → ES-storage**. The coexistence claim is unit-mocked.
@@ -118,7 +115,6 @@ assert ordering + set-membership + storage TTL across 3 live backends. **Accepta
 one green e2e proves the multi-backend runtime, not just the factory seam.
 
 #### U4 — `queue_len` sampling `[F05, scientist F2-DEPTH, H/S — 1-line]`
-
 **Why:** ZCARD fires on every pop (+25% pop RTT budget); depth changes slowly
 vs pop rate. **Files:** `queue/queue.py:197-205` (sample `on_queue_depth` every
 Nth pop, e.g. N=100). **TDD:** depth still fresh within sampling window; 100×
@@ -126,7 +122,6 @@ fewer `queue_len` calls. **Acceptance:** 9,900 fewer ZCARD/s @ 10k pop/s;
 backpressure signal unchanged.
 
 #### U5 — Memory default cap `[F06, scientist F5-MEM, M/S]`
-
 **Why:** `MemoryMembershipFilter(maxsize=None)` silently grows to GB scale →
 silent OOM in prod. The LRU `maxsize` mechanism already exists — just ship a
 sane default. **Files:** `dupefilter/filters/memory_filter.py:32` (default
@@ -135,7 +130,6 @@ sane default. **Files:** `dupefilter/filters/memory_filter.py:32` (default
 **Acceptance:** no unbounded growth by default; operator can tune.
 
 #### U6 — Mutation testing `[F07, test-eng F1, H/S]`
-
 **Why:** Coverage is 95% but coverage ≠ caught-bugs. The hardest historical
 bugs (R31 "False=existed", at-least-once ack) are boolean-flip class — exactly
 what mocks can't pin. **Files:** add `mutmut` to dev deps; `pyproject.toml`
@@ -144,7 +138,6 @@ CI gate. **TDD:** mutmut itself IS the test. **Acceptance:** mutmut run green
 or survivor-list converted to targeted tests (F08/F10).
 
 #### U7 — Settings reference doc `[F10, code-reviewer DX-03, H/M]`
-
 **Why:** Every `SCRAPY_*` setting is discoverable only by reading source.
 Biggest "can a user configure this without reading source?" gap.
 **Files:** `docs/settings-reference.md` (NEW — table per category: Backend /
@@ -153,7 +146,6 @@ auto-generatable from pydantic field metadata). **Acceptance:** single-page
 discovery of all settings.
 
 #### U8 — `mypy --strict` clean `[F11, code-reviewer DX-07, M/S]`
-
 **Why:** `py.typed` is a public promise; 25 `--strict` errors (mostly
 `Collection` missing type-args, `Any`-return leaks) undercut it. **Files:**
 `pyproject.toml` (`disallow_any_generics=true`, `warn_return_any=true`); fix
@@ -161,7 +153,6 @@ the 25 errors (mongodb.py:88,89,458,640; elasticsearch.py:493,521; etc.).
 **Acceptance:** `uv run mypy --strict src/scrapy_extension` clean.
 
 #### U9 — v1.0 stability artifacts `[F14, architect F-6 + critic G2, H/S]`
-
 **Why:** v1.0 implies a stability commitment; the artifacts it requires are
 absent. **Files:** `STABILITY.md` (component tiers: stable/experimental/internal
 — mark RocketMQ experimental per critic B1), `SECURITY.md` (disclosure path;
@@ -171,7 +162,6 @@ note `[rocketmq]`/`[all]` supply-chain gate), `CHANGELOG.md`, `docs/release-runb
 ### Tier 2 — differentiation / features
 
 #### U10 — Distributed strategies as features `[F13 3-way, architect F-1, H/L]`
-
 **Why:** Converts round-7's accepted scope limitations into advertised
 capabilities. **Design:** extend strategy ABC with optional backend-capability
 requirements (`requires_zset`, `requires_incr_ttl`); negotiate against
@@ -181,20 +171,17 @@ Bloom (backend bit-array). **Acceptance:** a 2-worker crawl shares delayed
 items + throttle rate + dedup state. (Largest unit — sequence after Tier 1.)
 
 #### U11 — Batch queue API `[architect F-4, H/M]`
-
 **Why:** Every push/pop is per-item (1 RTT/req). `push_batch`/`pop_batch` on
 `QueueBackend` ABC (default loop fallback); wire scheduler batch-drain. Redis
 pipeline, Kafka producer batching, Mongo `insert_many` all native. **Acceptance:**
 batch=100 → ~100× RTT reduction on enqueue.
 
 #### U12 — OTel monitor `[architect F-2, H/M]`
-
 **Why:** `Monitor` ABC is the right seam; `ScrapyStatsMonitor` is the only
 impl. `OTelMonitor` emits spans (`queue.push/pop`, `dedup.hit`, `store`) with
 per-backend attributes. **Acceptance:** `SCRAPY_OTEL_EXPORTER_ENDPOINT` wired.
 
 #### U13 — Alt serializers `[architect F-7, scientist F1-SER, M/S — but DEFER]`
-
 **Why:** msgspec/cbor2 3-5× codec speedup. **BUT scientist measured codec is
 4.3µs vs RTT 250-1000µs → <2% until RTTs fixed.** Defer until U4/U11 land.
 

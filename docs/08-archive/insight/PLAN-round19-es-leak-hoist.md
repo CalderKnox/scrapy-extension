@@ -4,7 +4,6 @@
 > Workflow: worktree `round19-es-leak-hoist` → execute A→C (atomic commits) → gate → ff-merge to `main` → delete branch.
 
 ## Design notes
-
 - **A**: ES exception hierarchy — `ApiError` is the base for HTTP-response errors (NotFoundError,
   ConflictError, RequestError, AuthenticationError, AuthorizationError, ServerError); `TransportError`
   is a transport-level sibling, NOT a subclass. So both must be listed. `NotFoundError` arm stays first
@@ -20,19 +19,16 @@
   emitted key in `monitor/stats.py:226-227`.
 
 ## Phases
-
 1. **TDD RED (A + B)** — see TASK for the exact tests.
 2. **Implement (GREEN)** — A (broaden except), B (move hoist), C (7 doc edits).
 3. **Gate** — `uv run ruff check src/ tests/`; `uv run mypy --strict src/`; `uv run pytest -q` (sandbox OFF).
 4. **Merge to main** — ff-only, push, `worktree remove --force` + `branch -d` (all sandbox-off).
 
 ## Fan-out (Claude-only)
-
 3 small, mechanical, precisely-specified units → main-loop sequential (proven anti-thrash; avoids
 git/pytest races). Ultracode 10-agent scan was the insight fan-out.
 
 ## Risk notes
-
 - **A**: confirm no caller relies on the raw `ApiError` propagating (the queue/scheduler contract is
   QueueError on operational failure — wrapping is the documented behavior; `add()`'s deliberate
   R-dupe-1 narrowing is a DIFFERENT site, untouched).

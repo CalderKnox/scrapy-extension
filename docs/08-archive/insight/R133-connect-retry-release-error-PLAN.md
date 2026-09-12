@@ -10,7 +10,6 @@ Events, ~line 400) but drive the RETRY LOOP instead of `_attempt_connection`
 directly:
 
 `test_connect_with_retries_preserves_release_error_when_close_wins`:
-
 - Wire a manager whose backend `connect()` blocks on an Event; a second
   thread calls `manager.close()` (setting `_retired`) while the attempt is
   in flight; release the Event.

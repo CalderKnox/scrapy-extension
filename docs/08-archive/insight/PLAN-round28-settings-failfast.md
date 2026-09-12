@@ -14,7 +14,6 @@ patched). Mirror R27-A exactly:
 - `:277`/`:279` display f-string `is not None` → truthiness (display accuracy).
 
 ### RED
-
 - `test_exclusivity_empty_api_key_with_basic_auth_accepted` — CLOUD + cloud_id +
   `api_key=""` + valid `username`/`password` → must NOT raise (currently raises
   "mutually exclusive"). Encodes WHY: `_build_kwargs` drops the empty key and
@@ -36,7 +35,6 @@ if self.mode == ElasticSearchMode.STANDALONE and not self.hosts:
 ```
 
 ### RED
-
 - `test_standalone_empty_hosts_rejected` — `mode=STANDALONE, hosts=[]` → must
   raise ConfigurationError (currently passes → opaque client error at connect).
 - CLOUD + `hosts=[]` must still pass (hosts unused in CLOUD).
@@ -52,7 +50,6 @@ if self.mode == KafkaMode.CONFLUENT and not (self.confluent_bootstrap_servers or
 ```
 
 ### RED
-
 - `test_confluent_empty_bootstrap_servers_rejected` — CONFLUENT + unset
   `confluent_bootstrap_servers` + `bootstrap_servers=""` → must raise.
 - `test_confluent_whitespace_bootstrap_servers_rejected` — `bootstrap_servers="   "`

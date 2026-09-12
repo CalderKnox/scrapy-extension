@@ -33,11 +33,9 @@ Without `spider=`, `request_from_dict` could not resolve callback names to metho
 **Files**: `backends/redis.py`, `tests/test_backends.py`
 
 Original code used the raw item bytes as the ZSET member:
-
 ```python
 self.client.zadd(queue_name, {item: -priority})
 ```
-
 Two requests serializing to identical bytes (same URL + method, no body) caused the second to overwrite the first. Redis silently deduped, items were lost.
 
 **Fix**: Use `uuid4().hex` as the ZSET member; store the actual payload in a sidecar hash (`{queue_name}:payload`). `pop` reads + deletes from the hash; `clear_queue` deletes both. Pipeline makes push atomic.
@@ -51,29 +49,23 @@ Two requests serializing to identical bytes (same URL + method, no body) caused 
 ### P0 — 7 findings (5 remaining)
 
 #### R1-P0-2: `RedisBackend.pop` non-atomic `zpopmax` may double-consume under concurrent workers
-
 `redis.py:379-383` — Sorted set ordering by score isn't FIFO for same-score items (sorted by member lexicographically). Priority semantics violated.
 **Fix**: Use `bzpopmin` with monotonic counter as tiebreaker, or switch to a LIST-based queue.
 
 #### R1-P0-3: ~~`MongoDBBackend.pop` `find_one_and_delete` is not race-safe~~ **INVALID**
-
 **Withdrawn in Round 5**: MongoDB's `find_one_and_delete` IS atomic at the document level — concurrent workers cannot claim the same doc. The original critique was wrong. No fix needed.
 
 #### R1-P0-4: `MongoDBBackend.ttl()` violates contract
-
 `mongodb.py:628-647` — Returns `-1` for both "expired" and "key doesn't exist". Per `base.py:371` contract, `None` should mean "no TTL" and `-1` means "expired". Should return `None` for missing keys.
 **Fix**: Return `None` when document not found.
 
 #### R1-P0-5: ~~`RedisBackend.pop` returns `None` on timeout — Scrapy treats as spider_idle~~ **WITHDRAWN**
-
 **Withdrawn in Round 7**: This is correct blocking-pop semantics — `None` on timeout is the right signal. The spider_idle concern is a Scrapy integration pattern (handled via idle handlers, not the backend). Not a backend bug.
 
 #### R1-P0-6: ~~`KafkaBackend.pop` doesn't commit~~ **Fixed in Rounds 11-12**
-
 **Two-phase fix**: Round 11 added the `QueueBackend.ack()`/`nack()` API + implementations; Round 12 removed auto-ack from `pop()` and wired ack to Scrapy's `response_received` signal (nack → `spider_error`). Now at-least-once semantics: if download fails, no ack → re-delivered on consumer restart.
 
 #### R1-P0-7: `RabbitMQBackend` redeclare queue with different params → channel dies
-
 `rabbitmq.py:335-340` — `queue_declare` with `passive=False` after queue exists with different `x-max-priority` raises `PRECONDITION_FAILED`.
 **Fix**: First declare with full args; subsequent checks use `passive=True`.
 
@@ -336,13 +328,11 @@ Three problems with the previous batch:
 3. **Silent data loss on partial failure.** `_consume_payload` returned `None` when the hash field was missing. `pop` then returned `None` to Scrapy → spider idles-out while items still wait in the ZSET.
 
 **Fix**:
-
 - `_payload_key` returns `f"{{{queue_name}}}:payload"` (hash-tagged, same cluster slot)
 - `push` and `_consume_payload` use `pipeline(transaction=True)` for atomic MULTI/EXEC
 - `_consume_payload` raises `QueueError("Queue corruption: ...")` instead of returning `None`
 
 **Verification** (new tests in `tests/test_backends.py`):
-
 - `test_push_uses_transaction_pipeline` — asserts `pipeline(transaction=True)`
 - `test_push_identical_bytes_use_distinct_members` — 2 pushes of identical bytes → 2 distinct ZSET members (regression for R1-P0-1)
 - `test_payload_key_uses_hash_tag` — `_payload_key("q") == "{q}:payload"`
@@ -360,7 +350,6 @@ Three problems with the previous batch:
 3. `member_b: bytes | str` annotation was wrong (variable was always bytes).
 
 **Fix**:
-
 - `spider` is now a required keyword-only arg in `BackendQueue.__init__`
 - `BackendSpiderMixin(Spider)` — extends Spider directly, so `self` is statically a Spider; no cast needed
 - Docstring example updated: `class MySpider(BackendSpiderMixin):` (no longer needs explicit Spider parent)
@@ -416,7 +405,6 @@ return payload
 ```
 
 Return contract:
-
 - `nil` → empty queue → pop returns None
 - bytes → success → pop returns bytes
 - `-1` → orphan (corruption) → pop raises QueueError
@@ -434,7 +422,6 @@ Blocking path (`timeout>0`) cannot use Lua (Redis forbids blocking commands in s
 Per `StorageBackend.ttl()` contract (`base.py:371`): "Seconds remaining, None if no TTL, -1 if expired." Both backends returned `-1` for missing keys, conflating "doesn't exist" with "expired".
 
 **Fix**:
-
 - MongoDB: `find_one(...) is None` → return `None` (was `-1`)
 - Redis: `result < 0` → return `None` (covers both `-2` missing and `-1` no-TTL)
 
@@ -484,7 +471,6 @@ Round 5's Lua pop script introduced a decode_responses=True regression; the FIFO
 Round 5's pop handler checked `isinstance(result, bytes)`. With `RedisSettings.decode_responses=True`, the Lua script returns `str` (redis-py decodes all responses). The isinstance check failed → QueueError raised on every pop. Production users opting into decode_responses got a 100% broken queue.
 
 **Fix**: Pop handler now distinguishes four return cases:
-
 - `None` → empty queue
 - `int` → orphan signal (Lua `-1`)
 - `str` → decode_responses=True payload, encode to bytes
@@ -573,7 +559,6 @@ Round 6's Redis Lua design had a cached_property lifecycle bug. RocketMQ's pop w
 The original pop computed `topic_name = self._get_topic_name(queue_name)` then called `self._consumer.receive(timeout_ms)` without ever subscribing the consumer to that topic. RocketMQ's `SimpleConsumer` only delivers messages from topics it has subscribed to — so pop always returned None (or raised) regardless of what producers pushed. The bug was latent because all tests mock the consumer.
 
 **Fix**:
-
 1. `connect()` now calls `self._consumer.start()` (was missing — consumer was created but never started)
 2. Added `self._subscribed_topics: set[str]` tracking
 3. New `_ensure_subscribed(topic_name)` method subscribes on first access per topic
@@ -622,7 +607,6 @@ The remaining P0 (Kafka ack/nack) requires a 2-3 day API refactor. Rather than s
 `ConnectionManager._managers` is a class-level dict keyed by `backend_type:settings_hash`. `close()` cleared the instance's `_backend` but never evicted the entry — so the closed manager stayed in the registry forever. Next `get_manager(backend_type, settings)` returned the closed instance (which would auto-reconnect on `backend` access, but masked state across reconnect cycles and across tests).
 
 **Fix**:
-
 - `close()` now computes the same registry key and removes the entry under `_registry_lock`
 - Extracted `_registry_key(backend_type, settings)` as a static method so `get_manager` and `close` can't drift
 - New `clear_registry()` classmethod for test isolation — wipes the dict and closes all managers
@@ -636,7 +620,6 @@ The remaining P0 (Kafka ack/nack) requires a 2-3 day API refactor. Rather than s
 **Files**: `schedule/scheduler.py`, `tests/test_components.py`
 
 The scheduler's `enqueue_request` did its own dedup via `set_backend.add(dupefilter_key, fingerprint)`. The `BackendDupeFilter` does the SAME operation in `request_seen`. When both are registered (per the docs), the sequence is:
-
 1. Engine calls `dupefilter.request_seen(req)` → adds fingerprint to `key_A`
 2. Engine calls `scheduler.enqueue_request(req)` → tries to add fingerprint to `key_B`
 
@@ -699,7 +682,6 @@ Three small targeted fixes. Net test count drops because removing footguns also 
 **Files**: `backends/connectors.py`
 
 Original code:
-
 ```python
 self._backend = self._create_backend()  # assigns first
 self._backend.connect()                  # then connects — may raise
@@ -708,7 +690,6 @@ self._backend.connect()                  # then connects — may raise
 If `connect()` raised, `self._backend` held a non-None unconnected backend. The `backend` property check `if self._backend is not None` then returned the broken backend, and every subsequent operation failed with an opaque error far from the original connect failure.
 
 **Fix**: Assign only after connect succeeds:
-
 ```python
 backend = self._create_backend()
 backend.connect()           # raises on failure
@@ -732,7 +713,6 @@ self._backend = backend     # commit only on success
 **Files**: `schedule/scheduler.py`, `spider/spider_mixin.py`, `tests/test_components.py`
 
 After Round 8 removed the scheduler's inline dedup, three things were orphaned:
-
 - `_request_fingerprint()` method (no callers)
 - `dupefilter_key` attribute + `__init__` param + `from_settings` setting read
 - `request_fingerprint` import
@@ -846,7 +826,6 @@ R1-P0-6 (Kafka no-commit) and R1-P1-14 (RabbitMQ auto-ack) are the same bug clas
 **Files**: `backends/base.py`
 
 Added two non-abstract methods to `QueueBackend`:
-
 - `ack(queue_name)` — no-op default
 - `nack(queue_name)` — no-op default
 
@@ -933,7 +912,6 @@ Phase 1 shipped the API with auto-ack preserving current behavior. Phase 2 remov
 Phase 1 had `pop()` call `self.ack()` immediately after polling, which preserved the lossy pre-ack-before-processing behavior. Round 12 removes that auto-call. The message handle is tracked but NOT committed until the scheduler's signal fires.
 
 Behavior now:
-
 - Pop message → tracked, NOT committed
 - Download succeeds → `response_received` → `ack()` → commit
 - Download fails → no signal → no ack → message re-delivered on consumer restart (at-least-once)
@@ -944,7 +922,6 @@ Behavior now:
 **Files**: `schedule/scheduler.py`
 
 `open(spider)` reads `spider.crawler.signals` and connects:
-
 - `signals.response_received` → `self._on_response_received` → `self._queue.ack()`
 - `signals.spider_error` → `self._on_spider_error` → `self._queue.nack()`
 
@@ -1019,7 +996,6 @@ Now `repr(settings.password)` → `SecretStr('**********')`. Raw value only acce
 **Files**: `pyproject.toml`
 
 PyPI showed no Homepage/Repository/Issues links. Added:
-
 - Homepage / Repository → GitHub repo
 - Issues → GitHub issues
 - Changelog → CHANGELOG.md (future)
@@ -1174,7 +1150,7 @@ Lines 116-118 had commented-out `else` branch that would raise `ConfigurationErr
 
 `BackendType("mysql")` raised `ValueError: 'mysql' is not a valid BackendType` — no hint of what IS valid. Added `_missing_` classmethod that raises with a valid-values hint:
 
-```text
+```
 ValueError: 'mysql' is not a valid BackendType. Valid values: 'redis', 'mongodb', 'kafka', 'rabbitmq', 'elasticsearch', 'rocketmq'.
 ```
 
@@ -1281,7 +1257,7 @@ def _json_default(obj):
 
 Round 12 documented `CONCURRENT_REQUESTS=1` as a requirement for correct ack tracking, but provided no detection. Now both backends log a warning when `pop()` is called while a previous message is still unacked:
 
-```text
+```
 WARNING: pop() called while previous message is unacked —
 CONCURRENT_REQUESTS>1 breaks ack tracking.
 Set CONCURRENT_REQUESTS=1 for correct at-least-once delivery.
@@ -1354,7 +1330,7 @@ Three small fixes addressing operational silence and documentation drift.
 
 Round 12 silently returned when `spider.crawler` was absent — operator gets no ack, doesn't know why, messages re-deliver forever. Now logs a warning:
 
-```text
+```
 WARNING: spider has no 'crawler' attribute — ack/nack signals not wired.
 Kafka/RabbitMQ messages will re-deliver on consumer restart (at-least-once)
 but won't be acked in-session. Ensure the spider is created via
@@ -1442,7 +1418,6 @@ The last remaining performance issue from Round 3. `KafkaBackend.queue_len` crea
 **Files**: `backends/kafka.py`, `tests/test_kafka_backend.py`
 
 Old code: every `queue_len()` call created a `KafkaConsumer(bootstrap_servers=..., group_id=None)`, queried beginning/end offsets, then closed it. At Scrapy's default tick rate (1/sec):
-
 - 60 new TCP connections per minute to the Kafka broker
 - 60 consumer metadata requests
 - Risk of broker connection limits exhaustion
@@ -1459,7 +1434,6 @@ total = sum(max(0, end_offsets[tp] - self._consumer.position(tp)) for tp in assi
 ```
 
 Edge cases handled:
-
 - Consumer not yet created (`self._consumer is None`) → returns 0
 - Consumer created but no assignment yet (pre-first-poll) → returns 0
 - KafkaError from any offset query → returns 0
@@ -1496,7 +1470,6 @@ Fresh adversarial pass. Reading `BackendQueue._request_to_dict` against Scrapy's
 `Request.__init__` accepts `cb_kwargs` (since Scrapy 2.0). `request_from_dict` filters dict keys via `key in request_cls.attributes`, and `cb_kwargs` IS in `Request.attributes` — but `_request_to_dict` never serialized it. Push a request with `cb_kwargs={"item_id": 123}`, pop it: `request_from_dict` constructs a Request with empty `cb_kwargs`. If the callback signature is `def parse(self, response, item_id)`, it raises `TypeError: parse() missing 1 required keyword-only argument: 'item_id'`.
 
 22 rounds of review never caught this because:
-
 - All tests used `Request(url=...)` without cb_kwargs
 - The "callback loss" P0 (R3-G2) was about callback name resolution, not cb_kwargs
 - The serialization round-trip tests used empty-meta requests, so cb_kwargs absence was invisible
@@ -1506,7 +1479,6 @@ Fresh adversarial pass. Reading `BackendQueue._request_to_dict` against Scrapy's
 **Backward compatibility**: Old queued payloads without `cb_kwargs` deserialize fine — `request_from_dict` uses `Request.cb_kwargs` default of `{}`.
 
 **Tests** (3 new):
-
 - `test_request_to_dict_preserves_cb_kwargs` — explicit cb_kwargs preserved
 - `test_request_to_dict_default_cb_kwargs_is_empty_dict` — default request → `{}`
 - `test_cb_kwargs_round_trips_through_serialize` — full serialize → deserialize → `request_from_dict` round-trip with nested cb_kwargs
@@ -1556,7 +1528,7 @@ Round 23 backlog item closed. `spider.name` was used raw to construct queue keys
 
 **Fix**: Added `_validate_key_name(spider.name, field_name="spider.name")` at the top of `BackendScheduler.open()`. Now `spider.name = "my spider"` (space) raises:
 
-```text
+```
 ValueError: Invalid spider.name: 'my spider'. Only alphanumeric, dots,
 underscores, hyphens, and colons allowed.
 ```
@@ -1564,7 +1536,6 @@ underscores, hyphens, and colons allowed.
 —at open time, before any backend operation.
 
 **Tests** (2 new):
-
 - `test_open_rejects_invalid_spider_name` — name with spaces raises ValueError matching "spider.name"
 - `test_open_accepts_valid_spider_name` — name `"my-spider.v2:production"` passes
 
@@ -1613,7 +1584,6 @@ Round 9 fixed the half-state issue (`_backend` assigned only after `connect()` s
 **Files**: `backends/connectors.py`, `tests/test_connection_manager.py`
 
 Concrete failure path (`RedisBackend.connect()`):
-
 ```python
 self._client = self._create_redis_client()   # line 150 — allocates pool
 self._client.ping()                          # line 151 — may raise on network
@@ -1648,7 +1618,6 @@ def _attempt_connection(self) -> None:
 The cleanup is wrapped in `contextlib.suppress(Exception)` because `disconnect()` may itself fail (e.g., broken pipe on attempted close of an already-broken socket). The operator needs the original `connect()` error, not a cleanup error — original exception is re-raised.
 
 **Tests** (2 new):
-
 - `test_attempt_connection_calls_disconnect_on_failure` — mock backend with `connect.side_effect = ConnectionError`, verify `disconnect.assert_called_once()`
 - `test_attempt_connection_disconnect_failure_is_swallowed` — both `connect` and `disconnect` raise; verify original `ConnectionError` propagates with its message intact
 
@@ -1692,7 +1661,7 @@ Round 2 flagged R2-B6 ("ConfigurationError.setting_value may contain secrets") a
 
 ### Fixed in this batch
 
-#### ✅ R2-B6 / R26-C1: ConfigurationError redacts sensitive setting_value at **init** (P2)
+#### ✅ R2-B6 / R26-C1: ConfigurationError redacts sensitive setting_value at __init__ (P2)
 
 **Severity**: P2 (forward-looking security hardening)
 
@@ -1701,7 +1670,6 @@ Round 2 flagged R2-B6 ("ConfigurationError.setting_value may contain secrets") a
 `ConfigurationError(message, setting_name, setting_value)` stored `setting_value` as-is. `repr(exc)` doesn't include it (only message is passed to `super().__init__`), but the value is retrievable via attribute access — and operators/debuggers/logging frameworks routinely introspect exception attributes.
 
 The redaction triggers when EITHER:
-
 1. `setting_name` contains a sensitive fragment: `password`, `secret`, `api_key`, `apikey`, `token`, `credential` (case-insensitive substring match)
 2. `setting_value` is a pydantic `SecretStr` or `SecretBytes` (detected by type name — no pydantic import required)
 
@@ -1718,7 +1686,6 @@ def __init__(self, message, setting_name=None, setting_value=None):
 Once redacted, the raw value is **never retained** on the exception — no `.original_value` backdoor, no bypass.
 
 **Tests** (4 new in `TestConfigurationErrorRedaction`):
-
 - SecretStr value → redacted, `repr(exc)` doesn't contain the secret
 - 5 sensitive name variants (password, rabbitmq_password, API_KEY, auth_token, confluent_api_secret) → all redacted
 - Non-sensitive name + plain value → preserved (so debugging still works)
@@ -1803,7 +1770,6 @@ Three design choices worth flagging:
 3. **Warning AFTER mode validation.** A misconfigured mode raises `ConfigurationError` — we don't want to log a spurious SSL warning before that error fires.
 
 **Tests** (3 new):
-
 - `test_rabbitmq_backend_warns_when_ssl_disabled` — default config → warning fires, message contains "without SSL" and "cleartext"
 - `test_rabbitmq_backend_ssl_warning_debounces_across_reconnects` — connect → disconnect → connect emits warning exactly once
 - `test_rabbitmq_backend_no_warning_when_ssl_enabled` — `ssl_enabled=True` produces no warning
@@ -1851,13 +1817,11 @@ Round 2 flagged R2-B2 alongside R2-B3 (RabbitMQ SSL) and R2-B6 (ConfigurationErr
 **Files**: `backends/kafka.py`, `tests/test_kafka_backend.py`
 
 `_build_common_config()` line 162 (pre-fix):
-
 ```python
 config["sasl_plain_password"] = secret_value(self.config.sasl_password)
 ```
 
 `secret_value()` unwraps the SecretStr to a plain `str`. The dict then travels through:
-
 1. Return value of `_build_common_config()`
 2. Local var `common_config` in `_connect_standalone` / `_connect_cluster` / etc.
 3. Unpacked via `**common_config` into `KafkaProducer(...)`
@@ -1880,7 +1844,6 @@ class _RedactedStr(str):
 **Limitations (documented in the class docstring)**: This is defense-in-depth against accidental repr introspection. It does NOT protect against an adversary with process-memory access — the raw value is still reachable via `str(instance)` or indexing. The threat model is "operator accidentally logs the config dict" / "Sentry captures locals on connection failure", not "malicious process introspection".
 
 **Tests** (2 new):
-
 - `test_kafka_sasl_password_repr_does_not_leak` — `_RedactedStr("hunter2")`: `str()` returns the value (kafka-python can use it); `repr()` shows `<redacted>`; raw value absent from repr.
 - `test_kafka_build_common_config_redacts_sasl_password` — full SASL-configured backend builds a config dict whose repr does NOT contain the raw password string, while the dict's value still round-trips through `str()`.
 
@@ -1937,17 +1900,14 @@ Round 21 shipped the pipeline's best-effort storage (catch exceptions, return it
 Two related issues from Round 21's batch:
 
 **Issue 1 — Misleading variable name (R23-A1)**. The error-path code read:
-
 ```python
 stats = getattr(spider, "crawler", None)
 if stats and getattr(stats, "stats", None):
     stats.stats.inc_value("pipeline/storage_errors")
 ```
-
 The variable `stats` actually holds the **crawler** (not the stats collector). Then `stats.stats` is the stats collector. A future maintainer reading this would be confused — `stats.stats.inc_value(...)` looks like a typo. Real bugs lurk in this kind of code: a refactor that renames `stats` to `crawler` mid-function would silently break the `getattr(stats, "stats", None)` check.
 
 **Issue 2 — No counter for skipped items (visibility gap)**. When `_storage_supported is False` (Kafka/RabbitMQ/RocketMQ backends), `process_item` returned early without recording anything. The operator's dashboard showed:
-
 - `pipeline/storage_errors`: 0 (correct, no errors)
 - `pipeline/storage_skipped`: (didn't exist)
 - Stored items count: 0
@@ -1968,7 +1928,6 @@ def _inc_stat(spider, stat_name):
 Both call sites in `process_item` (storage_errors and storage_skipped) now use the helper. The skipped path now increments `pipeline/storage_skipped` so dashboards can distinguish "no items" from "items silently dropped".
 
 **Tests** (2 new):
-
 - `test_process_item_increments_storage_skipped_when_unsupported` — `_storage_supported=False` calls `inc_value("pipeline/storage_skipped")`
 - `test_inc_stat_skips_silently_when_no_crawler` — `_inc_stat` with a `MagicMock(spec=["name"])` spider (no `.crawler`) doesn't raise
 
@@ -2000,7 +1959,7 @@ uv run pytest -q
 
 ---
 
-## Round 30 — Single-source **version** via importlib.metadata (R26-D1)
+## Round 30 — Single-source __version__ via importlib.metadata (R26-D1)
 
 Round 26 brainstorm flagged `__version__ = "0.1.0"` as hardcoded, drift-prone. Today both `__init__.py` and `pyproject.toml` happen to say "0.1.0", so nothing is broken — but the manual sync is a known trap: bump one, forget the other, `scrapy_extension.__version__` and `pip show scrapy-extension` disagree. Round 30 closes the trap by making pyproject.toml the single source.
 
@@ -2013,13 +1972,11 @@ Round 26 brainstorm flagged `__version__ = "0.1.0"` as hardcoded, drift-prone. T
 **Files**: `__init__.py`, `tests/test_lazy_imports.py`
 
 **Before**:
-
 ```python
 __version__ = "0.1.0"
 ```
 
 **After**:
-
 ```python
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 try:
@@ -2031,7 +1988,6 @@ except PackageNotFoundError:
 The `PackageNotFoundError` fallback handles the rare case where the package is imported from source without being installed (e.g., a CI checkout that didn't run `uv sync`). In that case `__version__` is `"0.0.0"` rather than `ImportError` — useful for diagnostics without blocking imports.
 
 **Tests** (2 new in `TestVersionFromPackageMetadata`):
-
 - `test_version_is_non_empty_string` — `__version__` is a non-empty string in all environments
 - `test_version_matches_installed_metadata` — when installed (the normal path), `__version__ == version("scrapy-extension")`; skips when running from source
 
@@ -2075,7 +2031,6 @@ Fresh adversarial pass on SetBackend implementations surfaced a real production 
 **Files**: `backends/redis.py`, `backends/elasticsearch.py`, `tests/test_backends.py`, `tests/test_elasticsearch_backend.py`, `tests/test_elasticsearch_backend_coverage.py`
 
 **Contract** (`backends/base.py:SetBackend.add`):
-
 ```python
 def add(self, set_name: str, item: bytes) -> bool:
     """Add an item to a set.
@@ -2087,7 +2042,6 @@ def add(self, set_name: str, item: bytes) -> bool:
 The contract is unambiguous: `False` means **already existed**, not "operation failed". MongoDB's implementation got it right (catches `DuplicateKeyError` only — the specific signal for "duplicate"). Redis and ES both caught the broad base exception class and returned False:
 
 **Redis (pre-fix)**:
-
 ```python
 try:
     return self.client.sadd(set_name, item) == 1
@@ -2096,7 +2050,6 @@ except RedisError:
 ```
 
 **ElasticSearch (pre-fix)**:
-
 ```python
 try:
     self.client.index(...)
@@ -2113,12 +2066,10 @@ except TransportError:
 A 1-second network blip during a Redis failover drops every concurrent new request. The spider continues, stats look healthy, but **new requests vanish**. Operators see "spider crawling but discovering nothing" with no error logs.
 
 **Fix**:
-
 - Redis: removed the `except RedisError` entirely. `sadd` returns `0` if the item already exists (no exception); any actual RedisError now propagates so the dupefilter sees a real failure.
 - ES: replaced `except TransportError: return False` with `except ConflictError: return False` (the canonical 8.x signal for HTTP 409 on `op_type=create`). Kept the `RequestError`-with-string-match as legacy defensive path. Real transport errors propagate.
 
 **Tests** (1 updated Redis contract + 2 new ES + 1 updated ES coverage):
-
 - `test_set_add_error` (Redis, modified) — now `pytest.raises(RedisError)` instead of asserting `False`. The prior test **codified the bug as the contract**, which is why 30 rounds missed the underlying issue.
 - `test_add_duplicate_via_conflict_error` (ES, new) — modern ConflictError path returns False
 - `test_add_transport_error_propagates` (ES coverage, modified + new variant) — TransportError propagates instead of returning False
@@ -2169,7 +2120,6 @@ R31-followup: systematic audit of the same error-conflation pattern across other
 **Files**: `backends/redis.py`, `backends/elasticsearch.py`, `tests/test_backends.py`, `tests/test_elasticsearch_backend_coverage.py`
 
 **Contract** (`backends/base.py:StorageBackend.retrieve`):
-
 ```python
 def retrieve(self, key: str) -> bytes | None:
     """Retrieve data by key.
@@ -2191,7 +2141,6 @@ else:
 If `retrieve` returns `None` because the network blipped (not because the key is missing), the caller takes the "create" branch and **overwrites the existing key with `new_data`** — silent data loss.
 
 **Redis (pre-fix)** line 698-699:
-
 ```python
 try:
     result = self.client.get(key)
@@ -2201,7 +2150,6 @@ except RedisError:
 ```
 
 **ES (pre-fix)** line 398-399:
-
 ```python
 try:
     resp = self.client.get(index=..., id=key)
@@ -2214,7 +2162,6 @@ except TransportError:
 **Fix**: removed the broad except-clauses. Only the legitimate "not found" signal produces `None` (Redis: `client.get` returning `None`; ES: `NotFoundError`). Real errors propagate so callers can distinguish "key doesn't exist" from "couldn't reach the backend".
 
 **Tests** (2 existing tests updated — no new tests added):
-
 - `test_storage_retrieve_error` (Redis) — now `pytest.raises(RedisError)` instead of asserting None. The prior test codified the bug as the contract.
 - `test_retrieve_transport_error` (ES coverage) — now `pytest.raises(TransportError)` instead of asserting None. Same codification.
 
@@ -2276,7 +2223,6 @@ R31 closed SetBackend.add. R32 closed StorageBackend.retrieve. R33 closes Storag
 Same shape as R32 retrieve: `exists` returning False on a broad base exception class made the standard `if not storage.exists(k): create_new()` pattern silently overwrite existing data during any backend instability.
 
 **Redis (pre-fix)** line 729-732:
-
 ```python
 try:
     return self.client.exists(key) == 1
@@ -2285,7 +2231,6 @@ except RedisError:
 ```
 
 **ES (pre-fix)** line 428-432:
-
 ```python
 try:
     response = self.client.exists(index=..., id=key)
@@ -2297,7 +2242,6 @@ except TransportError:
 **Fix**: removed the broad except-clauses. Real errors propagate so callers can distinguish "key doesn't exist" (False) from "couldn't reach the backend" (raised exception).
 
 **Tests** (2 existing tests updated — no new tests):
-
 - `test_exists_error` (Redis) — now `pytest.raises(RedisError)` instead of asserting False
 - `test_exists_transport_error` (ES coverage) — now `pytest.raises(TransportError)` instead of asserting False
 
@@ -2348,7 +2292,6 @@ R31-R33 closed the three highest-impact error-conflation bugs one at a time. R34
 Each method had the same shape: `try: <op> except <BroadException>: return <sentinel>`. Each fix removed the broad except-clause so real errors propagate. Sentinel value remains ONLY when produced by the operation itself (e.g., sadd returns 0 for "already in set"; NotFoundError 404 for "not in index").
 
 **Redis (4 methods)**:
-
 | Method | Pre-fix on RedisError | Post-fix |
 |---|---|---|
 | `set_backend.remove` | `return False` | propagate (srem returns 0 if not in set) |
@@ -2357,7 +2300,6 @@ Each method had the same shape: `try: <op> except <BroadException>: return <sent
 | `storage_backend.ttl` | `return None` | propagate (ttl returns -2 for missing, -1 for no-expire) |
 
 **ES (3 methods)**:
-
 | Method | Pre-fix on TransportError | Post-fix |
 |---|---|---|
 | `set_backend.contains` | `return False` | propagate |
@@ -2365,7 +2307,6 @@ Each method had the same shape: `try: <op> except <BroadException>: return <sent
 | `storage_backend._delete_by_id` (private) | `return False` | propagate (only NotFoundError returns False) |
 
 **Tests** (7 existing tests updated — no new tests):
-
 - `test_set_remove_error` / `test_set_contains_error` / `test_delete_error` / `test_ttl_error` (Redis) — `pytest.raises(...)` instead of asserting sentinel
 - `test_contains_transport_error` / `test_ttl_transport_error` / `test_delete_by_id_transport_error` (ES coverage) — same
 
@@ -2430,14 +2371,12 @@ The original Round 3 critique assumed async-first Scrapy REQUIRED a Deferred. It
 **Files**: `schedule/scheduler.py`
 
 **Before**:
-
 ```python
 def open(self, spider: Spider) -> None: ...
 def close(self, reason: str) -> None: ...
 ```
 
 **After**:
-
 ```python
 if TYPE_CHECKING:
     from twisted.internet.defer import Deferred
@@ -2478,7 +2417,7 @@ uv run pytest -q
 
 ---
 
-## Round 36 — `backends/__init__.py` **all** drift (R36-A1)
+## Round 36 — `backends/__init__.py` __all__ drift (R36-A1)
 
 Fresh adversarial pass on the lazy-import layer. `scrapy_extension.backends.__all__` was missing 3 of 6 backend names — `from scrapy_extension.backends import *` silently dropped MongoDBBackend, KafkaBackend, ElasticSearchBackend.
 
@@ -2490,12 +2429,11 @@ Fresh adversarial pass on the lazy-import layer. `scrapy_extension.backends.__al
 
 **Files**: `backends/__init__.py`, `tests/test_lazy_imports.py`
 
-`_BACKEND_MODULES` correctly listed all 6 backends. But `__all__` only listed 3 of them (Redis, RabbitMQ, RocketMQ). The other 3 were reachable via `from scrapy_extension.backends import MongoDBBackend` (PEP 562 **getattr**) but NOT via wildcard import.
+`_BACKEND_MODULES` correctly listed all 6 backends. But `__all__` only listed 3 of them (Redis, RabbitMQ, RocketMQ). The other 3 were reachable via `from scrapy_extension.backends import MongoDBBackend` (PEP 562 __getattr__) but NOT via wildcard import.
 
 **Fix**: added the 3 missing names. Both lists now agree.
 
 **Tests** (2 new in `TestBackendsWildcardImport`):
-
 - `test_all_lists_every_backend_module` — programmatic check that `set(_BACKEND_MODULES) - set(__all__)` is empty. Catches drift the moment it's introduced.
 - `test_wildcard_import_resolves_all_backend_names` — every backend name in `__all__` actually resolves to a class via the PEP 562 path.
 
@@ -2518,9 +2456,9 @@ uv run pytest -q
 
 ---
 
-## Round 37 — `base.py` **all** (R23-D3 closed)
+## Round 37 — `base.py` __all__ (R23-D3 closed)
 
-R36 closed the `backends/__init__.py` **all** drift. R37 closes the analogous gap in `base.py` — no **all** at all, so wildcard import leaked every non-underscored symbol including package-internal helpers.
+R36 closed the `backends/__init__.py` __all__ drift. R37 closes the analogous gap in `base.py` — no __all__ at all, so wildcard import leaked every non-underscored symbol including package-internal helpers.
 
 ### Fixed in this batch
 
@@ -2531,7 +2469,6 @@ R36 closed the `backends/__init__.py` **all** drift. R37 closes the analogous ga
 **Files**: `backends/base.py`, `tests/test_lazy_imports.py`
 
 `base.py` had no `__all__`. The module defines:
-
 - 7 user-facing public symbols: `Backend`, `BackendType`, `QueueBackend`, `SetBackend`, `StorageBackend`, `JSONSerializer`, `Serializer`
 - 6 package-internal helpers, some without leading underscore: `secret_value`, `KEY_NAME_PATTERN`, `_validate_key_name`, `_hash_item`, `_get_mode_text`, `_json_default`
 
@@ -2540,7 +2477,6 @@ R36 closed the `backends/__init__.py` **all** drift. R37 closes the analogous ga
 **Fix**: explicit `__all__` with the 7 public symbols. Helpers stay package-internal.
 
 **Tests** (3 new in `TestBaseModuleAll`):
-
 - `test_all_lists_public_surface` — `set(__all__)` equals the expected 7-symbol set
 - `test_all_names_resolve_to_objects` — every name in `__all__` exists on the module
 - `test_helpers_not_in_all` — `secret_value` and `KEY_NAME_PATTERN` are explicitly excluded
@@ -2557,7 +2493,7 @@ Same lesson as R36: a missing `__all__` is a maintenance hazard. The test `test_
 
 ### Summary judgment for this batch
 
-> Two-round closing of the wildcard-import hygiene gap (R36 backends/**init**.py, R37 base.py). Both with the same shape: programmatic invariant (set equality check) prevents drift. The pattern is now established — any module with a public/private surface distinction gets a test.
+> Two-round closing of the wildcard-import hygiene gap (R36 backends/__init__.py, R37 base.py). Both with the same shape: programmatic invariant (set equality check) prevents drift. The pattern is now established — any module with a public/private surface distinction gets a test.
 >
 > **State**: 715 tests passing (+3 net new). Zero regressions. `base.py` public surface is now explicit and tested.
 
@@ -2592,7 +2528,6 @@ Added 6 new class-level shortcut attributes mirroring the existing Redis/MongoDB
 Plus two new branches in `_build_backend_settings` that apply the shortcuts when the corresponding `backend_type` is selected.
 
 **Tests** (2 new + 1 updated):
-
 - `test_elasticsearch_shortcuts_not_in_class` (updated — name retained for git-blame readability; now verifies shortcuts EXIST and apply)
 - `test_elasticsearch_explicit_settings_still_work` (new) — explicit `backend_settings` dict remains a valid path
 - `test_rocketmq_shortcuts` (new) — RocketMQ shortcuts apply correctly
@@ -2616,15 +2551,15 @@ R38 closes the last item from the cumulative backlog. Across 16 rounds (R23-R38)
 | R33 | StorageBackend.exists contract fix | 0 (2 modified) |
 | R34 | Systematic sweep (7 methods) | 0 (7 modified) |
 | R35 | R3-G1 withdrawn + scheduler annotations | 0 |
-| R36 | backends/**init**.py **all** | +2 |
-| R37 | base.py **all** | +3 |
+| R36 | backends/__init__.py __all__ | +2 |
+| R37 | base.py __all__ | +3 |
 | R38 | ES + RocketMQ shortcuts | +2 |
 
 **Cumulative**: 688 → 717 tests (+29 net new, 13 contract-correction modifications). Zero open P0/P1/P2/P3 items in the backlog.
 
 ### Summary judgment for this batch
 
-> R38 closes the last backlog item — the 16-round adversarial arc reaches zero open items. The work spans data contracts (cb_kwargs), resource lifecycle (pool leak), security hardening (3 items), observability (pipeline stats), maintenance hygiene (version single-source, **all**), contract correctness (10 backend methods), and UX parity (backend shortcuts). The remaining gap — never closed across 38 total rounds including the prior 22 — is the integration-test infrastructure (R2-A4). That's the next structural investment; everything else is done.
+> R38 closes the last backlog item — the 16-round adversarial arc reaches zero open items. The work spans data contracts (cb_kwargs), resource lifecycle (pool leak), security hardening (3 items), observability (pipeline stats), maintenance hygiene (version single-source, __all__), contract correctness (10 backend methods), and UX parity (backend shortcuts). The remaining gap — never closed across 38 total rounds including the prior 22 — is the integration-test infrastructure (R2-A4). That's the next structural investment; everything else is done.
 >
 > **State**: 717 tests passing (+2 net new). Zero regressions. Backlog cleared.
 
@@ -2639,7 +2574,7 @@ uv run pytest -q
 
 ## Round 39 — `__all__` invariant sweep completed (R39-A1) + R38 test-name cleanup
 
-R36 closed `backends/__init__.py` **all** drift. R37 closed `base.py`. R39 sweeps the remaining 4 modules with the same invariant (every name in `__all__` resolves) plus renames the test that R38 left misleadingly named.
+R36 closed `backends/__init__.py` __all__ drift. R37 closed `base.py`. R39 sweeps the remaining 4 modules with the same invariant (every name in `__all__` resolves) plus renames the test that R38 left misleadingly named.
 
 ### Fixed in this batch
 
@@ -2650,7 +2585,6 @@ R36 closed `backends/__init__.py` **all** drift. R37 closed `base.py`. R39 sweep
 **Files**: `tests/test_lazy_imports.py`, `tests/test_spider_mixin.py`
 
 Added `TestAllModulesInvariants.test_all_names_resolve` — parametrized over 4 modules:
-
 - `scrapy_extension` (top-level package)
 - `scrapy_extension.settings`
 - `scrapy_extension.exceptions`
@@ -2658,7 +2592,7 @@ Added `TestAllModulesInvariants.test_all_names_resolve` — parametrized over 4 
 
 Each parametrization asserts every name in the module's `__all__` actually resolves to an attribute. Catches drift the moment a contributor adds a name to `__all__` without the corresponding import.
 
-Combined with R36 (backends/**init**.py) and R37 (base.py), all 6 modules with `__all__` now have the same invariant test pattern.
+Combined with R36 (backends/__init__.py) and R37 (base.py), all 6 modules with `__all__` now have the same invariant test pattern.
 
 Also renamed `test_elasticsearch_shortcuts_not_in_class` → `test_elasticsearch_shortcuts`. R38 changed the test from "ES has no shortcuts" to "ES shortcuts work", but the test name still implied the old behavior. The rename makes the test name match what it actually verifies.
 
@@ -2675,10 +2609,10 @@ The `__all__` invariant is structural: it catches a class of bug (drift between 
 | Resource lifecycle | R25 | connection pool leak |
 | Security hardening | R26-R28 | ConfigurationError / SSL / SASL |
 | Observability | R29 | Pipeline stats |
-| Maintenance | R30 | **version** single-source |
+| Maintenance | R30 | __version__ single-source |
 | Contract correctness | R31-R34 | 10 backend methods system sweep |
 | Withdrawal + annotation | R35 | R3-G1 withdrawn + scheduler types |
-| Lazy-import consistency | R36-R37, R39 | **all** invariants across 6 modules |
+| Lazy-import consistency | R36-R37, R39 | __all__ invariants across 6 modules |
 | UX parity | R38 | ES + RocketMQ shortcuts |
 
 **Cumulative**: 688 → 721 tests (+33 net new, 13 contract corrections, 1 withdrawn critique). Zero open items.
@@ -2709,7 +2643,6 @@ Fresh adversarial pass on mode-specific cross-field validations. R23 closed Redi
 **Initial hypothesis**: `KafkaSettings(mode=CONFLUENT)` should require `confluent_bootstrap_servers` / `confluent_api_key` / `confluent_api_secret` (Cloud credentials).
 
 **Reality (verified via existing tests)**: `mode=CONFLUENT` supports two configurations:
-
 1. **Confluent Cloud**: full Cloud creds (`confluent_api_key` + `confluent_api_secret` + `confluent_bootstrap_servers`)
 2. **Confluent Platform (self-hosted)**: regular `bootstrap_servers` + SASL (`sasl_username` + `sasl_password`)
 
@@ -2763,17 +2696,15 @@ The header comment had `# @name : __init__.py.py` (double `.py`). Fixed to `# @n
 Current: **96.39%** (2173 statements, 62 missed). Old doc claimed 97.81% at Round 22 baseline.
 
 Drop is NOT a regression — it reflects:
-
 1. New code added with defensive branches that can't be triggered without real backend failure (R31-R34 removed broad except-clauses; the now-propagating error paths aren't exercised in mock tests)
 2. R25's `_attempt_connection` cleanup path requires a real backend to fail-then-disconnect
 3. R28's `_RedactedStr` requires a real kafka-python producer construction to fully exercise
 
 Per-module breakdown (selected):
-
-- 100%: settings (all), exceptions, dupefilter, pipeline, base, queue/**init**, utils
+- 100%: settings (all), exceptions, dupefilter, pipeline, base, queue/__init__, utils
 - 89-94%: scheduler, queue.py, redis, rabbitmq (defensive error paths)
 - 99.49%: rocketmq
-- 0%: monitor/**init** (dead code; coverage correctly shows 0)
+- 0%: monitor/__init__ (dead code; coverage correctly shows 0)
 
 The integration test gap (R2-A4) remains the long pole for restoring 97%+. Mock-based tests can't exercise the propagation paths added in R31-R34.
 
@@ -2906,7 +2837,6 @@ assert scrapy.utils.request.fingerprint(req).hex() \
 Byte-identical → safe.
 
 **Fix** (additive, no behavior change for default users):
-
 - `BackendDupeFilter.__init__` gains an optional `fingerprinter` param.
 - `from_crawler` threads `getattr(crawler, "request_fingerprinter", None)`.
 - `request_fingerprint` uses the injected fingerprinter when present, else falls back to the module function.
@@ -2959,7 +2889,6 @@ A focused suite that exercises `RedisBackend` against a **real** Redis, gated by
 | `test_ttl_contract` | positive int with TTL, None without — not −1 | R5 |
 
 Design choices:
-
 - **Stdlib URL parse** (`urllib.parse.urlparse`), no redis-py `parse_url` — the module imports even without the redis extra installed; it skips before any redis call.
 - **UUID-prefixed keys** per test (`inttest:{uuid}`) — concurrent runs and leftover data can't interfere; no `FLUSHDB` (would be destructive on a shared Redis).
 - **Module-scoped backend fixture** — one connect/disconnect per run.
@@ -3067,7 +2996,6 @@ R1-P0-4 / R5 fixed `StorageBackend.ttl()` on **Redis and MongoDB** so a *missing
 Worse, it was the R31 anti-pattern again: `test_ttl_not_found` (test_elasticsearch_backend.py:314-317) **asserted `ttl(missing) == -1`** — codifying the wrong behavior as the contract. The coverage test six lines below even documented the *correct* contract ("None = no TTL, -1 = expired"), contradicting its neighbor. A maintainer reading the passing test would believe `-1` was intentional.
 
 **Fix**:
-
 - `elasticsearch.py`: `except NotFoundError: return None` (was `-1`), docstring updated to "None if no TTL or key is absent, -1 if expired".
 - `test_elasticsearch_backend.py`: `assert b.ttl("k") is None` (was `== -1`), with a docstring cross-referencing R5.
 
@@ -3239,7 +3167,6 @@ Loop restarted 2026-06-18 (new job `68b21952`, every 10 min) **after the operato
 `connect()` (lines 87-90) already rejected CLOUD-without-`cloud_id` — but at **connect time** (`BackendConnectionError`), far from the misconfiguration. Added an R8-style `@model_validator(mode="after")` so it fails at construction (pydantic `ValidationError`) instead.
 
 **Verified semantics before coding (R40 discipline)**:
-
 - `connect()` already enforces CLOUD→cloud_id, so the validator only moves the failure earlier — no valid configuration is newly rejected.
 - `api_key` is **intentionally not required** — `_build_kwargs` lets CLOUD authenticate via `basic_auth` too. Over-constraining to require `api_key` would have been the R40 mistake.
 
@@ -3316,7 +3243,6 @@ Four tests pinning the AMQP delivery contracts mocks cannot reproduce:
 | `test_ack_idempotent_when_no_pending` | R11: ack/nack with no tracked tag is a safe no-op |
 
 **Verified semantics before writing** (R40 discipline):
-
 - `pop` uses `basic_get(auto_ack=False)` — does NOT auto-ack (R12). So round-trip tests `ack()` each pop; `queue_len` (passive `message_count`) counts *ready* messages, not unacked.
 - `nack(requeue=True)` re-queues synchronously; a brief `time.sleep(0.1)` settle is included before re-fetch (documented).
 - `ack`/`nack` short-circuit when `_last_delivery_tag is None` (idempotent no-op).
@@ -3362,13 +3288,11 @@ Loop iteration 2026-06-18 (13th). Continues the integration sextet. Kafka is the
 **Files**: `tests/integration/test_kafka_integration.py` (new), gated on `SCRAPY_TEST_KAFKA_BOOTSTRAP`.
 
 **Verified semantics before writing** (R40 discipline — Kafka is the trickiest):
-
 - `pop` lazily creates a consumer, **subscribes + polls**. The first poll(s) after subscribe return empty until the consumer-group join + partition assignment completes — so a naive `push; pop` gets `None`. The round-trip test uses a `_drain` poll-loop with a deadline.
 - `ack` = `consumer.commit()` (offset durability, R11/R12). `nack` is an **in-session no-op** (re-delivers on restart).
 - Priority = **partition selection** — Kafka gives NO cross-partition ordering guarantee, so (unlike Redis/MongoDB/ES/RabbitMQ) priority *ordering* is **not** asserted; the round-trip compares as a set.
 
 Two conservative tests:
-
 | Test | Contract it pins |
 |---|---|
 | `test_push_pop_round_trip_with_ack` | N in → N out, no loss; `_drain` poll-loop handles group-join latency; each acked (pop doesn't auto-ack) |
@@ -3417,14 +3341,12 @@ Loop iteration 2026-06-18 (14th). Completes the integration sextet — all six b
 **Files**: `tests/integration/test_rocketmq_integration.py` (new), gated on `SCRAPY_TEST_ROCKETMQ_NAMESRV`.
 
 **Verified semantics before writing** (R40 discipline):
-
 - `pop` **auto-acks inline** (`consumer.ack(msg)`, line 246) — RocketMQ is the atomic backend; `ack()`/`nack()` inherit no-op defaults. Round-trip does NOT call ack (unlike Kafka/RabbitMQ).
 - `pop(timeout=0)` actually waits up to 3000ms (line 241); a `_drain` poll-loop still absorbs subscription-propagation latency.
 - `queue_len` raises `NotImplementedError` (line 269) — no count API; counts verified by popping.
 - **Topic-name catch**: topic is `{topic_prefix}_{queue_name}`; RocketMQ rejects colons in topic names → this suite uses **hyphen-delimited** queue names (not the `inttest:` colon style of the other five suites).
 
 Three tests:
-
 | Test | Contract it pins |
 |---|---|
 | `test_push_pop_round_trip` | **R7 verification**: N in → N out. Pre-R7 this was 0 (pop always None). The subscribe+start fix only a real broker can confirm. |
@@ -3449,7 +3371,7 @@ Three tests:
 
 Every backend now has a real-service integration foundation covering its queue (and set/storage where supported) contracts — exactly the mock ceiling R31–R34 proved mock tests couldn't cross. The one-command run:
 
-```text
+```
 SCRAPY_TEST_REDIS_URL=… SCRAPY_TEST_MONGODB_URI=… SCRAPY_TEST_ES_HOSTS=… \
 SCRAPY_TEST_RABBITMQ_URL=… SCRAPY_TEST_KAFKA_BOOTSTRAP=… SCRAPY_TEST_ROCKETMQ_NAMESRV=… \
   uv run pytest tests/integration -q
@@ -3517,7 +3439,6 @@ Loop iteration 2026-06-18 (16th). Discovered the project has **no CI at all** (`
 pyproject registers an `integration` marker (line 163), but the six suites only used `skipif` — so a CI selector (`-m "not integration"` for the fast unit job; `-m integration` for the services job) couldn't find them. Each module's `pytestmark` is now `[pytest.mark.integration, pytest.mark.skipif(...)]`.
 
 Verified both directions:
-
 - `pytest -m "not integration"` → `747 passed, 27 deselected` (unit-only CI job).
 - `pytest tests/integration -m integration` → `27 skipped` (integration job, runs with services).
 
@@ -3528,7 +3449,6 @@ A `.github/workflows/` CI workflow is **outward-facing** (runs on GitHub on ever
 ### Proposed CI (for the operator to approve/ship)
 
 Two jobs in `.github/workflows/test.yml`:
-
 1. **unit** (every push): `uv sync && uv run pytest -m "not integration"` — fast, no services.
 2. **integration** (nightly / on-demand): service containers for Redis/MongoDB/ES/RabbitMQ/Kafka, then `uv run pytest tests/integration -m integration` with the `SCRAPY_TEST_*` env vars wired to the services.
 
@@ -3605,8 +3525,7 @@ Loop iteration 2026-06-18 (21st). After holding twice (iterations 18–19) on "s
 R56 caught that **RocketMQ** topic names reject colons and used hyphen-delimited queue names. But R55 (the **Kafka** suite, written *before* R56) kept the colon style — `unique_prefix = f"inttest:{uuid}"`, queues `f"{prefix}:rt"`. Kafka's `_validate_topic_name` enforces `^[a-zA-Z0-9._-]+\Z` (line 43), and `push`/`pop`/`queue_len`/`clear_queue` all validate — so the R55 suite's first real run would have raised `ValueError: Invalid topic/queue name: 'inttest:...:rt'` immediately. The same bug R56 avoided, missed in R55 only because R55 was written first and I never ran it (skip-by-default).
 
 **Proven directly**:
-
-```text
+```
 _validate_topic_name('inttest:abc:rt')   → REJECTED ("Only alphanumeric, dots, underscores, and hyphens allowed")
 _validate_topic_name('inttest-abc-rt')   → ACCEPTED
 ```
@@ -3648,7 +3567,6 @@ Loop iteration 2026-06-18 (22nd). Applying R60's lesson (audit my own output) to
 ### R59 CI now fully verifies locally
 
 Re-checked all three CI commands locally (the part of CI I *can* verify without a runner):
-
 - `uv sync --group test` → resolves 90 packages, clean.
 - `uv run ruff check` → **All checks passed** (was 1 error).
 - `uv run pytest -m "not integration"` → 747 passed, 27 deselected (R58).
@@ -3683,16 +3601,14 @@ Loop iteration 2026-06-18 (23rd). Extending R60/R61's discipline ("verify what I
 A password-only Redis URL — `redis://:secret@host:6379/0` (the common pre-ACL / default-user pattern) — has an empty userinfo segment. `urlparse` returns `username=''` (empty string, not None), and the helper passed it straight through: `username=parsed.username`. Redis treats `username=''` differently from `username=None` in AUTH (empty user vs no-user) — so this URL shape would silently mis-authenticate when the suite ran.
 
 Verified empirically before the fix:
-
-```text
+```
 redis://:secret@host:6380/2  ->  username=''   (BUG)
 redis://user:pw@h:6379/3     ->  username='user'
 redis://localhost:6379/0     ->  username=None
 ```
 
 **Fix**: `username=parsed.username or None` (empty string → None), with a comment explaining the urlparse gotcha. Verified after:
-
-```text
+```
 redis://:secret@host:6380/2  ->  username=None   (fixed)
 ```
 
@@ -3701,7 +3617,6 @@ The RabbitMQ parser was checked the same way and is correct (`parsed.username or
 ### Where the locally-verifiable surface now stands
 
 Three rounds of "audit my own output + verify locally" yielded three real fixes:
-
 - R60 — Kafka colon topic names (validator rejects).
 - R61 — whole-project `ruff check` failure (pre-existing I001).
 - R62 — Redis parser empty-username (silent mis-auth).
@@ -3879,7 +3794,6 @@ The error-wrapping tests pin the invariant that **callers catch `QueueError`, ne
 ### Fixture-construction verification (clean — no bug)
 
 Constructed the 4 previously-unverified integration-fixture settings locally (pure, no service):
-
 - MongoDB: `MongoDBSettings(uri=..., server_selection_timeout_ms=5000)` + `model_copy(update={"database": ...})` ✓
 - ElasticSearch: `ElasticSearchSettings(hosts=[...], request_timeout=5.0, max_retries=1)` ✓
 - Kafka: `KafkaSettings(bootstrap_servers=..., group_id=..., ...)` — `enable_auto_commit=False` confirms R11 ✓
@@ -4065,7 +3979,7 @@ Loop iteration 2026-06-18 (32nd). Applying R62's discipline (verify, don't assum
 
 ### Verified
 
-```text
+```
 Binary(payload) == payload        → False   (Binary overrides __eq__)
 bson.decode(bson.encode(...))["data"] == payload → True   (pymongo returns raw bytes)
 ```
@@ -4079,7 +3993,6 @@ A verification that **clears** a suspected bug is as valuable as one that finds 
 ### Where the "verify locally" surface stands
 
 Semantic assumptions in the integration tests, checked:
-
 - Mongo `Binary` round-trip → bytes ✓ (this round)
 - Fixture settings construction (all 6) ✓ (R62/R66)
 - URL parsing (Redis fixed R62, RabbitMQ ✓) ✓
@@ -4182,7 +4095,6 @@ No time-based flakiness exists. (The integration suites do use `time.sleep(0.1)`
 ### Where the test-quality surface stands
 
 Lenses now all examined:
-
 | Lens | Result |
 |---|---|
 | Static signatures / URL parsing | clean / Redis fixed (R62) |
@@ -4226,7 +4138,6 @@ Removed both sections. **Retained** `[tool.mypy]` and `[tool.bandit]` — mypy/b
 ### Observed (pre-existing, NOT from this edit — flagged for a future round)
 
 The build emitted two warnings unrelated to this change:
-
 1. **`build-system.requires = ["uv-build>=0.10.4,<0.11.0"]`** excludes the *running* uv (0.11.21) — the upper-bound pin is stale. Build still succeeded (uv overrode), but the pin should widen to `<0.12` (or drop the upper bound) so builds don't break in uv-0.11-only environments. R2-C-adjacent.
 2. **Deprecated license classifier** (`License :: OSI Approved :: MIT License`) — PEP 639 deprecates classifiers in favor of `project.license` + `project.license-files`. R2-C-adjacent.
 
@@ -4406,8 +4317,7 @@ Loop iteration (42nd). R80 left open *why* lxml forces the GIL and whether it's 
 ### Traced + concluded
 
 `uv tree --invert --package lxml`:
-
-```text
+```
 lxml v6.0.4
 ├── parsel v1.11.0          ← scrapy's selector engine
 │   ├── itemloaders v1.4.0 → scrapy v2.15.0 → scrapy-extension
@@ -4643,7 +4553,6 @@ Loop iteration (56th). A genuinely new lens: **cyclomatic complexity**. The proj
 ### Refactor opportunity (offered, not actioned)
 
 `_build_backend_settings`'s elif chain is **where R43's fall-through bug lived** (RabbitMQ branch fell through to ES). Note: R43 already **eliminated that bug class** — all 6 branches now match on `backend_type` alone (no `and field is not None` guard remains), so the elif chain is already fall-through-safe. A dispatch refactor — a `_SHORTCUT_BUILDERS = {"redis": "_build_redis_settings", …}` map + per-backend builder methods + a one-line dispatcher — would:
-
 - drop `_build_backend_settings` complexity from 18 → ~5, and
 - distribute the logic into small per-backend builders (each ~3–5).
 

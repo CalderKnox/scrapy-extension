@@ -3,7 +3,6 @@
 Closes the hottest gaps in src/scrapy_extension/backends/connectors.py
 (retry/backoff, registry-cap eviction, breaker-wiring, A2 single-connect)
 and guards the registry-lock fix (victim disconnect outside _registry_lock).
-See docs/08-archive/superpowers/specs/2026-07-01-connection-manager-suite-lock-fix-design.md.
 """
 
 from __future__ import annotations

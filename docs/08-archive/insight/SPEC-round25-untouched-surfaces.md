@@ -48,7 +48,7 @@ bounds` 2 confirmed.
 - `spider/spider_mixin.py:509` `get_queue()` ignores `SCRAPY_QUEUE_MAX_ITEM_BYTES`
   etc.: **INTENTIONAL** — the mixin is a convenience path; the scheduler
   `from_crawler` path is the documented source of truth for tuning; the runbook
-  - docstrings say so explicitly. The default 1 MiB DoS cap IS applied via
+  + docstrings say so explicitly. The default 1 MiB DoS cap IS applied via
   `DEFAULT_QUEUE_MAX_ITEM_BYTES`. Correctly killed.
 
 ## DO-NOT-RE-FLAG additions after R25

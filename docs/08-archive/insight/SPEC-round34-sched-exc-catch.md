@@ -151,7 +151,7 @@ dedup_reserved = (
 
 ---
 
-## Addendum — R34-B + R34-C (circuit_breaker.py focused scan)
+# Addendum — R34-B + R34-C (circuit_breaker.py focused scan)
 
 After R34-A shipped, a focused ultracode scan of the previously-un-audited
 `backends/circuit_breaker.py` (3 finder lenses + adversarial verify, opus, 5

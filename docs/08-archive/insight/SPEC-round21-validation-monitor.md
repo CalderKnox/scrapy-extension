@@ -18,7 +18,6 @@ The **fresh-eyes dimension was the productive one** — uncovered a real input-v
 ## Problem statement
 
 ### A — CircuitBreaker accepts `reset_timeout=inf`/huge-finite → OPEN wedged forever — MED
-
 `CircuitBreaker.__init__` (circuit_breaker.py:117-122) validates only `failure_threshold < 1` and
 `reset_timeout < 0` — no `isfinite`, no upper bound. The settings Field `circuit_breaker_reset_timeout`
 (base.py:220) is `Field(ge=0)` which **accepts `inf`** (`inf >= 0`). `_get_breaker` threads it straight
@@ -28,7 +27,6 @@ breaker never recovers → permanent fail-fast across the whole backend. **Throt
 is inconsistent. Requires `SCRAPY_CIRCUIT_BREAKER_ENABLED=true` + misconfig → MED.
 
 ### B — `queue/delay_depth` operability gauge is dead (DelayQueueStrategy monitor never wired) — MED
-
 The Stable Monitor ABC exposes `on_delay_depth`; `ScrapyStatsMonitor` emits `queue/delay_depth`
 (stats.py:307-316, docstring promises "alert before the delay heap grows unbounded"); `DelayQueueStrategy`
 calls `self._monitor.on_delay_depth(...)` (delay.py:194,249). But `BackendQueue.__init__` calls
@@ -40,7 +38,6 @@ the R14-D ConnectionManager follow-up). Current delay tests pass `monitor=` dire
 **bypassing the production wiring gap** (false-green risk).
 
 ### C — `compute_full_jitter_backoff` overflows to inf for huge finite `retry_delay` — LOW
-
 `_retry.py:46` `delay = base_delay * (2**attempt)` has no cap. A huge-but-finite `retry_delay` (e.g.
 `1e303`, passes `Field(ge=0)` + `_retry_policy`'s `isfinite`) × `2**18` overflows IEEE-754 → `inf` →
 `random.uniform(0, inf)` → `inf` → `time.sleep(inf)` raises `OverflowError` inside the retry `except`
@@ -48,7 +45,6 @@ arm (connectors.py:1090), escaping as an opaque error instead of `BackendConnect
 throttle's ceiling discipline.
 
 ### D — `BatchedStorageStrategy` accepts `max_buffer_age_s=NaN` — LOW
-
 `batched.py:86` `if max_buffer_age_s is not None and max_buffer_age_s <= 0` — **NaN bypasses it**
 (`nan <= 0` is False). A NaN age makes the flusher's wake `wait(timeout=nan)` return immediately
 (hot-spin) AND the age comparison `>= nan` always False (never flushes) → unbounded crash-before-flush
@@ -56,20 +52,17 @@ loss window + CPU burn. The `threshold < 1` guard (83) has the same NaN-bypass. 
 `Field(gt=0)` rejects NaN, so exploit is direct-construction/test only. Fix with `math.isfinite`.
 
 ### E — CLAUDE.md Optional Dependencies drift — LOW
-
 CLAUDE.md:336-347 lists only 6 of 10 backend extras (omits pulsar/sqs/memcached/dynamodb) and names
 the Kafka dep `kafka-python` (pyproject pins `kafka-python-ng`). README:38-48 + pyproject.toml:58-72
 are correct. Sync.
 
 ## Non-goals (DO-NOT-RE-FLAG — accumulated)
-
 - All prior closed clusters (bloom/cuckoo, connect() from-None redaction, _RedactedStr, dynamodb
   clear_storage TOCTOU, _push_is_durable pin, connect()-BaseException [9], exception-catch-breadth,
   cleanup-BaseException-swallow [dupefilter/pipeline/scheduler], ES add() R-dupe-1, on_pop_rate docs).
 - R17-R20 just-shipped arms.
 
 ## Units (5)
-
 | ID | Sev | Surface | Fix |
 |----|-----|---------|-----|
 | A | MED | circuit_breaker.py:117, base.py:220 | `isfinite` + `CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S` cap + settings `le=` (mirror throttle) |
@@ -79,7 +72,6 @@ are correct. Sync.
 | E | LOW | CLAUDE.md:336-347 | sync 10 extras + `kafka-python-ng` |
 
 ## Success criteria
-
 - ruff clean; mypy --strict 0 issues; pytest ≥ 3770 passed / 46 skipped (unsandboxed); coverage ≥ 95%.
 - Each unit: ONE atomic commit; TDD for A–D; E is docs.
 - All merged to `main`; only `main` remains. Claude-only.

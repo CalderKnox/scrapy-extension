@@ -30,7 +30,6 @@ The factory path `BackendDupeFilter.from_crawler` (dupefilter.py:657) **does** t
 The method's own docstring (dupefilter.py:1512-1517) names custom `REQUEST_FINGERPRINTER_CLASS` as *exactly the case that should diverge* — `get_dupefilter` defeats that intent.
 
 **ndiff evidence (why this is a fresh sibling, not a re-report):**
-
 - R70 (`9208988`) wired `monitor=BackendQueue._resolve_monitor(self)` into this exact construction block but left `fingerprinter=` unfixed.
 - R77 (`3540bf8`) fixed the identical shape in the sibling `get_scheduler` (a mixin getter that constructed a component without threading a settings-driven param that `from_crawler` threads).
 - Grep confirms `fingerprinter`/`request_fingerprinter` appears **nowhere else** in spider_mixin.py — `get_dupefilter` is the sole gap.
@@ -52,7 +51,6 @@ fingerprinter=getattr(
 ```
 
 Semantics:
-
 - **No crawler** (unit-test spiders, ad-hoc use) → inner `getattr` is `getattr(None, ..., None)` → `None` → byte-identical to today's default `_fingerprinter = None`.
 - **Crawler without `request_fingerprinter`** → `None` → same.
 - **Crawler with `request_fingerprinter`** → threaded through → honors `REQUEST_FINGERPRINTER_CLASS`.

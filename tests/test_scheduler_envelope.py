@@ -251,7 +251,6 @@ class TestEnqueueBranchClosure:
 
     Characterization tests — every branch is correct on static read; these pin
     the behavior so a future refactor can't silently drop a degrade-path.
-    See docs/08-archive/superpowers/specs/2026-07-02-scheduler-branch-closure-design.md.
     """
 
     def test_G1_dedup_hit_with_no_spider_skips_log_returns_false(self) -> None:

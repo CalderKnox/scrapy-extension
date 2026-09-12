@@ -161,6 +161,6 @@ Then commit per unit (conventional commits), push branch, open draft PR.
 ## Sequencing (summary — full detail in the PLAN)
 
 1. **U1** solo (highest leverage) → 2. **U2 / U3 / U4** parallel (file-disjoint) →
-2. **U5** → 4. **U6** (docs, any time) → 5. **U7** gate → 6. ship.
+3. **U5** → 4. **U6** (docs, any time) → 5. **U7** gate → 6. ship.
 
 Total estimate: ~1–1.5 days; U1 alone ~2 hours.

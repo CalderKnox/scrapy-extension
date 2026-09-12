@@ -27,7 +27,9 @@ records:
    distributions claim the same third-party name, the registry rejects all of
    them rather than choosing one by environment-dependent discovery order.
 
-A plugin therefore consists of: a backend class, a pydantic-settings settings class,
+A plugin therefore consists of: a backend class, a pydantic settings model
+(the bundled backends use `pydantic-settings`; a plugin only needs a `BaseModel`
+constructible from the `SCRAPY_BACKEND_SETTINGS` dict),
 a tiny zero-arg registration callable, and one line in `pyproject.toml`.
 
 ## The Contract
@@ -186,7 +188,7 @@ first, and preserves FIFO order among items with equal priority.
 
 ### Project layout
 
-```text
+```
 mybackend-plugin/
 ├── pyproject.toml
 └── mybackend_plugin/
@@ -428,6 +430,7 @@ Because the descriptor declares `{"queue", "set", "storage"}`, `mybackend` is
 eligible for any of the three roles. If it declared only `{"queue"}`, selecting
 it for dedup or storage would raise `ConfigurationError` with the list of
 backends that *do* support the requested capability.
+
 
 ## Compatibility Smoke Tests
 

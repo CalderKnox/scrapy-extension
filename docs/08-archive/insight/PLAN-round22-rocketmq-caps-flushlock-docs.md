@@ -22,7 +22,7 @@ s) so they cannot disagree.
 `_flush_lock = threading.Lock()` (plain Lock → `acquire(timeout=)` returns bool).
 Refactor `_flush()`:
 
-```text
+```
 acquired = self._flush_lock.acquire(timeout=_FLUSH_LOCK_TIMEOUT_S)
 try:
   if not acquired:
@@ -53,7 +53,7 @@ finally:
 
 `RocketMQBackend.push` gains, before `self._producer.send(msg)`:
 
-```text
+```
 if len(item) > self.config.max_message_size:
   raise QueueError(
     f"item size {len(item)} exceeds RocketMQ max_message_size {self.config.max_message_size}",
@@ -75,7 +75,6 @@ if len(item) > self.config.max_message_size:
 ### R22-D / R22-E — runbook doc edits (R21 self-regressions)
 
 Two one-line edits to `docs/runbook.md`:
-
 - **:436** — append the 3600 s ceiling to the `SCRAPY_RETRY_DELAY` contract row.
 - **:569 + :585** — cite the live `queue/delay_depth` gauge as the alert target
   alongside the `SCRAPY_QUEUE_DELAY_MAX_HELD` soft cap, and add it to the

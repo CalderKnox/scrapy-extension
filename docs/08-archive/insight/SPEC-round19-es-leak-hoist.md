@@ -17,7 +17,6 @@ code** + a phantom-stat-key cluster R18-A missed.
 ## Problem statement
 
 ### A — ElasticSearch `pop()` leaks non-NotFound `ApiError` subclasses raw — MED
-
 `pop()`'s outer except (elasticsearch.py:324-327) catches `NotFoundError` (→ return None) and
 `TransportError` (→ QueueError) — but NOT the broad `ApiError`. **15 sibling ES hot-path
 methods** catch `(ApiError, TransportError)` (push:256, queue_len, clear_queue, store, retrieve,
@@ -31,7 +30,6 @@ intentional narrowing** (PR #38, option b — graceful-degradation) — a delibe
 defect; do not "fix" it.
 
 ### B — R18-B pulsar hoist sits inside the try, after kwargs — LOW (R18 regression, my bug)
-
 My R18-B `except BaseException` arm (pulsar.py:446-461) references local `client` (line 458), but
 I hoisted `client: Any = None` at line 422 — **inside the try (starts 403) and AFTER the kwargs
 block (404-421)**. That kwargs block calls `pulsar.AuthenticationToken(snapshot.auth_token)` at
@@ -42,7 +40,6 @@ block (404-421)**. That kwargs block calls `pulsar.AuthenticationToken(snapshot.
 should mirror it. The R18 test only exercised the post-hoist window, so it missed this.
 
 ### C — phantom `queue/pop_rate` stat key (7 sites) — LOW (docs)
-
 R18-A fixed `dupefilter/filtered` → `dupefilter/hit_count`, but the `queue/pop_rate` phantom
 survived. The real emitted key is `queue/pop_rate_1m` (window-tagged: `_1m` at the default 60s,
 `_{N}s` for a custom `SCRAPY_MONITOR_POP_RATE_WINDOW_S`) — `monitor/stats.py:226-227`. The bare
@@ -52,7 +49,6 @@ survived. The real emitted key is `queue/pop_rate_1m` (window-tagged: `_1m` at t
 and misdiagnoses a stuck crawl. (Verifier correctly expanded scope from the finder's 3 to all 7.)
 
 ## Non-goals (DO-NOT-RE-FLAG — accumulated)
-
 - bloom/cuckoo (never-FN). · all connect() `from None` (secret-redaction). · pulsar `_RedactedStr`.
   · dynamodb `clear_storage` TOCTOU (documented). · `_push_is_durable` pin. · connect()-BaseException
   cluster (all 9 — CLOSED). · ES `add()` :417 TransportError-only catch = R-dupe-1 deliberate narrowing
@@ -61,7 +57,6 @@ and misdiagnoses a stuck crawl. (Verifier correctly expanded scope from the find
   EXCEPT the pulsar hoist-placement (finding B critiques the implementation).
 
 ## Units (3)
-
 | ID | Sev | R18-reg | Surface | Fix |
 |----|-----|---------|---------|-----|
 | A | MED | — | elasticsearch.py:326 | `except TransportError` → `except (ApiError, TransportError)` (keep NotFoundError arm first) |
@@ -69,7 +64,6 @@ and misdiagnoses a stuck crawl. (Verifier correctly expanded scope from the find
 | C | LOW | — | 7 sites (runbook×2, base.py, scheduler×2, stats.py, queue.py) | bare `queue/pop_rate` → `queue/pop_rate_1m` (+ window-tag note) |
 
 ## Success criteria
-
 - ruff clean; mypy --strict 0 issues; pytest ≥ 3765 passed / 46 skipped (unsandboxed); coverage ≥ 95%.
 - Each unit: ONE atomic commit; TDD (RED before GREEN) for A + B; C is docs.
 - All merged to `main`; only `main` remains. Claude-only.

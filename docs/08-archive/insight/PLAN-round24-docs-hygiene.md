@@ -26,7 +26,6 @@ was a soft-OOM foot-gun — pop-timestamp deque grows without eviction).
 
 Extend the per-item-byte-cap section (L553-560) — or add a short RocketMQ
 note — documenting:
-
 - `SCRAPY_ROCKETMQ_SEND_TIMEOUT` capped at 300000ms (5min) so a stray-zero typo
   cannot wedge the gRPC per-RPC deadline (R22-A).
 - `SCRAPY_ROCKETMQ_MAX_MESSAGE_SIZE` (default 1 MiB) enforced at push time —

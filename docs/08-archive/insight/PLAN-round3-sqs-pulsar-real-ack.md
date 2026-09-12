@@ -29,7 +29,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
 6. **`supports_concurrent_ack = True`** → the round-2 gate auto-allows them.
 
 ### SQS — `_SqsAckToken(queue_url, receipt_handle)`
-
 - `pop_with_ack`: `receive_message` → token carries the URL it came from (C3 multi-queue
   correctness preserved) + the ReceiptHandle. Add token to `_in_flight: set[_SqsAckToken]`.
 - `ack(token)`: `delete_message(QueueUrl=token.queue_url, ReceiptHandle=token.receipt_handle)`;
@@ -41,7 +40,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
   current + Kafka's raise-on-commit-failure) — at-least-once is preserved by SQS re-delivery.
 
 ### Pulsar — `_PulsarAckToken(message_id)`
-
 - `pop_with_ack`: `consumer.receive()` → token carries `msg.message_id()`. Add to
   `_in_flight: set[_PulsarAckToken]`. Keep `_last_msg = msg` for legacy.
 - `ack(token)`: `consumer.acknowledge(token.message_id)`; `discard` from set.
@@ -53,7 +51,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
 ## Units (parallel fan-out; disjoint source files)
 
 ### Unit S — `backends/sqs.py` + `tests/test_sqs_backend.py`
-
 - Add `_SqsAckToken`; implement `pop_with_ack`; rewrite `ack`/`nack` to take the token; add
   `_in_flight` set; flip `supports_concurrent_ack = True`. Keep legacy `ack(token=None)` →
   `_last_receipt` fallback + keep `pop()` setting `_last_receipt`.
@@ -62,7 +59,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
   contract-flip there post-fan-out).
 
 ### Unit P — `backends/pulsar.py` + `tests/test_pulsar_backend.py` (+ `test_pulsar_coverage.py`)
-
 - Add `_PulsarAckToken`; implement `pop_with_ack`; rewrite `ack`/`nack`; add `_in_flight` set;
   flip `supports_concurrent_ack = True`. Keep legacy `ack(token=None)` → `_last_msg`.
 - **Files**: `src/scrapy_extension/backends/pulsar.py`, `tests/test_pulsar_backend.py`,
@@ -70,7 +66,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
   `test_components.py`.
 
 ### Orchestrator (post-fan-out) — `tests/test_scheduler_ack_gate.py` + `test_components.py`
-
 - Both backends are now `supports_concurrent_ack=True`: remove/invert the "SQS/Pulsar raise under
   CONCURRENT_REQUESTS>1" assertions; the declaration tests now assert `True`. Re-confirm the gate
   still fires for a hypothetical single-slot backend (add a synthetic `requires_ack=True,
@@ -79,7 +74,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
 ## Tests (TDD — RED first, then GREEN)
 
 **Unit S** (`test_sqs_backend.py`):
-
 - `pop_with_ack` returns `(body, _SqsAckToken(url, rh))`; empty → `(None, None)`.
 - pop 3 under concurrency, ack each by its OWN token → 3 distinct `delete_message` calls with the
   right (QueueUrl, ReceiptHandle) each; `_in_flight` empties. (RED pre-fix: single-slot overwrites.)
@@ -89,19 +83,16 @@ these two backends (the gate stays as a backstop for any future single-slot back
 - multi-queue: pop from qB, ack(token-from-qB) → deletes qB (C3 correctness preserved).
 
 **Unit P** (`test_pulsar_backend.py`):
-
 - `pop_with_ack` returns `(bytes, _PulsarAckToken(message_id))`; empty → `(None, None)`.
 - pop 3, ack each by token → 3 distinct `acknowledge(message_id)` calls; `_in_flight` empties.
 - `nack(token)` → `negative_acknowledge(message_id)` (or no-op fallback); discards.
 - pop 2, ack neither → both in `_in_flight` (re-deliver on consumer restart — at-least-once).
 
 **Orchestrator** (post-fan-out, `test_scheduler_ack_gate.py`):
-
 - SQS/Pulsar `supports_concurrent_ack is True`; SQS+`CONCURRENT_REQUESTS=16` does NOT raise.
 - Synthetic single-slot stub backend + concurrency → gate raises (gate mechanism still covered).
 
 ## Acceptance
-
 - `uv run pytest -q --tb=line -p no:randomly` green (existing 1251 + new real-ack tests);
   `-p no:randomly` stable.
 - `uv run ruff check src tests` clean; `uv run mypy src/scrapy_extension` clean.
@@ -111,7 +102,6 @@ these two backends (the gate stays as a backstop for any future single-slot back
   round-2); only behavior changes (token now USED). New token classes are internal (`_`-prefixed).
 
 ## Non-goals (remain Tier-2/3)
-
 - Distributed Delay/Throttle/Bloom; backpressure action hook; entry-point plugin registration;
   `_RedactedStr` parity; Sentinel failover re-discovery; rocketmq-client replacement; B5
   reconnect in-flight-survival test.

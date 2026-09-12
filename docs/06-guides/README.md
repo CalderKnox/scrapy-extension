@@ -1,7 +1,7 @@
-# Developer Guide
+# Guides
 
-How to work in this repository: setup, conventions, and where everything
-lives.
+Task-oriented documentation: guided lessons for newcomers, contributor
+how-tos, and guides for users of the software.
 
 ## Contents
 
@@ -13,9 +13,9 @@ lives.
 
 ## What belongs here
 
-- Onboarding path for new contributors
-- Repository tour and architecture walkthrough
-- Coding conventions, style, and tooling notes
+- Learning-oriented tutorials that walk a newcomer to a working result
+- Contributor-facing how-tos: repository tour, conventions, and tooling notes
+- Task- and outcome-oriented guides for users of the software
 
 For contribution mechanics (branches, commits, PRs) see
 [CONTRIBUTING.md](../../.github/CONTRIBUTING.md). Repeatable task procedures belong

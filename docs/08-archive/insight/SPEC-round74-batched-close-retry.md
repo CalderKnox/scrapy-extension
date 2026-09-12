@@ -53,7 +53,6 @@ In `close()`, replace the single `_flush_serialized()` call (L360-364) with an i
 ```
 
 Semantics:
-
 - **First drain succeeds** → done; no error. (Unchanged.)
 - **First drain raises an ordinary store `Exception` with items re-enqueued** (`_buffer` non-empty) → retry once. If the retry succeeds, the transient first error is swallowed (items eventually persisted — at-least-once fulfilled). If the retry raises, its error propagates to the outer handler (no worse than today).
 - **First drain raises with an empty `_buffer`** (nothing to retry — e.g. failure on the last item with no remaining tail) → `raise first_error` immediately; the outer handler records it. (No swallow of an error that retried nothing.)

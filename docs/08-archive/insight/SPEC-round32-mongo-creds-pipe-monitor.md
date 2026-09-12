@@ -30,9 +30,7 @@ exception-catch finding — verify at R33).
 ## Fixes (minimal, TDD)
 
 ### A — mongodb username/password whitespace (mirror R31-A)
-
 Two `@field_validator`s (Optional fields → None-guard; password uses `get_secret_value().strip()`):
-
 ```python
 @field_validator("username", mode="after")
 def _reject_blank_username(cls, value):  # str | None
@@ -48,9 +46,7 @@ def _reject_blank_password(cls, value):  # SecretStr | None
 ```
 
 ### B — pipeline storage on_error (mirror serialization arm line 493-496)
-
 After line 541 (`self._inc_stat(spider, "pipeline/storage_errors")`), insert:
-
 ```python
 try:
     self._monitor.on_error("store", e)
@@ -59,16 +55,13 @@ except Exception:  # noqa: BLE001 - telemetry cannot mask storage
 ```
 
 ## RED tests
-
 - A: `test_mongodb_username_whitespace_rejected`, `test_mongodb_password_whitespace_rejected` (in test_config.py near R31's auth_source tests).
 - B: `test_storage_error_emits_monitor_on_error` (in test_pipeline.py — assert `monitor.on_error("store", ...)` called on the storage swallow path).
 
 ## Gate / Merge / Record
-
 ruff → mypy --strict → pytest (R31 3827 + 3 new = 3830 expected). ff-merge → push → delete branch → memory.
 
 ## DO-NOT-RE-FLAG after R32
-
 mongodb username/password reject whitespace (R32-A) — R31-A sweep now fully covers
 all mongodb auth fields (username/password/auth_source). pipeline storage arm emits
 on_error (R32-B). DEFERRED R33: SCHED-EXC-CATCH-1 (scheduler exception-catch,

@@ -46,13 +46,11 @@ security-reviewer/sonnet, test-engineer/sonnet, explore/haiku) + orchestrator fa
 Redis Lua parameterized correctly via `KEYS`/`ARGV`. ElasticSearch uses structured DSL (`term` filters).
 
 ## Theme D — Observability gap
-
 `monitor/__init__.py` is an **empty placeholder** (15 LOC, `TYPE_CHECKING` only). No backpressure /
 queue-depth / dedup-hit signal; stats hand-rolled ad hoc (`scheduler.py:298-327`, `pipeline.py:159,172`).
 The biggest operability gap for a distributed crawler lib. (architect bet #1)
 
 ## Theme E — Test infrastructure
-
 - **Integration CI job is commented out** — `.github/workflows/ci.yml:47` (`# integration-tests:`); 27
   integration tests are dead; unit tests run `-m "not integration"` (`:35`). The 98.10% figure is
   **unit/mock-only**.
@@ -61,7 +59,6 @@ The biggest operability gap for a distributed crawler lib. (architect bet #1)
   config-resolution-tested, never stood up for real.
 
 ## Theme F — Extensibility / consistency
-
 - `StorageBackend` has **no strategy layer** (dedup + queue both do) — `pipeline.py:222-229` calls
   `store` directly. Visible asymmetry. (architect bet #4, S effort)
 - **4 hand-synced backend registries** (`connectors.py:62,32-53` + `__init__.py` + doc matrix) — no

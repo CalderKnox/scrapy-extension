@@ -14,7 +14,6 @@ fail-fast validator exists to turn that into a friendly `ConfigurationError`.
 The URI-side detection is a **case-sensitive substring test**:
 
 - `src/scrapy_extension/settings/mongodb.py:1140`
-
   ```python
   uri_has_rs = "replicaSet=" in self.uri
   ```
@@ -42,7 +41,7 @@ therefore disagrees with the driver it is configuring.
 
 **Isolated reproduction** of the exact check (`python3`, stdlib only):
 
-```text
+```
 case            OLD    NEW    CORRECT
 lowercase       False  True   True  <-- OLD WRONG
 camelCase       True   True   True

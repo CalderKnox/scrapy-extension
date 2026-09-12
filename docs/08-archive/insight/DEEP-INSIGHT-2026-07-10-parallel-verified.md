@@ -63,7 +63,6 @@ return (self._strategy.pop(self.queue_name, timeout), None)   # line 374: token=
 **Risk:** an operator using `BackendSpiderMixin` as the primary integration (which `__all__` and the docstring encourage) silently runs with every round-2/4/9/12/14 hardening disabled.
 
 **Fix scope split (honest):**
-
 - *Safe, in-session:* route `setup_backend` through `ConnectionManager.get_manager(...)` (drop-in; one existing test pins the current buggy constructor path and must be updated).
 - *Needs design, deferred to issue:* routing `get_queue/get_dupefilter/get_scheduler` through `from_settings` requires deciding the crawler-less fallback (the mixin is used without a crawler in tests) and whether to honor `SCRAPY_*` settings. Rushing this would risk a public-API regression in a 99.34 %-coverage codebase.
 

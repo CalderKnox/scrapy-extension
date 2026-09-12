@@ -18,7 +18,6 @@ dedup-saturated / worker-crash. Monitor emits push/pop/dedup/store counters + on
 "correct under failure"; this covers "diagnose why it stopped."
 
 **Files:**
-
 - `src/scrapy_extension/monitor/base.py` — two new no-op hooks: `on_pop_rate(window_s: float, rate: float)` and `on_filter_saturation(used: int, capacity: int | None)`.
 - `src/scrapy_extension/monitor/stats.py` — `ScrapyStatsMonitor` impls: `on_pop_rate` → `set_value("queue/pop_rate_1m", rate)`; `on_filter_saturation` → `set_value("dupefilter/filter_saturation", used/capacity if capacity else 1.0)`.
 - `src/scrapy_extension/dupefilter/filters/cuckoo_filter.py` — expose `_count` + `_num_buckets * _BUCKET_SIZE` (capacity) via a read property `saturation` (no behavior change; just observable).
@@ -26,7 +25,6 @@ dedup-saturated / worker-crash. Monitor emits push/pop/dedup/store counters + on
 - `src/scrapy_extension/dupefilter/dupefilter.py` — after each `request_seen`, if the filter exposes `saturation`, emit `on_filter_saturation` (cheap; only cuckoo has it — others no-op).
 
 **TDD:**
-
 - `test_monitor.py`: `on_pop_rate` sets `queue/pop_rate_1m`; `on_filter_saturation` sets `dupefilter/filter_saturation` (extend the existing per-hook stat tests + parametrize table).
 - `test_monitor.py`: drive 100 pop attempts inside the rolling window and assert `queue/pop_rate_1m`; drive Cuckoo toward its configured target and assert `dupefilter/filter_saturation` rises. These are component/monitor tests, not production-backend load evidence.
 - Default-off safety: `NullMonitor` + a bare `Monitor()` are no-op (no crash when no crawler).
@@ -45,7 +43,6 @@ experimental?), no `SECURITY.md` (disclosure path), no `CHANGELOG.md`, no releas
 runbook. A downstream user can't tell what's safe to depend on.
 
 **Files (all NEW):**
-
 - `STABILITY.md` — component tiers:
   - **Stable** (frozen public API, semantic-versioning promise): `BackendScheduler`, `BackendDupeFilter`, `BackendPipeline`, `BackendQueue`, `BackendSpiderMixin`, the `Monitor` ABC, the 10 bundled backends' public methods, all `SCRAPY_*` settings already shipped.
   - **Experimental** (may change in a minor bump): `BackendDescriptor` entry-point registration (round-5, no 3rd-party ecosystem yet), the new round-7 `FilterFull` + `on_filter_full` hook (fresh, want flexibility), `backpressure_pause_at`/`resume_at` (round-4, fresh).
@@ -91,7 +88,6 @@ lags. `uv lock --check` is in sync. Detail:
 (RocketMQ-client-python 2381d stale is round-7 ACCEPT'd — not re-reported.)
 
 ### U20 — pymemcache unmaintained `[supply-chain, H]`
-
 **Rationale:** `pymemcache==4.0.0` (the `memcached` storage backend's dep) has had
 no release in 1348 days. Same supply-chain shape as the round-7 RocketMQ finding.
 The memcached backend is storage-only (KV+TTL) — smaller surface than RocketMQ but
@@ -106,7 +102,6 @@ no shipped backend silently depends on an unmaintained lib without a caveat.
 **Leverage H · Effort S** (decision + doc) to **M** (if migrate).
 
 ### U21 — bump redis + elasticsearch caps, validate `[dep freshness, M]`
-
 **Rationale:** redis 8.0.1 (3 days old) + elasticsearch 9.4.1 (31 days old) are
 actively shipped; the project caps hard-block ES 9.x and the redis pin lags 8.x.
 Feature lag, not breakage — but capping out major versions accumulates debt.
@@ -119,7 +114,6 @@ Integration-tier real-broker validation (round-8 Tier-I) gates the final confide
 **Leverage M · Effort M** (re-resolve + validate 2 backends' client API).
 
 ### Watch (no unit yet)
-
 **kafka-python-ng 632d** — current-at-latest but a long gap for a maintained fork.
 Quarterly check; if no 2.2.4+ by 2026-Q4, evaluate aiokafka/confluent alternatives.
 Record in `STABILITY.md` supply-chain notes.

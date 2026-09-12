@@ -8,7 +8,6 @@
 `BackendSpiderMixin.setup_backend` (spider/spider_mixin.py:152-213) creates the spider's shared `ConnectionManager` (L178-182) but **never calls `manager.set_monitor(...)`** — confirmed by grep: spider_mixin.py has zero `set_monitor` references. The manager defaults to `NullMonitor` (connectors.py:1366: `self._monitor: Monitor = NullMonitor()`), so the R14-D connection-lifecycle hooks `on_connect`/`on_disconnect`/`on_disconnect_result`/`on_retry` (wired in connectors.py, dispatched via `_notify_monitor` → `getattr(self._monitor, hook_name)`, e.g. connectors.py:2242) are **no-ops**.
 
 **The asymmetry (the smoking gun):** every OTHER `connection_manager` owner threads a monitor into the manager:
-
 - `pipeline.from_crawler` → `pipeline.connection_manager.set_monitor(pipeline._monitor)` (pipeline.py:408).
 - `dupefilter.from_crawler` → `dupefilter.connection_manager.set_monitor(dupefilter._monitor)` (dupefilter.py:669, comment: "so backend/{connect,disconnect,retry}_count cover the set backend").
 - `scheduler.open` → `self.connection_manager.set_monitor(monitor)` (scheduler.py:~1492, comment: *"Without this, ConnectionManager defaults to NullMonitor and the hooks R14-D wired are dead observability outside the queue path."*).
@@ -54,7 +53,6 @@ In `setup_backend`, immediately after the manager-acquire `if/else` block (where
 ```
 
 Semantics:
-
 - **Modern path** (`from_crawler` attaches crawler THEN calls `setup_backend` once): crawler attached → `_resolve_monitor` returns `ScrapyStatsMonitor(stats)` → manager wired. **(The fix.)**
 - **Legacy early-setup path** (subclass calls `setup_backend()` in `__init__` before crawler): 1st call resolves `NullMonitor` (no crawler); `from_crawler`'s idempotent 2nd call (crawler attached) re-resolves → `ScrapyStatsMonitor(stats)` → manager wired. (Covered by placing the call OUTSIDE the acquire `if`.)
 - **No crawler / no stats** (unit-test spiders, ad-hoc use): `_resolve_monitor` returns `NullMonitor` → `manager.set_monitor(NullMonitor())` — byte-identical to today's default. No regression.

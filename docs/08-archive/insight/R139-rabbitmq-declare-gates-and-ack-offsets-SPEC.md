@@ -105,7 +105,6 @@ cadence math (tiny ages + single-cycle direct calls).
 ## Fix design
 
 **Fix A (F1, kafka.py)** — make the legacy bare ack honest and bounded:
-
 - If the legacy record's topic-partition has ANY un-acked in-flight token
   offsets, raise a typed QueueError refusing the mixed-mode bare commit
   (extends the existing "must not share a bare-commit slot" invariant from
@@ -125,7 +124,6 @@ the session channel.
 
 **Fix C (F4, settings/rabbitmq.py + rabbitmq.py)** — fail fast on the
 actively-harmful knob and stop advertising the inert one as effective:
-
 - `RabbitMQSettings` gains a validator rejecting `prefetch_size != 0`
   (R45-style configuration error: RabbitMQ does not implement byte-based
   prefetch; a nonzero value closes the channel at connect).

@@ -683,7 +683,7 @@ upgrading.
   the sextet) — skip-by-default, gated on `SCRAPY_TEST_*` env vars.
 - `LICENSE` (MIT).
 
-### Changed (continued)
+### Changed
 
 - SQS and DynamoDB region validation now accepts the multi-label region
   identifiers used by GovCloud, ISO, and the European Sovereign Cloud.
@@ -752,7 +752,7 @@ upgrading.
   `RuntimeError, ValueError, AttributeError` tuple) so a disconnect error
   can't skip registry eviction or break the caller's close chain.
 - License metadata migrated to PEP 639: `license = "MIT"` SPDX expression
-  - `license-files = ["LICENSE"]` (deprecated `License ::` classifier
+  + `license-files = ["LICENSE"]` (deprecated `License ::` classifier
   removed). Distributions now bundle the license text.
 - `uv_build` build-system pin widened to `<0.12` (was `<0.11.0`, which
   excluded uv 0.11 and could break builds in uv-0.11-only environments).

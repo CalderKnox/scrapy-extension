@@ -33,7 +33,6 @@ except (TypeError, ValueError, OverflowError) as exc:
 ```
 
 End-to-end mechanism (verified by reading the actual code):
-
 1. `scheduler.py:243-253` parses `SCRAPY_QUEUE_WORKER_ID` via `.strip()` only — **no
    `_validate_key_name`** — so `'worker/1'` survives into `queue_config.worker_id`.
 2. `WorkStealingQueueStrategy.__init__` calls `_validate_key_name(worker_id, "worker_id")`

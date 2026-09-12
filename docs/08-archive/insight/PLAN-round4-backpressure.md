@@ -27,7 +27,6 @@ Round-4 lands the consumer.
   strategy is distributed-exact; round-2 D3 warning already surfaces the per-process caveat).
 
 ## New settings (additive, default-off → zero compat break)
-
 - `SCRAPY_BACKPRESSURE_PAUSE_AT: int | None = None` — depth `>=` this → `next_request` returns None.
 - `SCRAPY_BACKPRESSURE_RESUME_AT: int | None = None` — depth `<=` this to resume (hysteresis).
   Defaults to `PAUSE_AT` when unset (simple, no hysteresis). Validator: `resume_at <= pause_at`
@@ -36,13 +35,11 @@ Round-4 lands the consumer.
 ## Units (parallel fan-out; disjoint files)
 
 ### Unit BP-1 — `settings/base.py` + `tests/test_config.py`
-
 - Two pydantic fields + validators (`resume_at <= pause_at`; `>= 0`).
 - Validation test in `test_config.py`: `resume_at > pause_at` → `ConfigurationError`.
 - **Files**: `src/scrapy_extension/settings/base.py`, `tests/test_config.py` ONLY.
 
 ### Unit BP-2 — `schedule/scheduler.py` + `tests/test_scheduler_backpressure.py` (NEW)
-
 - `__init__`: add `backpressure_pause_at: int | None = None`, `backpressure_resume_at: int | None = None`
   (keyword-only, default None) + `self._backpressure_paused = False`.
 - `from_settings`: read both via `settings.getint("SCRAPY_BACKPRESSURE_PAUSE_AT")` /
@@ -58,7 +55,6 @@ Round-4 lands the consumer.
 - **Files**: `src/scrapy_extension/schedule/scheduler.py`, `tests/test_scheduler_backpressure.py` ONLY.
 
 ## Tests (TDD — RED first, then GREEN), `tests/test_scheduler_backpressure.py`, mock-queue only
-
 1. default-off (`pause_at=None`) → `next_request` pops (current behavior pinned).
 2. `pause_at=10`, `len=10` → first `next_request` returns None, pop NOT called, `scheduler/backpressure_pause` bumped. (RED pre-fix.)
 3. hysteresis: `pause_at=10, resume_at=5`, paused, `len=7` → still None; drain to `len=5` → pops, `scheduler/backpressure_resume` bumped. (RED pre-fix.)
@@ -69,7 +65,6 @@ Round-4 lands the consumer.
 8. `len(self._queue)` raises `QueueError` → propagates to existing arm, returns None, no crash, flag not stuck.
 
 ## Acceptance
-
 - `uv run pytest -q -p no:randomly` green (existing 1278 + new); ruff clean; mypy clean (65 files).
 - Tests 2 + 3 RED pre-fix, GREEN post-fix.
 - Default-off verified by test 1 (byte-identical behavior when settings unset).
@@ -78,7 +73,6 @@ Round-4 lands the consumer.
 - Independent verifier + code-reviewer approval lane: APPROVE, 0 CRITICAL/HIGH.
 
 ## Non-goals (remain Tier-2/3)
-
 - Distributed Bloom/Cuckoo (memory optimization, not a correctness gap — `set` is distributed-exact).
 - Entry-point plugin registration (round-5 candidate). Distributed Delay/Throttle. Security-parity
   cluster. Sentinel failover re-discovery. rocketmq-client replacement. B5 reconnect test.

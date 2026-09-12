@@ -2,7 +2,7 @@
 
 Common operational tasks for `scrapy-extension` deployments. Each recipe
 assumes the Scrapy settings wiring is already in place (see
-[`README.md`](../README.md) → *Quick Start*).
+[`README.md`](../../README.md) → *Quick Start*).
 
 Before upgrading a persistent deployment, read the
 [migration guide](../06-guides/user-guides/migration-guide.md). It covers Redis physical-key changes,
@@ -24,10 +24,8 @@ policies when a tighter scheduler heartbeat is required.
 
 Worst-case synchronous connect latency is therefore:
 
-```text
-min(SCRAPY_REACTOR_IO_TIMEOUT, Σₖ min(3600 s, retry_delay·2ᵏ) / 2)
+    min(SCRAPY_REACTOR_IO_TIMEOUT, Σₖ min(3600 s, retry_delay·2ᵏ) / 2)
       + (attempts made) · backend RPC timeout
-```
 
 where the sum runs over `k = 0..retry_attempts-1` and the `/2` reflects full
 jitter drawing each wait from `uniform(0, cap)`. When the expected backoff
@@ -83,7 +81,7 @@ SCRAPY_DEDUP_CUCKOO_CAPACITY = 10_000_000
 SCRAPY_DEDUP_CUCKOO_ERROR_RATE = 0.001
 ```
 
-**Caveat (see [Guarantees](../README.md#guarantees)):** `memory`, `bloom`,
+**Caveat (see [Guarantees](../../README.md#guarantees)):** `memory`, `bloom`,
 and `cuckoo` are per-process. For exact cross-worker stored membership, use
 `set`. The bundled scheduler deliberately uses membership read → durable queue
 push → marker publication; two workers racing on a fresh fingerprint may both
@@ -509,7 +507,7 @@ SCRAPY_STORAGE_BACKEND_SETTINGS = {"uri": "mongodb://mongo:27017", "database": "
 ```
 
 Each backend must implement the interface its component needs (see
-[capabilities matrix](../README.md#backend-capabilities)). The
+[capabilities matrix](../../README.md#backend-capabilities)). The
 `ConnectionManager` registry keys one pooled connection per
 `backend_type:settings_hash`, so co-located backends (set + storage both
 MongoDB, same URI) share a single connection.
@@ -629,7 +627,7 @@ opt-in with `SCRAPY_TEST_ES_OUTCOME_SAFETY=1` and a single local HTTP
 `SCRAPY_TEST_ES_HOSTS` endpoint.
 
 If the error is in a backend's `from_settings` / `from_crawler` factory,
-check `backends/connectors.py:resolve_backend_config` — it resolves
+check `backends/connectors/_config.py:resolve_backend_config` — it resolves
 per-component config and is the single chokepoint for the fallback chain.
 
 ### Connection retry controls
