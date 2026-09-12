@@ -64,11 +64,14 @@ which mocks `BackendQueue` so `queue_name` is a `MagicMock` ≠ any string).
 
 1. In `BackendSpiderMixin.__init__` (`spider_mixin.py:103`), alongside
    `self._queue`, add:
+
    ```python
    self._queue_name: str | None = None
    ```
+
 2. In `get_queue`, set `self._queue_name = name` when constructing, and add an
    `elif` branch that raises when the requested name differs:
+
    ```python
             try:
                 if self._queue is None:

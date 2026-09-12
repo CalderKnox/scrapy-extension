@@ -186,7 +186,7 @@ first, and preserves FIFO order among items with equal priority.
 
 ### Project layout
 
-```
+```text
 mybackend-plugin/
 ├── pyproject.toml
 └── mybackend_plugin/
@@ -428,7 +428,6 @@ Because the descriptor declares `{"queue", "set", "storage"}`, `mybackend` is
 eligible for any of the three roles. If it declared only `{"queue"}`, selecting
 it for dedup or storage would raise `ConfigurationError` with the list of
 backends that *do* support the requested capability.
-
 
 ## Compatibility Smoke Tests
 

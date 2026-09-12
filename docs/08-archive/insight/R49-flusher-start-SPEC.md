@@ -13,4 +13,3 @@ If thread startup raises any `BaseException`, clear the provisional flusher
 while holding the existing lock and re-raise the original exception. A later
 store may start a fresh thread. Successful startup keeps the existing
 single-flusher concurrency invariant.
-

@@ -17,7 +17,7 @@
 - [ ] RED B1 SCRAPY_MONITOR_* knobs reach get_queue-direct BackendQueue
 - [ ] RED B2 NullMonitor upgrade on cached re-entry (guard: non-Null never
       re-wired)
-- [ ] GREEN: BackendQueue.set_monitor + mixin _resolve_queue_monitor +
+- [ ] GREEN: BackendQueue.set_monitor + mixin_resolve_queue_monitor +
       construction threading + NullMonitor-only upgrade
 - [ ] Focused: `uv run --frozen pytest tests/test_spider_mixin.py tests/test_queue.py -q`
 

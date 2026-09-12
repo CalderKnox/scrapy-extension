@@ -6,7 +6,9 @@
 ## Phases
 
 ### Phase 1 — Pin the regressions (TDD RED)
+
 Write the failing tests FIRST, run them, confirm RED:
+
 - **A**: `tests/test_kafka_connect_cleanup.py` — assert `backend._producer is None` AND
   `backend._admin_client is None` when `mock_producer.close.side_effect = KeyboardInterrupt`
   (and a `SystemExit` variant). Today's R16-A test does not assert null-after-second-interrupt → RED.
@@ -18,6 +20,7 @@ Write the failing tests FIRST, run them, confirm RED:
 - **D**: real-CM test in `test_mock_connection_manager_contract.py` exercising connectors.py:1654-1659.
 
 ### Phase 2 — Implement (GREEN)
+
 - **A**: rewrite `_abort_partial_connect` null-first (mirror mongodb `_discard_client` 195-220 +
   rocketmq `_abort_partial_connect` 253-268). Capture `producer = self._producer; admin = self._admin_client`;
   set `self._producer = None; self._admin_client = None` FIRST; then `for closer in (producer, admin):
@@ -37,29 +40,35 @@ Write the failing tests FIRST, run them, confirm RED:
   `QueueError(queue_name=..., operation="push")`.
 
 ### Phase 3 — Gate (3 hard gates)
+
 ```bash
 uv run ruff check src/ tests/
 uv run mypy --strict src/
 UV_CACHE_DIR=$TMPDIR/uv-cache uv run pytest -q   # expect ≥3757 passed
 ```
+
 If sandbox blocks: `UV_CACHE_DIR=$TMPDIR/uv-cache` for pytest; sandbox-off for git push / gh.
 
 ### Phase 4 — Merge to main (main-only)
+
 ```bash
 git checkout main && git pull --ff-only origin main
 git merge --ff-only worktree-round17-baseexception
 git push origin main          # sandbox-off
 git branch -d worktree-round17-baseexception   # after ExitWorktree(remove) or from main
 ```
+
 Open NO PR (user's main-only + atomic-merge constraint); push the ff-merge directly.
 
 ## Fan-out strategy (Claude-only)
+
 - Opus subagents for A + B (large files; opus survives, sonnet thrashes — proven fire-9/10/15 lesson).
   Tight per-unit scope; TDD RED→GREEN; one atomic commit each.
 - Main-loop for C + D (small surfaces; cheaper than spawning).
 - Sequential merge to main (one ff-merge carrying all 4 commits) to honor "all branches merge to main".
 
 ## Risk notes
+
 - **B subtlety**: the `except BaseException` must NOT close a candidate that was already published
   (it's then the live `self._connection`). The `if not published` guard is load-bearing — the test
   must also assert a published candidate is NOT closed when a later BaseException occurs.

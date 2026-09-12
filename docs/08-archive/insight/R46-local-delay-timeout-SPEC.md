@@ -28,4 +28,3 @@ non-tick-aligned item is released on its next wheel tick, not before.
 - Backend wait durations never exceed the total caller deadline or the next
   local release time.
 - Zero-timeout and no-local-item behavior are unchanged.
-

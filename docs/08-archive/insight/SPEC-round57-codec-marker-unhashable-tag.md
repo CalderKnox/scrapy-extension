@@ -18,6 +18,7 @@ type round-trip; this finding is a distinct gap in the *escape* machinery.
 **The asymmetry (empirically reproduced):**
 
 - Encode — `base.py:148-153`, `_looks_like_codec_marker`:
+
   ```python
   return (
       len(obj) == 2
@@ -26,6 +27,7 @@ type round-trip; this finding is a distinct gap in the *escape* machinery.
       and _CODEC_DATA in obj
   )
   ```
+
   `x in {set}` hashes `x`. When the caller dict's tag value is an **unhashable**
   `list`/`dict`, this raises `TypeError: unhashable type: 'list'/'dict'` instead
   of returning a boolean.
@@ -35,12 +37,14 @@ type round-trip; this finding is a distinct gap in the *escape* machinery.
   identical shape returns the dict **unchanged** (graceful).
 
 Reproduction (`uv run python`):
-```
+
+```text
 list-tag  SERIALIZE CRASH -> TypeError("unhashable type: 'list'")
 dict-tag  SERIALIZE CRASH -> TypeError("unhashable type: 'dict'")
 list-tag  DECODE OK       -> {'__scrapy_extension_json_type__': ['listval'], 'data': 'y'} (unchanged: True)
 str-tag   ROUNDTRIP       -> True
 ```
+
 So `serialize()` crashes on an input that `deserialize()` would have handled
 fine — the escape contract ("any marker-shaped caller dict survives untouched",
 encoded by the R53 test `test_datetime_marker_shaped_user_dict_round_trips_as_dict`)
@@ -93,12 +97,14 @@ hashable input.
 
 - **R57-1 — RED test.** Add a test asserting a marker-shaped caller dict with
   an *unhashable* tag value round-trips through `JSONSerializer` unchanged:
+
   ```python
   s = JSONSerializer()
   for unhashable_tag in (["listval"], {"nested": 1}):
       d = {_CODEC_TAG: unhashable_tag, _CODEC_DATA: "y"}
       assert s.deserialize(s.serialize(d)) == d
   ```
+
   Verify it FAILS on current code with `TypeError: unhashable type` at
   `serialize`. → verify: `uv run pytest tests/test_backends.py::<new>` exits
   non-zero with the TypeError.

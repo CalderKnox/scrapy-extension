@@ -35,6 +35,7 @@ any typo, failing at first backend RPC with an opaque client-lib error. `Literal
 converts these to parse-time rejections (the contract `mode` enums already enjoy).
 
 **Files + fields:**
+
 - `settings/kafka.py`: `security_protocol` (66, **H** — `"SAS_SSL"`/`"ssl"` typo), `sasl_mechanism` (70, **H** — lowercase `"plain"` silent auth fail), `compression_type` (141, M), `auto_offset_reset` (156, M).
 - `settings/pulsar.py`: `consumer_type` (55, **H** — `"shared"` vs required `"Shared"`), `initial_position` (59, M).
 - `settings/rabbitmq.py`: `ssl_verify_mode` (122, M — `"CERT_REQ"`), `cluster_node_type` (86, L — `"disk"` vs `"disc"`).
@@ -59,6 +60,7 @@ CLUSTER/MIRRORED all silently fall through to a wrong default (standalone host,
 PLAINTEXT localhost, no HA) instead of failing fast.
 
 **Files + rules (mirror the existing Redis SENTINEL validator pattern):**
+
 - `settings/mongodb.py`: REPLICA_SET → require `replica_set_name` (86, **H**); ATLAS → require `uri` has `mongodb+srv://` OR `atlas_cluster_name` (106, M).
 - `settings/redis.py`: CLUSTER → require non-empty `cluster_startup_nodes` (164, M); MASTER_SLAVE → warn/require `replicas` (127, L).
 - `settings/kafka.py`: CONFLUENT → require `confluent_api_key` + `confluent_secret` + `bootstrap_servers` (99, **H** — else silent PLAINTEXT-localhost fallback).
@@ -80,6 +82,7 @@ PLAINTEXT localhost, no HA) instead of failing fast.
 silent auth bypass or credential leak.
 
 **Files + rules:**
+
 - `settings/kafka.py`: SASL fields set → require `security_protocol` startswith `SASL_` (70-81, **H** — else credentials silently ignored, auth never attempted).
 - `settings/pulsar.py`: `auth_token` set → require `service_url` is `pulsar+ssl://` (78/45, **H** — else token sent in cleartext).
 - `settings/redis.py`: `ssl_enabled=True` → require `ssl_cafile` OR document self-signed path (179, M).
@@ -102,6 +105,7 @@ http+creds. The same shape is missing elsewhere — opaque `InvalidURI`/
 `ValueError` at connect instead of a config hint.
 
 **Files + rules:**
+
 - `settings/mongodb.py`: `uri` must startswith `mongodb://` or `mongodb+srv://`; reject empty (62, **H**).
 - `settings/pulsar.py`: `service_url` must startswith `pulsar://` or `pulsar+ssl://` (45, **H** — pairs with SV3 token rule).
 - `settings/rocketmq.py`: `namesrv_address` must match `host:port` regex (30, M).
@@ -122,6 +126,7 @@ http+creds. The same shape is missing elsewhere — opaque `InvalidURI`/
 failure. One unbounded int (`MemcachedSettings.port`) accepts `-1`/`99999`.
 
 **Files + rules:**
+
 - `settings/memcached.py`: `port` → `Field(default=11211, ge=1, le=65535)` (42, **H** — the ONLY unbounded int in the project).
 - `settings/memcached.py`: `host` → `min_length=1` (41, M).
 - `settings/redis.py` + `settings/rabbitmq.py`: `host` → `min_length=1` (redis 75, rabbitmq 54, L).

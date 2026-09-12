@@ -1,4 +1,4 @@
-# SPEC-round63 — close_spider skips teardown when _resolve_spider raises
+# SPEC-round63 — close_spider skips teardown when_resolve_spider raises
 
 ## Context and audit evidence
 

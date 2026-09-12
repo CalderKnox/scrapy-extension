@@ -24,4 +24,5 @@
 - **R16-E:** runbook presents `queue/pop_rate_1m` + `dupefilter/filter_saturation` as landed primary signals; STABILITY lists the 5 settings; pulsar/rabbitmq/memcached connect raises preserve `__cause__` (test asserts).
 
 ## Constraints
+
 Atomic commit per unit · merge to main (main-only) · Claude Code only.

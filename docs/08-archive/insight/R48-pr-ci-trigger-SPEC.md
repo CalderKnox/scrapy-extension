@@ -17,4 +17,3 @@ Keep the existing `push` trigger restricted to `main` and add a
 - `.github/workflows/ci.yml` declares both `push` and `pull_request` triggers.
 - The workflow remains valid YAML/GitHub Actions syntax.
 - The contributor-facing CI claim matches the workflow.
-

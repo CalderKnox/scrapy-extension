@@ -43,12 +43,14 @@ exception-type contract is uniform across the swallow→raise cluster (already s
 ## Root causes (verified end-to-end)
 
 ### A — ES auth-exclusivity (`elasticsearch.py:268-283`)
+
 ```python
 if self.api_key is None:                                    # 268 — identity, not truthiness
   return self
 if self.username is not None or self.password is not None:  # 270 — identity
   raise ConfigurationError("...mutually exclusive...")
 ```
+
 `SecretStr("") is None` → False → no early-return; `username is not None` → True →
 raises. But `backends/elasticsearch.py:_build_kwargs` uses truthiness (`if
 self.config.api_key:` → empty key falsy → skips to `elif username and password:`
@@ -57,19 +59,23 @@ at construction with a misleading "mutually exclusive" error. Verified empirical
 by both scanner and verifier.
 
 ### B — ES empty hosts (`elasticsearch.py:148-162`)
+
 ```python
 bad = [host for host in self.hosts if not host or not host.lower().startswith(_VALID_ES_SCHEMES)]
 if bad: raise ...
 ```
+
 `hosts=[]` → comprehension yields `[]` → `bad=[]` → no raise. Empty list reaches
 `Elasticsearch(hosts=[])` → opaque client error. CLOUD is unaffected (uses cloud_id).
 
 ### C — kafka CONFLUENT empty endpoint (`kafka.py:462-471`)
+
 ```python
 if self.mode == KafkaMode.CONFLUENT and not self.confluent_bootstrap_servers:
   if self.bootstrap_servers == "localhost:9092":   # literal match only
     raise ...
 ```
+
 `bootstrap_servers=""` / `"  "` → `== "localhost:9092"` is False → no raise.
 Whitespace `confluent_bootstrap_servers="  "` → `not "  "` is False → outer
 guard skipped entirely. Either way an unusable endpoint reaches connect.

@@ -24,8 +24,10 @@ policies when a tighter scheduler heartbeat is required.
 
 Worst-case synchronous connect latency is therefore:
 
-    min(SCRAPY_REACTOR_IO_TIMEOUT, Σₖ min(3600 s, retry_delay·2ᵏ) / 2)
+```text
+min(SCRAPY_REACTOR_IO_TIMEOUT, Σₖ min(3600 s, retry_delay·2ᵏ) / 2)
       + (attempts made) · backend RPC timeout
+```
 
 where the sum runs over `k = 0..retry_attempts-1` and the `/2` reflects full
 jitter drawing each wait from `uniform(0, cap)`. When the expected backoff

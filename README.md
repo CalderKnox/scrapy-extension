@@ -427,6 +427,7 @@ speaks. Pick **one** of:
 **Option A — enable proxy-side auto-create (recommended for dev):**
 
 Mount an `rmq-proxy.json` and point the broker at it via `-pc`:
+
 ```json
 {
   "rocketMQClusterName": "DefaultCluster",
@@ -434,11 +435,13 @@ Mount an `rmq-proxy.json` and point the broker at it via `-pc`:
   "topicQueueConfig": { "defaultReadQueueNum": 8, "defaultWriteQueueNum": 8 }
 }
 ```
+
 ```bash
 sh mqbroker -n namesrv:9876 -c /path/broker.conf --enable-proxy -pc /path/rmq-proxy.json
 ```
 
 **Option B — pre-create topics (production / locked-down brokers):**
+
 ```bash
 mqadmin updateTopic -n namesrv:9876 -b broker:10911 -t scrapy-queue_<your-queue>
 ```
@@ -800,7 +803,7 @@ The three components — **Scheduler** (queue), **DupeFilter** (set), **Pipeline
 
 When a per-component type key is set, that component uses its per-component settings; otherwise it falls back to the global keys — so existing single-backend configurations keep working unchanged.
 
-**Example: queue in Redis-Cluster, dedup fingerprints + scraped data in MongoDB**
+### Example: queue in Redis-Cluster, dedup fingerprints + scraped data in MongoDB
 
 ```python
 # settings.py
@@ -1018,12 +1021,11 @@ Their scheduler stays conservative (`has_pending_requests()` returns true when
 depth is unavailable) and continues polling, but depth-driven backpressure and
 `queue/depth` monitoring cannot operate.
 
-
 ## Architecture
 
 ### Interface Hierarchy
 
-```
+```text
 Backend (ABC)
 ├── connect(), disconnect(), is_connected(), ping()
 │
@@ -1070,6 +1072,7 @@ finally:
 ```
 
 `ConnectionManager` provides:
+
 - **Lazy singleton**: thread-safe registry keyed by `backend_type:settings_hash`
 - **Retry logic**: one initial attempt plus up to `SCRAPY_RETRY_ATTEMPTS`
   retries (default 3, range 0..20), with full-jitter exponential backoff whose
@@ -1188,7 +1191,7 @@ Stores items as JSON with keys: `{prefix}:{spider_name}:{timestamp}:{uuid}`.
 
 ## Exceptions
 
-```
+```text
 BackendError (base)
 ├── BackendConnectionError   — connection failures (includes backend_type)
 ├── QueueError               — queue operation failures (includes queue_name, operation)
