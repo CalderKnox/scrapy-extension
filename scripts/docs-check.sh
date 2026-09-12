@@ -21,7 +21,7 @@ while IFS= read -r directory; do
 done < <(find "$docs_root" -type d -not -path '*/.*' -print | sort)
 
 while IFS='|' read -r file link; do
-  if ! rg -Fq "$link" "$file"; then
+  if ! grep -Fq "$link" "$file"; then
     echo "docs-check: $file must contain link $link" >&2
     failures=1
   fi

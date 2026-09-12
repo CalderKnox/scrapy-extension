@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check documentation structure
-        run: ./scripts/docs-check.sh
+        run: bash ./scripts/docs-check.sh
       - name: Lint Markdown
         uses: DavidAnson/markdownlint-cli2-action@v20
         with:
