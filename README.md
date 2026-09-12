@@ -2,6 +2,9 @@
 
 Distributed crawling for Scrapy with pluggable backends (**Redis**, **MongoDB**, **Kafka**, **RabbitMQ**, **ElasticSearch**, **RocketMQ**, **Pulsar**, **SQS**, **Memcached**, **DynamoDB**) and pluggable strategy layers for dedup and queue semantics.
 
+[![CI](https://github.com/azwpayne/scrapy-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/azwpayne/scrapy-extension/actions/workflows/ci.yml)
+[![Docs](https://github.com/azwpayne/scrapy-extension/actions/workflows/docs.yml/badge.svg)](https://github.com/azwpayne/scrapy-extension/actions/workflows/docs.yml)
+[![CodeQL](https://github.com/azwpayne/scrapy-extension/actions/workflows/codeql.yml/badge.svg)](https://github.com/azwpayne/scrapy-extension/security/code-scanning)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/azwpayne/scrapy-extension/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/azwpayne/scrapy-extension/releases)
