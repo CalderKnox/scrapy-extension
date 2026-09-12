@@ -620,7 +620,7 @@ jobs:
           uv audit --locked > audit-report.txt 2>&1 || true
       - name: Upload audit report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-report
           path: audit-report.txt
