@@ -50,6 +50,9 @@ dependencies = [
     # may rename private internals without notice; bump only together with
     # that façade and its import-time surface smoke test.
     "pydantic-settings>=2.15.0,<2.16",
+    # Scrapy currently permits Protego 0.6.0, which has a ReDoS vulnerability.
+    # Keep the transitive dependency on the patched release line.
+    "protego>=0.6.2,<0.7",
     "scrapy>=2.17.0,<3",
     "typing-extensions>=4.16.0,<5",
 ]
