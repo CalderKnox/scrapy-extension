@@ -350,7 +350,9 @@ portable isolation for Cluster deployments.
 
 ## Redis Multi-Mode (`quotes_multi_mode`)
 
-The example selects Sentinel by default and Cluster when requested:
+The example selects Sentinel by default and Cluster when requested. Defaults use
+loopback addresses so the settings pass validation for a local development
+deployment:
 
 ```bash
 SCRAPY_EXAMPLE_REDIS_MODE=sentinel uv run --no-sync scrapy crawl quotes_multi_mode
@@ -359,7 +361,12 @@ SCRAPY_EXAMPLE_REDIS_MODE=cluster uv run --no-sync scrapy crawl quotes_multi_mod
 
 Its selected dictionary is applied both to the mixin and to
 `SCRAPY_BACKEND_SETTINGS`, so the extension components use the same topology.
-Use `cluster_startup_nodes`, not `startup_nodes`.
+Set `SCRAPY_EXAMPLE_REDIS_SENTINELS` (comma-separated `host:port` values),
+`SCRAPY_EXAMPLE_REDIS_SENTINEL_MASTER`, or
+`SCRAPY_EXAMPLE_REDIS_CLUSTER_NODES` to point at another deployment. Credentials
+come from `REDIS_PASSWORD` and `REDIS_SENTINEL_PASSWORD`; authenticated remote
+connections must also set `ssl_enabled=True` with a CA file in the spider
+configuration. Use `cluster_startup_nodes`, not `startup_nodes`.
 
 ## Low-Level ConnectionManager (`quotes_connection_manager`)
 
