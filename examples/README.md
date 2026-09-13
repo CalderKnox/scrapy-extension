@@ -366,7 +366,10 @@ Set `SCRAPY_EXAMPLE_REDIS_SENTINELS` (comma-separated `host:port` values),
 `SCRAPY_EXAMPLE_REDIS_CLUSTER_NODES` to point at another deployment. Credentials
 come from `REDIS_PASSWORD` and `REDIS_SENTINEL_PASSWORD`; authenticated remote
 connections must also set `ssl_enabled=True` with a CA file in the spider
-configuration. Use `cluster_startup_nodes`, not `startup_nodes`.
+configuration. For an intentionally unauthenticated trusted-network development
+connection, set `SCRAPY_EXAMPLE_REDIS_ALLOW_REMOTE_PLAINTEXT=true`; otherwise
+remote plaintext is rejected by validation. Use `cluster_startup_nodes`, not
+`startup_nodes`.
 
 ## Low-Level ConnectionManager (`quotes_connection_manager`)
 

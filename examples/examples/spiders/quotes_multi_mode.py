@@ -5,6 +5,10 @@ import scrapy
 from examples.items import QuotesParsingMixin
 from scrapy_extension import BackendSpiderMixin, BackendType
 
+ALLOW_REMOTE_PLAINTEXT = os.environ.get(
+    "SCRAPY_EXAMPLE_REDIS_ALLOW_REMOTE_PLAINTEXT", ""
+).strip().lower() in {"1", "true", "yes", "on"}
+
 SENTINEL_CONFIG = {
     "mode": "sentinel",
     # Loopback defaults keep the example valid with the local development
@@ -18,6 +22,7 @@ SENTINEL_CONFIG = {
     ),
     "sentinel_password": os.environ.get("REDIS_SENTINEL_PASSWORD") or None,
     "password": os.environ.get("REDIS_PASSWORD") or None,
+    "allow_remote_plaintext": ALLOW_REMOTE_PLAINTEXT,
     "db": 0,
 }
 
@@ -27,6 +32,7 @@ CLUSTER_CONFIG = {
         "SCRAPY_EXAMPLE_REDIS_CLUSTER_NODES", "127.0.0.1:7000"
     ).split(","),
     "password": os.environ.get("REDIS_PASSWORD") or None,
+    "allow_remote_plaintext": ALLOW_REMOTE_PLAINTEXT,
     "db": 0,
     "cluster_max_redirects": 5,
 }
