@@ -273,11 +273,21 @@ _MAX_IN_FLIGHT = 10_000
 def _validate_queue_name_argument(
     _backend: object,
     queue_name: str,
-    timeout: float = 0.0,
     *_args: Any,
     **_kwargs: Any,
 ) -> None:
     """Validate a public queue argument before its terminal error boundary."""
+    _validate_key_name(queue_name, "queue_name")
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Validate queue name and receive timeout before the terminal boundary."""
     _validate_key_name(queue_name, "queue_name")
     _normalize_pop_timeout(timeout)
 
@@ -1083,7 +1093,7 @@ class SqsBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop SQS message.",
         safe_messages=_SQS_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop(self, queue_name: str, timeout: float = 0.0) -> bytes | None:
         """Receive one message from the SQS queue.
@@ -1122,7 +1132,7 @@ class SqsBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop SQS message.",
         safe_messages=_SQS_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop_with_ack(
         self, queue_name: str, timeout: float = 0.0
