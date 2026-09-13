@@ -41,6 +41,9 @@ _RUNBOOK = (_REPOSITORY_ROOT / "docs" / "05-runbooks" / "runbook.md").read_text(
 _STABILITY = (_REPOSITORY_ROOT / ".github" / "STABILITY.md").read_text(encoding="utf-8")
 _SECURITY = (_REPOSITORY_ROOT / ".github" / "SECURITY.md").read_text(encoding="utf-8")
 _CHANGELOG = (_REPOSITORY_ROOT / ".github" / "CHANGELOG.md").read_text(encoding="utf-8")
+_PACKAGE_SURFACE = (
+    _REPOSITORY_ROOT / "docs" / "03-api" / "package-surface.md"
+).read_text(encoding="utf-8")
 
 
 def test_component_factory_documentation_matches_runtime_api() -> None:
@@ -196,6 +199,13 @@ def test_configuration_error_families_match_runtime_boundaries() -> None:
         manager._create_backend()
     assert manager_error.value.setting_name == "backend_settings"
     assert manager_error.value.setting_value is None
+
+
+def test_package_surface_documents_unsupported_capability_exception() -> None:
+    """Component accessors expose NotImplementedError for missing capabilities."""
+    assert "capability mismatch" in _PACKAGE_SURFACE
+    assert "fails fast with `NotImplementedError`" in _PACKAGE_SURFACE
+    assert "fails fast with `ConfigurationError`" not in _PACKAGE_SURFACE
 
 
 class _FakeElasticSearchIndices:

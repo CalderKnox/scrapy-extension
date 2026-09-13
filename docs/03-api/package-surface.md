@@ -90,7 +90,7 @@ Entry-point registration (group `scrapy_extension.backends`, name pattern
   exactly one `close()` release.
 - Component accessors `get_queue_backend()` / `get_set_backend()` /
   `get_storage_backend()` return the interface objects; a capability mismatch
-  fails fast with `ConfigurationError` (see the capability matrix in
+  fails fast with `NotImplementedError` (see the capability matrix in
   [Backend Interfaces](backend-interfaces.md)).
 - `resolve_backend_config(settings, type_key, settings_key, *,
   required_capabilities=None, component_name="")` — **Stable** fully qualified
