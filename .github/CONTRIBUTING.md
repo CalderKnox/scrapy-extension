@@ -28,10 +28,10 @@ uv run pytest tests/test_backends.py::TestRedisBackend::test_connect_success -v 
 
 The unit suite is mock-based (no live backends needed). Pytest runs with `--disable-socket` by default so unit tests cannot accidentally open real network connections. Integration runs must keep that boundary and explicitly allow only the loopback brokers with `--allow-hosts=localhost,127.0.0.1,::1`, as shown below.
 
-CI sets `SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP=1`. In that mode, an unmarked
-unit skip fails the run; benchmark opt-in skips and integration tests (including
-backend-specific optional-service skips) remain allowed. Use the same variable
-locally when adding tests that must not silently disappear.
+CI sets `SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP=1`. In that mode, unmarked unit
+skips and integration runtime/setup skips fail the run. Only benchmark opt-in
+skips and explicit missing-service/configuration skips remain allowed. Use the
+same variable locally when adding tests that must not silently disappear.
 
 ### Integration tests (require live backends)
 

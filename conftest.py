@@ -39,9 +39,18 @@ def _skip_is_allowed(report: pytest.TestReport, reason: str) -> bool:
     """Keep deliberate benchmark and backend-optional skips out of the gate."""
     nodeid = report.nodeid.replace("\\", "/")
     if "/tests/integration/" in f"/{nodeid}" or nodeid.startswith("tests/integration/"):
-        # Integration modules use backend-specific skipif guards for optional
-        # services. Those are an explicit part of the integration contract.
-        return True
+        # Integration tests may skip only when their explicitly documented
+        # optional service/configuration is absent. Runtime setup failures
+        # must fail CI instead of turning the whole tier green.
+        normalized = reason.removeprefix("Skipped: ").strip().lower()
+        return normalized.startswith(
+            (
+                "set scrapy_test_",
+                "integration opt-in:",
+                "response-drop tests require one scrapy_test_",
+                "response-drop tests accept only a localhost http endpoint.",
+            )
+        )
     return reason.startswith(
         (
             "Skipped: benchmark opt-in:",

@@ -71,11 +71,12 @@ def test_unclassified_skip():
     result.stdout.fnmatch_lines("*unexpected skips*")
 
 
-def test_unexpected_skip_contract_allows_backend_optional_skip(
+def test_unexpected_skip_contract_allows_configured_backend_skip(
     pytester, monkeypatch
 ) -> None:
-    """Backend-specific optional skips remain valid in strict skip mode."""
+    """Documented absent-backend configuration skips remain valid in CI."""
     monkeypatch.setenv("SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP", "1")
+    monkeypatch.setenv("SCRAPY_TEST_INTEGRATION", "1")
     _install_root_hooks(pytester)
     pytester.mkdir("tests")
     pytester.mkdir("tests/integration")
@@ -89,7 +90,7 @@ pytestmark = pytest.mark.integration
 
 
 def test_optional_backend():
-  pytest.skip("backend is not configured")
+  pytest.skip("Set SCRAPY_TEST_OPTIONAL_URL to run this integration test.")
 """
         }
     )
@@ -98,6 +99,37 @@ def test_optional_backend():
 
     result.assert_outcomes(skipped=1)
     assert result.ret == 0
+
+
+def test_unexpected_skip_contract_rejects_integration_runtime_failure(
+    pytester, monkeypatch
+) -> None:
+    """A broker setup failure must make opted-in integration CI fail."""
+    monkeypatch.setenv("SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP", "1")
+    monkeypatch.setenv("SCRAPY_TEST_INTEGRATION", "1")
+    _install_root_hooks(pytester)
+    pytester.mkdir("tests")
+    pytester.mkdir("tests/integration")
+    pytester.makepyfile(
+        **{
+            "tests/integration/test_broker_setup.py": """
+import pytest
+
+
+pytestmark = pytest.mark.integration
+
+
+def test_broker_setup():
+  pytest.skip("could not pre-create topic 'queue' via mqadmin (rc=1)")
+"""
+        }
+    )
+
+    result = pytester.runpytest()
+
+    result.assert_outcomes(skipped=1)
+    assert result.ret != 0
+    result.stdout.fnmatch_lines("*unexpected skips*")
 
 
 def test_integration_collection_gets_explicit_timeout_override(
