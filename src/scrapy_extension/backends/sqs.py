@@ -113,6 +113,25 @@ _SQS_SAFE_QUEUE_MESSAGES: frozenset[str] = frozenset(
 # SQS caps WaitTimeSeconds at 20.
 _MAX_WAIT_SECONDS = 20
 
+
+def _normalize_pop_timeout(timeout: float) -> float:
+    """Validate and normalize a public receive timeout before any SQS I/O."""
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        )
+    try:
+        normalized = float(timeout)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        ) from exc
+    if not math.isfinite(normalized) or normalized < 0:
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        )
+    return normalized
+
 # PurgeQueue is asynchronous. AWS documents that both old messages and messages
 # sent after the API call can be deleted for up to 60 seconds.
 _SQS_PURGE_WINDOW_SECONDS = 60.0
@@ -254,11 +273,13 @@ _MAX_IN_FLIGHT = 10_000
 def _validate_queue_name_argument(
     _backend: object,
     queue_name: str,
+    timeout: float = 0.0,
     *_args: Any,
     **_kwargs: Any,
 ) -> None:
     """Validate a public queue argument before its terminal error boundary."""
     _validate_key_name(queue_name, "queue_name")
+    _normalize_pop_timeout(timeout)
 
 
 class _SqsQueueLifecycle:
@@ -1306,6 +1327,7 @@ class SqsBackend(Backend, QueueBackend):
             ValueError: If queue_name contains invalid characters.
         """
         _validate_key_name(queue_name, "queue_name")
+        timeout = _normalize_pop_timeout(timeout)
         with self._lease_generation("pop", queue_name=queue_name) as generation:
             if generation is None:  # pragma: no cover - non-token lease is required
                 raise AssertionError("current SQS generation lease returned None")

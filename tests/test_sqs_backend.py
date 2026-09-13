@@ -1298,6 +1298,24 @@ class TestSqsPushPop:
         assert client.receive_message.call_args.kwargs["WaitTimeSeconds"] == 20
         assert client.receive_message.call_args.kwargs["VisibilityTimeout"] == 300
 
+    @pytest.mark.parametrize("timeout", [True, False, -1.0, float("nan"), float("inf"), float("-inf")])
+    def test_pop_rejects_invalid_timeout_before_receive(self, mocker, timeout) -> None:
+        b, client = _connected(mocker)
+
+        with pytest.raises(ValueError, match="finite non-negative"):
+            b.pop("queue1", timeout=timeout)
+
+        client.receive_message.assert_not_called()
+
+    @pytest.mark.parametrize("timeout", [True, -1.0, float("nan"), float("inf")])
+    def test_pop_with_ack_rejects_invalid_timeout_before_receive(self, mocker, timeout) -> None:
+        b, client = _connected(mocker)
+
+        with pytest.raises(ValueError, match="finite non-negative"):
+            b.pop_with_ack("queue1", timeout=timeout)
+
+        client.receive_message.assert_not_called()
+
     def test_pop_wait_and_processing_visibility_are_independent(self, mocker) -> None:
         b = _make_backend(visibility_timeout=90)
         client = mocker.MagicMock()
