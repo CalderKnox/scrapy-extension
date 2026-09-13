@@ -623,6 +623,7 @@ class TimeWheelQueueStrategy(QueueStrategy):
             slots_flat = [
                 {
                     "remaining": max(0.0, ready_at - snapshot_now),
+                    "deadline": ready_at - snapshot_now,
                     "item_b64": base64.b64encode(item).decode("ascii"),
                     "priority": priority,
                     # Keep the process-wide tie-breaker so a restart cannot
@@ -640,6 +641,7 @@ class TimeWheelQueueStrategy(QueueStrategy):
             overflow = [
                 {
                     "remaining": max(0.0, ready_at - snapshot_now),
+                    "deadline": ready_at - snapshot_now,
                     "item_b64": base64.b64encode(item).decode("ascii"),
                     "priority": priority,
                     "sequence": sequence,
@@ -697,10 +699,13 @@ class TimeWheelQueueStrategy(QueueStrategy):
                     remaining = _finite_number(entry["remaining"], "remaining")
                     if remaining < 0:
                         raise ValueError("remaining delay must be >= 0")
-                    ready_at = now + max(0.0, remaining - downtime)
+                    deadline = _finite_number(
+                        entry.get("deadline", remaining), "deadline"
+                    )
+                    ready_at = now + max(0.0, deadline - downtime)
                     if not math.isfinite(ready_at):
                         raise ValueError("restored ready time is not finite")
-                    return ready_at, remaining
+                    return ready_at, deadline
 
                 staged: list[tuple[float, float, int, int | None, bytes, float]] = []
                 serialized_sequences: set[int] = set()
@@ -748,11 +753,17 @@ class TimeWheelQueueStrategy(QueueStrategy):
                 ] * self._wheel_size
                 recovered_overflow: list[tuple[float, int, bytes, float]] = []
                 recovered_seq = itertools.count()
+                # Order by the original deadline first.  Several entries may
+                # become overdue while the process is offline and therefore
+                # rebase to the same ``ready_at == now``; sorting by that
+                # rebased value would let insertion sequence reorder work that
+                # had distinct deadlines.  Sequence remains the tie-breaker
+                # for entries with equal original deadlines.
                 staged.sort(
                     key=lambda staged_entry: (
-                        (staged_entry[0], 0, staged_entry[3], staged_entry[2])
-                        if staged_entry[3] is not None
-                        else (staged_entry[0], 1, staged_entry[1], staged_entry[2])
+                        staged_entry[1],
+                        0 if staged_entry[3] is not None else 1,
+                        staged_entry[3] if staged_entry[3] is not None else staged_entry[2],
                     )
                 )
                 for (

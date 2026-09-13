@@ -775,6 +775,43 @@ def test_snapshot_restore_preserves_overflow_heap_stable_order():
     assert actual == expected
 
 
+@pytest.mark.parametrize("snapshot_clock, restore_wall_clock", [(6.0, 1_000.0), (0.0, 1_010.0)])
+def test_restore_orders_overdue_entries_by_original_deadline(
+    snapshot_clock: float, restore_wall_clock: float
+):
+    """Distinct expired deadlines retain order, whether expiry predates or follows snapshot."""
+
+    class RecordingBackend:
+        def __init__(self) -> None:
+            self.items: deque[bytes] = deque()
+
+        def push(self, _queue: str, item: bytes, _priority: float) -> None:
+            self.items.append(item)
+
+        def pop(self, _queue: str, _timeout: float | None = None) -> bytes | None:
+            return self.items.popleft() if self.items else None
+
+    source, _, clock = _strategy(wheel_size=10, clock_value=0.0)
+    source.push("q", b"later", delay=5.5)
+    source.push("q", b"earlier", delay=5.1)
+    clock[0] = snapshot_clock
+    snapshot = source.snapshot()
+
+    backend = RecordingBackend()
+    cm = MagicMock(name="ConnectionManager")
+    cm.get_queue_backend.return_value = backend
+    restored = TimeWheelQueueStrategy(
+        cm,
+        wheel_size=10,
+        clock=lambda: 0.0,
+        wall_clock=lambda: restore_wall_clock,
+    )
+    restored.restore(snapshot)
+
+    assert restored.pop("q") == b"earlier"
+    assert restored.pop("q") == b"later"
+
+
 def test_restore_rebuilds_slot_minimum_deadlines():
     source, _, _ = _strategy(wheel_size=10, clock_value=0.0)
     source.push("q", b"later", delay=5.0)
