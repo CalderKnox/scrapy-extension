@@ -1298,7 +1298,9 @@ class TestSqsPushPop:
         assert client.receive_message.call_args.kwargs["WaitTimeSeconds"] == 20
         assert client.receive_message.call_args.kwargs["VisibilityTimeout"] == 300
 
-    @pytest.mark.parametrize("timeout", [True, False, -1.0, float("nan"), float("inf"), float("-inf")])
+    @pytest.mark.parametrize(
+        "timeout", [True, False, -1.0, float("nan"), float("inf"), float("-inf")]
+    )
     def test_pop_rejects_invalid_timeout_before_receive(self, mocker, timeout) -> None:
         b, client = _connected(mocker)
 
@@ -1308,7 +1310,9 @@ class TestSqsPushPop:
         client.receive_message.assert_not_called()
 
     @pytest.mark.parametrize("timeout", [True, -1.0, float("nan"), float("inf")])
-    def test_pop_with_ack_rejects_invalid_timeout_before_receive(self, mocker, timeout) -> None:
+    def test_pop_with_ack_rejects_invalid_timeout_before_receive(
+        self, mocker, timeout
+    ) -> None:
         b, client = _connected(mocker)
 
         with pytest.raises(ValueError, match="finite non-negative"):

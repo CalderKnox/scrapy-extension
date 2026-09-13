@@ -132,6 +132,7 @@ def _normalize_pop_timeout(timeout: float) -> float:
         )
     return normalized
 
+
 # PurgeQueue is asynchronous. AWS documents that both old messages and messages
 # sent after the API call can be deleted for up to 60 seconds.
 _SQS_PURGE_WINDOW_SECONDS = 60.0

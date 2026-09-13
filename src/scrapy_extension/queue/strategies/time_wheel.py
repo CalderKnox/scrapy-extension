@@ -763,7 +763,9 @@ class TimeWheelQueueStrategy(QueueStrategy):
                     key=lambda staged_entry: (
                         staged_entry[1],
                         0 if staged_entry[3] is not None else 1,
-                        staged_entry[3] if staged_entry[3] is not None else staged_entry[2],
+                        staged_entry[3]
+                        if staged_entry[3] is not None
+                        else staged_entry[2],
                     )
                 )
                 for (

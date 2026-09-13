@@ -775,7 +775,9 @@ def test_snapshot_restore_preserves_overflow_heap_stable_order():
     assert actual == expected
 
 
-@pytest.mark.parametrize("snapshot_clock, restore_wall_clock", [(6.0, 1_000.0), (0.0, 1_010.0)])
+@pytest.mark.parametrize(
+    "snapshot_clock, restore_wall_clock", [(6.0, 1_000.0), (0.0, 1_010.0)]
+)
 def test_restore_orders_overdue_entries_by_original_deadline(
     snapshot_clock: float, restore_wall_clock: float
 ):
