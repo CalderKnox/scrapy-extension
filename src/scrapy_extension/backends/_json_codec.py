@@ -276,6 +276,20 @@ def _reject_non_finite_json_constant(value: str) -> object:
     raise ValueError(f"JSON numbers must be finite, got {value}")
 
 
+def _parse_finite_json_float(value: str) -> float:
+    """Parse a JSON float and reject exponent overflow to infinity.
+
+    ``json.loads`` only invokes ``parse_constant`` for the non-standard literal
+    spellings ``NaN`` and ``Infinity``.  A standards-compliant number such as
+    ``1e309`` can still overflow Python's ``float`` conversion to ``inf``;
+    validate the converted value here so all decoded numbers remain finite.
+    """
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"JSON numbers must be finite, got {value}")
+    return parsed
+
+
 def _json_object_from_pairs(pairs: list[tuple[str, object]]) -> object:
     """Build one JSON object, decode markers, and reject duplicate names.
 
@@ -403,6 +417,7 @@ class JSONSerializer:
         return json.loads(
             data.decode("utf-8"),
             parse_constant=_reject_non_finite_json_constant,
+            parse_float=_parse_finite_json_float,
             object_pairs_hook=_json_object_from_pairs,
         )
 

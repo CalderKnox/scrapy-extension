@@ -335,6 +335,14 @@ class TestJSONSerializer:
         with pytest.raises(ValueError, match="finite"):
             serializer.deserialize(b'{"value":' + literal + b"}")
 
+    @pytest.mark.parametrize("literal", [b"1e309", b"-1e309"])
+    def test_overflowed_json_float_is_rejected_on_deserialize(self, literal):
+        """Exponent overflow must not silently decode to positive/negative infinity."""
+        serializer = JSONSerializer()
+
+        with pytest.raises(ValueError, match="finite"):
+            serializer.deserialize(b'{"value":' + literal + b"}")
+
     def test_duplicate_json_object_key_is_rejected(self):
         serializer = JSONSerializer()
 
