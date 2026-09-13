@@ -192,8 +192,9 @@ def _ensure_topic(backend, queue_name: str) -> None:  # type: ignore[no-untyped-
     across 5.x. Explicit pre-creation via mqadmin is the CI-stable path
     (validated against apache/rocketmq:5.3.1). Topic = ``{topic_prefix}_{queue}``.
 
-    Skips the test (rather than failing) if mqadmin or docker is unavailable —
-    the env-var gate already skips the suite when the broker isn't up.
+    Runtime setup failures are test failures. The env-var gate above is the
+    only supported way to omit this integration suite when no broker is
+    configured.
     """
     topic = f"{backend.config.topic_prefix}_{queue_name}"
     result = subprocess.run(  # noqa: S603,S607 - trusted local fixture container
@@ -212,7 +213,7 @@ def _ensure_topic(backend, queue_name: str) -> None:  # type: ignore[no-untyped-
         timeout=30,
     )
     if result.returncode != 0:
-        pytest.skip(
+        raise AssertionError(
             f"could not pre-create topic {topic!r} via mqadmin (rc={result.returncode}). "
             f"stderr: {result.stderr[:200]}"
         )
