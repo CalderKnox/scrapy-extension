@@ -33,7 +33,11 @@ Backend (ABC) — connection lifecycle
 └── StorageBackend (ABC) — store, retrieve, delete, exists, ttl, clear_storage
 ```
 
-Each backend implements whichever interfaces it natively supports:
+Each backend advertises whichever interfaces it supports through a lazy
+`BackendDescriptor` registry. The descriptor contains dotted class/settings
+paths and a capability set; `ConnectionManager` imports the chosen adapter only
+after configuration resolves it. Third-party backends register one descriptor
+via the `scrapy_extension.backends` entry-point group.
 
 | Backend       | Implements                    | Notes                                      |
 |---------------|-------------------------------|-------------------------------------------|
@@ -42,7 +46,11 @@ Each backend implements whichever interfaces it natively supports:
 | ElasticSearch | All three                     | Uses sorted indices, unique IDs            |
 | Kafka         | QueueBackend only             | Native pub/sub, no atomic sets            |
 | RabbitMQ      | QueueBackend only             | Priority queues, no atomic sets            |
-| RocketMQ      | QueueBackend only             | Alibaba Cloud RocketMQ, Set/Storage stubs  |
+| RocketMQ      | QueueBackend only             | Deferred-ack queue; Set/Storage unsupported |
+| Pulsar        | QueueBackend only             | Deferred-ack queue |
+| SQS           | QueueBackend only             | Deferred-ack queue |
+| Memcached     | StorageBackend only           | TTL key/value storage |
+| DynamoDB      | StorageBackend only           | TTL key/value storage |
 
 ## Alternatives Considered
 
@@ -81,9 +89,19 @@ class Backend:
 ## Implementation Notes
 
 **Connection Management:**
-- `ConnectionManager` uses class-level registry keyed by `backend_type:settings_hash`
+- `ConnectionManager` uses a class-level registry keyed by `backend_type:settings_hash`
 - Lazy initialization — connection established on first use, not at import
 - Exponential backoff retry configurable via `retry_attempts` and `retry_delay`
+- Capability mismatch is rejected during component setup, not at first operation
+
+**Acknowledgement and durability:**
+- Atomic-pop backends require no acknowledgement token.
+- Bundled message queues use per-message acknowledgement tokens, bound to the
+  backend incarnation that issued them; this makes concurrent request handling
+  safe and prevents a reconnect from settling a delivery on a replacement client.
+- A successful `push()` alone is not a universal durability claim. Queue routes
+  produce an operation-bound receipt; only proven worker-crash durability may
+  trigger dependent dedup-marker publication or source acknowledgement.
 
 **Request Serialization:**
 - `BackendQueue` manually serializes Scrapy requests to JSON

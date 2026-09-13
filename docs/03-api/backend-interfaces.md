@@ -10,6 +10,21 @@ For entry-point registration, the `BackendDescriptor` dataclass, and a worked
 plugin example, see [Backend Plugins](../06-guides/developer-guides/backend-plugins.md).
 This document is the interface contract those plugins must satisfy.
 
+## Canonical imports and value invariants
+
+Application code should import the interfaces from the package root:
+
+```python
+from scrapy_extension import Backend, QueueBackend, SetBackend, StorageBackend
+```
+
+The implementation module (`scrapy_extension.backends.base`) re-exports the
+same names for backend authors and type-checking. Queue and set payloads are
+already serialized `bytes`; these interfaces do not encode or decode values.
+Names and storage keys are logical `str` values. Genuine misses use the
+documented `None`/`False` sentinel; SDK or transport failures must raise the
+typed backend error rather than returning a success sentinel.
+
 ## `Backend` — lifecycle
 
 Every backend inherits `Backend` and implements all of:

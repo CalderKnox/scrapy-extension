@@ -8,6 +8,61 @@ Before upgrading a persistent deployment, read the
 [migration guide](../06-guides/user-guides/migration-guide.md). It covers Redis physical-key changes,
 strategy snapshot ownership, and queued-request wire compatibility.
 
+## Operator quickstart (five-minute triage)
+
+Use this sequence before changing settings or restarting workers. It keeps an
+incident observable and avoids turning an ambiguous broker outcome into a
+duplicate or loss:
+
+1. Capture the deployment version, selected queue/dedup/storage backend types,
+   strategy names, worker IDs, and the last 15 minutes of Scrapy stats/logs.
+2. Check `queue/last_pop_epoch`, `errors/pop`, `scheduler/ack_error`, and
+   `scheduler/nack_error` together. A stale last-pop age with a non-zero depth
+   points to admission/connectivity; a fresh age with rising ack errors points
+   to settlement, not an empty queue.
+3. Check the broker's native consumer/group/lease view. Do not infer health
+   from `queue/depth` when using Pulsar or RocketMQ (`queue_len()` is not
+   available), and do not infer successful processing from a downloader ACK.
+4. Freeze changes and quiesce producers before clear, namespace migration,
+   snapshot garbage collection, or credential rotation. Record the exact
+   namespace and logical queue names so a rollback cannot target a different
+   deployment.
+5. If an operation reports an outcome-indeterminate error, reconcile the
+   backend record/domain identity first. Never blindly repeat a push, delete,
+   or pop merely because the client did not receive a response.
+
+The minimum incident bundle is safe to attach to a ticket: sanitized settings
+names (not values), version, worker identity, stat names/values, exception
+class and public message, broker-side correlation IDs, and timestamps. Do not
+attach settings reprs, DSNs, request bodies, queue payloads, or raw tracebacks.
+
+## Deployment and maintenance preflight
+
+Run this checklist for a new environment, a backend change, or a rolling
+upgrade:
+
+- Confirm every worker has the same queue/dedup/storage backend selection,
+  namespace, strategy generation, and serializer settings. Give each worker a
+  stable `SCRAPY_QUEUE_WORKER_ID` when snapshots or work stealing are enabled.
+- Set backend-native socket/RPC timeouts in addition to
+  `SCRAPY_REACTOR_IO_TIMEOUT`; the latter cannot interrupt a blocking SDK call.
+- Verify TLS hostname/CA validation and credential scope. For RabbitMQ and
+  RocketMQ, remote plaintext is not an acceptable production configuration.
+- Size broker visibility/invisibility/lease durations above the worst-case
+  download-to-response time. ACK occurs at the downloader boundary, not after
+  item-pipeline completion.
+- For `batched` storage, size `SCRAPY_STORAGE_BUFFER_MAX_PENDING` for the
+  crash-loss budget and ensure one lifecycle owner drains it during shutdown.
+- Exercise one push/pop/settle and one storage store/retrieve against the
+  selected backend before admitting production traffic. Keep the integration
+  test's loopback allow-list explicit.
+- Save a rollback point: package version, lockfile hash, settings diff, and a
+  tested stop/drain command. Never mix v1 and v2 fan-out queue generations.
+
+During maintenance, stop writers first, let admitted operations settle, then
+disconnect workers and verify broker consumers are gone. A successful process
+exit is not proof that snapshots, buffered storage, or broker tokens drained.
+
 For Redis Sentinel deployments with TLS enabled, verify both the Sentinel
 ports and the discovered Redis master accept TLS using the configured CA.
 `ssl_certfile` and `ssl_keyfile` are an inseparable mTLS pair, and hostname

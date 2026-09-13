@@ -76,6 +76,14 @@ entry-point discovery for third-party backends:
 - `has_capability(backend_type, capability)` — predicate returning `False`
   (never raising) for unknown backends.
 
+Descriptor validation is intentionally strict: entry-point names must match
+`^[a-z][a-z0-9_]*$`; the registration callable must return a
+`BackendDescriptor`; class/settings paths must be non-empty dotted strings; and
+`capabilities` must be a (possibly empty) subset of `queue`, `set`, and `storage`. Invalid or
+broken third-party registrations are skipped with a diagnostic so a bad plugin
+cannot prevent bundled backends from loading. `get_registry()` returns a copy,
+so mutating its result does not alter the memoized registry.
+
 Entry-point registration (group `scrapy_extension.backends`, name pattern
 `^[a-z][a-z0-9_]*$`) is **Experimental**; the authoring contract is
 [Backend Plugins](../06-guides/developer-guides/backend-plugins.md).
@@ -130,3 +138,11 @@ BackendError
   type/range/enum violations; `ConfigurationError` for cross-field,
   capability, and unknown-name failures (including an unknown
   `SCRAPY_BACKEND_TYPE`).
+
+### Compatibility rule
+
+The names listed in the eager and lazy tables are the supported import
+surface. Private (`_`-prefixed) modules, registry internals, and concrete SDK
+clients are not compatibility promises. Additive exports are allowed; removal
+or incompatible change to a Stable symbol requires a deprecation path recorded
+in `.github/STABILITY.md`.

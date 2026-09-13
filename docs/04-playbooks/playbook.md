@@ -513,3 +513,40 @@ memory or commit count) is the authoritative round counter.
    validator message changed.
 5. Durability/ack/capability changes deserve a real-broker integration check,
    not only mocks.
+
+## Operational change review
+
+Use this short review whenever a change affects a backend, queue strategy,
+serializer, timeout, or lifecycle boundary. It is intentionally separate from
+the release checklist: most operational changes ship between releases.
+
+1. **Name the boundary.** Record whether the change affects enqueue, pop,
+   broker settlement, item storage, snapshot persistence, or teardown. State
+   whether the boundary is durable, volatile, or outcome-ambiguous.
+2. **Trace the setting.** Follow the value from Scrapy settings/environment
+   through `from_settings`/`from_crawler` into the component and manager. Add a
+   contract test when a setting is newly exposed; do not document a constructor
+   default as an operator knob unless the factory threads it.
+3. **Check generation fencing.** For reconnects and concurrent ACK/NACK, prove
+   that a token, client, namespace, and strategy route cannot cross a retired
+   generation. Include a test for a late completion after disconnect.
+4. **Check failure classification.** Distinguish deterministic poison,
+   retryable transport failure, circuit-open admission, and
+   outcome-indeterminate response loss. Verify that monitoring/logging cannot
+   change the data path or reveal secrets.
+5. **Exercise the operator path.** Add or update a runbook procedure covering
+   preflight, alert signals, quiesce/drain order, rollback, and the explicit
+   lossy escape hatch (if one exists). Use a live-broker test for durability or
+   ACK claims; mocks alone are insufficient.
+6. **Verify distribution.** Run documentation contract tests, `uv run poe
+   check`, and the relevant unit/integration slice. Confirm examples and links
+   still point at public, non-archived docs.
+
+### Evidence to leave in a review
+
+The useful artifact is a compact evidence note: changed setting names and
+precedence, state-machine or generation diagram (if applicable), tests run,
+the observed metric/log names, and the exact rollback command. Avoid copying
+credentials, payloads, or full exception tracebacks into the PR. If behavior
+cannot be proved from tests or a broker observation, label it as an assumption
+and keep the runbook conservative (fail closed, reconcile before retry).

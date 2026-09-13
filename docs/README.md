@@ -1,7 +1,20 @@
 # Documentation
 
-Start here. This directory holds everything beyond the README: proposals,
-decisions, design, reference, and operational material.
+Start here. This directory holds everything beyond the [project README](../README.md):
+proposals, decisions, design, reference, and operational material. Use the
+shortest path below for the job at hand; each section README then links to the
+documents in that section.
+
+## Common paths
+
+| If you are... | Start with |
+| --- | --- |
+| New to the project | [Guides](06-guides/) and the [runnable examples](../examples/README.md) |
+| Integrating a backend | [Backend interfaces](03-api/backend-interfaces.md) and [backend configuration](../README.md#backend-configuration) |
+| Operating a deployment | [Runbook](05-runbooks/runbook.md) |
+| Upgrading an existing deployment | [Migration guide](06-guides/user-guides/migration-guide.md) |
+| Writing a backend plugin | [Plugin guide](06-guides/developer-guides/backend-plugins.md) |
+| Proposing an architectural change | [RFCs](00-rfcs/) and [ADRs](01-adrs/) |
 
 ## Contents
 
@@ -25,6 +38,12 @@ belongs there and a local `_template.md` scaffold to copy when creating a
 document. Templates are
 directory-specific, but use the same metadata order, heading style, and
 placeholder conventions.
+
+To add a document: choose the section using the table below, copy that
+section's `_template.md`, replace every placeholder, then add the new file to
+the section README. Keep links relative so the docs remain usable in a source
+checkout and on GitHub. Run the documentation checks locally before opening a
+pull request (the same checks run in `.github/workflows/docs.yml`).
 
 Maintainer execution history — round-based SPEC/PLAN/TASK records and the
 insight ledger — lives in [08-archive/insight/](08-archive/insight/).
