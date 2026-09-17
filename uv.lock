@@ -1540,7 +1540,6 @@ name = "pyasn1-modules"
 version = "0.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "protego" },
     { name = "pyasn1" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e6/78ebbb10a8c8e4b61a59249394a4a594c1a7af95593dc933a349c8d00964/pyasn1_modules-0.4.2.tar.gz", hash = "sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6", size = 307892, upload-time = "2025-03-28T02:41:22.17Z" }
@@ -2103,7 +2102,7 @@ wheels = [
 
 [[package]]
 name = "rocketmq-python-client"
-version = "5.1.1"
+version = "5.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "grpcio" },
@@ -2113,9 +2112,9 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ad/a9/d5e7d1953ed1f7b215f1f9c55e5fbbaa2268b747cc770096315d0e7dbcef/rocketmq_python_client-5.1.1.tar.gz", hash = "sha256:a5856bde4c69b813f0f4fe5398205b8ed67533ff6b1ba55c9fb5b11c6087d0da", size = 59280, upload-time = "2026-02-10T03:34:10.359Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/22/ff23aa7c59d9f768784925fd136e988789ba9899dc2072c53f5a3b2f497f/rocketmq_python_client-5.1.2.tar.gz", hash = "sha256:9b9392337282119715c826689ff83a3d1a3e79b6a6c2b535c09b7f855f37a809", size = 80278, upload-time = "2026-09-14T08:21:09.891Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/36/21/89fa648db07647934b0331f094e0599554774e6f298b67b945b8651294a1/rocketmq_python_client-5.1.1-py3-none-any.whl", hash = "sha256:33bd293e74a3589423a3591e7636217617c8360053c348aec882de7e14ee891f", size = 101859, upload-time = "2026-02-10T03:34:08.5Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/47/6485704794d340560f453faa0381f5702151aa06d2c0e2cd42a71ef9834d/rocketmq_python_client-5.1.2-py3-none-any.whl", hash = "sha256:b527020694cb6a91bb490b158a63c0b34e4b46b790dde2d435e4c5ba54a621f6", size = 126699, upload-time = "2026-09-14T08:21:08.519Z" },
 ]
 
 [[package]]
@@ -2189,6 +2188,7 @@ name = "scrapy-extension"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "protego" },
     { name = "pyasn1" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
