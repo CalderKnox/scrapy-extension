@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 try:
@@ -40,9 +41,19 @@ def _pyproject() -> dict[str, object]:
 
 
 def test_isolated_build_backend_is_exactly_pinned() -> None:
+    """The build backend must stay exactly version-pinned (never a range).
+
+    The concrete version is dependency policy owned by pyproject.toml (and its
+    dependabot updates); this contract only guarantees the pin SHAPE, so an
+    isolated reproducible build can never drift onto a floating backend.
+    """
     build_system = _pyproject()["build-system"]
     assert isinstance(build_system, dict)
-    assert build_system["requires"] == ["uv_build==0.12.5"]
+    requires = build_system["requires"]
+    assert isinstance(requires, list)
+    assert len(requires) == 1
+    assert isinstance(requires[0], str)
+    assert re.fullmatch(r"uv_build==\d+\.\d+\.\d+", requires[0]), requires
 
 
 def test_sdist_configuration_keeps_tests_self_contained_and_clean() -> None:
