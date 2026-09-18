@@ -18,7 +18,7 @@ Please report security issues **privately** — do not open a public issue.
 - **GitHub Security Advisory** (preferred): use
   [Report a vulnerability](https://github.com/azwpayne/scrapy-extension/security/advisories/new)
   (private disclosure to the maintainer).
-- **Email**: paynewu0719@gmail.com
+- **Email**: <paynewu0719@gmail.com>
 
 Include: the affected version, a minimal reproduction, and the impact. You'll
 receive an acknowledgement and a fix/coordination plan.

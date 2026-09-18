@@ -1,0 +1,9 @@
+# markdownlint-cli2 configuration (config discovery merges .markdownlint.yaml rules)
+config:
+  # rules live in .markdownlint.yaml
+ignores:
+  # docs/08-archive/** is a historical record (append-only ledgers, round
+  # SPECs/PLANs, past reviews). It is already excluded from release artifacts
+  # (see tests/test_packaging_contract.py _REQUIRED_EXCLUDES); style-linting
+  # frozen history produces churn without value, so it is out of scope here.
+  - "docs/08-archive/**"

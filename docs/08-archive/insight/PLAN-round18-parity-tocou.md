@@ -4,6 +4,7 @@
 > Workflow: worktree `round18-parity-tocou` → execute A→D (atomic commits) → gate → ff-merge to `main` → delete branch.
 
 ## Key design lesson (from the scan)
+
 **Identity guards beat lagging flags for BaseException cleanup arms.** R17-B used a
 `published` boolean set after the publish side-effect → TOCTOU (finding C). R18 fixes it
 with `self._connection is not candidate.connection` (reads actual post-publish state). The
@@ -14,6 +15,7 @@ current instance state, not a local flag that can lag the side-effect.**
 ## Phases
 
 ### Phase 1 — TDD RED (B + C)
+
 - **C** (`tests/test_rabbitmq_generation.py`): patch `_publish_handles_locked` to call the
   REAL publish (installs candidate as `self._connection`) THEN raise `KeyboardInterrupt`
   (simulates the post-publish / pre-`published=True` window). Assert the candidate's
@@ -24,6 +26,7 @@ current instance state, not a local flag that can lag the side-effect.**
   publish). Assert the mock client's `close()` is called. Run → RED.
 
 ### Phase 2 — Implement (GREEN)
+
 - **A** (docs): runbook.md:602 + :630 `dupefilter/filtered` → `dupefilter/hit_count`
   (add `miss_count` as the newly-seen complement where the prose discusses dedup saturation).
 - **B**: pulsar `connect()` — hoist `client: Any = None` before the construction; add
@@ -38,6 +41,7 @@ current instance state, not a local flag that can lag the side-effect.**
   with README:527 + migration-guide:449).
 
 ### Phase 3 — Gate (3 hard gates, unsandboxed for pytest)
+
 ```bash
 uv run ruff check src/ tests/
 uv run mypy --strict src/
@@ -45,6 +49,7 @@ uv run pytest -q        # sandbox OFF — engine-e2e probe spawns a subprocess
 ```
 
 ### Phase 4 — Merge to main (main-only)
+
 ```bash
 git checkout main && git pull --ff-only origin main
 git merge --ff-only worktree-round18-parity-tocou
@@ -54,12 +59,14 @@ git branch -d worktree-round18-parity-tocou
 ```
 
 ## Fan-out strategy (Claude-only)
+
 All 4 units are small + mechanical + precisely specified (exact lines + fix shapes). Main-loop
 sequential execution (proven anti-thrash for this repo; avoids git-commit/pytest races from
 parallel subagents in a shared worktree). The ultracode 11-agent scan was the multi-agent
 fan-out for insight; execution is main-loop. A final parallel code-review fan-out validates.
 
 ## Risk notes
+
 - **C test fidelity**: the TOCTOU is a ~1-bytecode window; the test simulates it by patching
   `_publish_handles_locked` to publish-then-raise. Must verify the patched call actually
   invokes the real publish (so `self._connection` becomes `candidate.connection`) before raising.

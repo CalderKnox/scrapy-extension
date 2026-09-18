@@ -21,6 +21,7 @@ kafka.py and rocketmq.py do NOT carry this flag (different ack-tracking), so pul
 the **complete** remaining set.
 
 End-to-end mechanism (verified by reading the actual code):
+
 1. A slow-ack / leak condition fills the diagnostic `_in_flight` set to `_MAX_IN_FLIGHT` → the
    one-shot warning fires, `_in_flight_overflow_warned = True`.
 2. A reconnect/teardown clears `_in_flight` (room to refill) but, in pulsar/sqs, leaves the flag

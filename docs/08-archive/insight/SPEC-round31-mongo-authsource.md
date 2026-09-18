@@ -49,6 +49,7 @@ def _reject_blank_auth_source(cls, value: str) -> str:
 ```
 
 ### RED
+
 - `test_mongodb_auth_source_empty_rejected` — `MongoDBSettings(auth_source="")` raises.
 - `test_mongodb_auth_source_whitespace_rejected` — `MongoDBSettings(auth_source="   ")` raises (the live footgun).
 
