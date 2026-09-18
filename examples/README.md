@@ -414,7 +414,7 @@ failure is in the target site, Scrapy, or a backend integration.
 
 ## Troubleshooting
 
-**Backend did not change after exporting an environment variable**
+### Backend did not change after exporting an environment variable
 
 Inspect the spider's `custom_settings` and project `settings.py`. Explicit
 Scrapy values have higher precedence. Override them with Scrapy's command-line
@@ -425,7 +425,7 @@ uv run --no-sync scrapy crawl quotes_redis \
   -s SCRAPY_REDIS_NAMESPACE=one-off-test
 ```
 
-**Queue-only backend fails capability validation**
+### Queue-only backend fails capability validation
 
 Bind only `SCRAPY_QUEUE_BACKEND_TYPE` to Kafka, RabbitMQ, Pulsar, SQS, or
 RocketMQ. Keep a set-capable backend for the default distributed dedup strategy
@@ -438,13 +438,13 @@ Pydantic field type, range, enum, and extra-field failures raise
 `ValidationError`. Unknown adapter keys, unsupported component capabilities,
 and cross-field project constraints raise `ConfigurationError`.
 
-**A renamed Redis deployment starts empty**
+### A renamed Redis deployment starts empty
 
 The current namespace layout intentionally does not read old unnamespaced keys.
 Do not use `FLUSHDB` as a migration tool on a shared database. Follow the
 [migration guide](https://github.com/azwpayne/scrapy-extension/blob/main/docs/06-guides/user-guides/migration-guide.md).
 
-**Spider not found**
+### Spider not found
 
 Run commands from the example Scrapy project:
 

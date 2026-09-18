@@ -50,7 +50,7 @@ mypy --strict, ruff, uv.
 
 ## Dependency graph + execution waves
 
-```
+```text
 Wave 1 (parallel, fully disjoint):  R14-A   R14-F   R14-H
 Wave 2 (parallel, disjoint):        R14-B   R14-E
 Wave 3 (sequenced on shared seams):  R14-C  →  R14-D  →  R14-G
@@ -72,6 +72,7 @@ next `/goal` takes the next wave.
 `tests/test_{memcached,dynamodb,mongodb}_backend.py`.
 
 **Interfaces:**
+
 - Produces: `class StorageError(BackendError)` with `operation: str` + `key: str | None` kwargs.
 - Consumes: existing `BackendError.__init__` signature.
 
@@ -96,6 +97,7 @@ next `/goal` takes the next wave.
 **Files:** Modify `queue/strategies/{delay,round_robin,throttle}.py`, `queue/queue.py`; tests in `tests/test_{delay_strategy,round_robin_strategy,throttle_strategy,queue}.py`.
 
 **Interfaces:**
+
 - Produces: delay heap tuple gains a `priority` slot; `round_robin._sources` evicts empty keys; `BackendQueue.push` pops `delay`/`source` from `request.meta` after reading.
 - Consumes: existing `QueueStrategy.push/pop` ABC.
 
@@ -128,6 +130,7 @@ next `/goal` takes the next wave.
 **Files:** Modify `CHANGELOG.md`, `STABILITY.md`, `README.md`, `settings/base.py`, `backends/base.py`; tests in `tests/test_config.py`, `tests/test_settings_validation.py`.
 
 **Interfaces:**
+
 - Produces: `Settings.backend_type: BackendType | str` (accepts registered 3rd-party strings); `BackendType._missing_` raises `ConfigurationError`.
 - Consumes: `backends/registry.get_registry()` (to validate the string is known).
 
@@ -163,6 +166,7 @@ next `/goal` takes the next wave.
 **Sequencing:** runs **after R14-B** (shared `settings/base.py`).
 
 **Interfaces:**
+
 - Produces: 5 new `SCRAPY_*` settings; `BackendQueue.__init__` + `build_queue_strategy` + `ScrapyStatsMonitor.__init__` accept the threaded values.
 - Consumes: the landed U4 (`depth_sample_every`), U5 (`max_held`), U2 (`pop_rate_window_s`, `backpressure_threshold`) defaults.
 
@@ -231,6 +235,7 @@ seams (`settings/base.py`, `monitor/`, `queue/queue.py`, `connectors.py`,
 merge conflicts. ✓
 
 **Risk register (carry into commits):**
+
 - R14-A changes storage-op failure semantics (was silent/leak → now raise) —
   any downstream code catching the old sentinel needs updating; flag as Breaking
   in CHANGELOG (coordinate with R14-B).
@@ -251,6 +256,7 @@ wave (Wave 1 → 3 parallel executors; Wave 2 → 2; Wave 3 → sequenced C→D�
 orchestrator integrates + commits each unit (proven on rounds 9-13).
 
 Two options for the next move:
+
 1. **`/goal` per wave (recommended, matches the repo cadence)** — start with
    Wave 1 (`/goal` "execute Wave 1 of PLAN-round14: R14-A + R14-F + R14-H,
    file-disjoint fan-out").

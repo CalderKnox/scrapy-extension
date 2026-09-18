@@ -72,25 +72,32 @@ The round-8 menu below is retained for history (all ✅ DONE).
 ## Recommended `/goal` sequencing (file-disjoint batches, v1.0-oriented)
 
 ### Round 9 — cheap-wins cluster (all S, no API break) — **highest leverage-per-effort**
+
 **Parallel fan-out (3 executors, file-disjoint):**
+
 - **Executor A (settings owner):** SV1 + SV2 + SV4 + SV5 (all settings/*.py). The 34-footgun cluster minus SV3.
 - **Executor B:** U4 (queue/queue.py — `depth_sample_every=100` constructor kwarg).
 - **Executor C:** U5 (memory_filter.py default maxsize=1M + delay.py soft-cap+warn).
 **Then solo:** Executor A also lands SV3 (security cluster, 3H credential bugs) — or split to its own security-reviewer-led round. ~1-2 days. Kills ~32 footguns + perf win + OOM cap.
 
 ### Round 10 — type promise (solo, after R9 code stable)
+
 - **U8 mypy --strict.** Single executor (touches ~11 files; additive type annotations). Run AFTER R9 so it fixes the final code. ~half-day.
 
 ### Round 11 — v1.0 tag-defensibility (docs cluster)
+
 - **U1 (README Guarantees) + U9 (stability artifacts) + U20 (pymemcache Experimental label).** All docs/labeling, file-disjoint from code. After this round: v1.0 non-negotiables #1 (U1) met, #3 (U3) already done, tag artifacts (U9) exist. ~1 day.
 
 ### Round 12 — v1.0 non-negotiable #2 (operability)
+
 - **U2 operability signals.** New monitor hooks + rolling pop-rate + cuckoo saturation. One executor, M effort. After this: all 3 v1.0 non-negotiables met → **v1.0 tag defensible.**
 
 ### Round 13 — supply-chain + dep freshness
+
 - **U21 (redis/es cap bump + validate).** Retest 2 backends against bumped client libs. ~1 day.
 
 ### Post-1.0 (deferred Tier-2/3)
+
 - **U19** module splits (refactor, L effort, non-blocking).
 - **U10** distributed strategies · **U11** batch API · **U12** OTel · **U13** alt serializers · **U14** async · **U15** capability-richness · **U16** RocketMQ resolution · **U17** property/bench expansion. (See PLAN-round8-forward Tier-2/3.)
 
@@ -99,6 +106,7 @@ The round-8 menu below is retained for history (all ✅ DONE).
 ## "If you only run one `/goal`" → **Round 9 (cheap-wins)**
 
 Biggest bang-for-buck in the entire backlog:
+
 - **~32 settings footguns killed** (SV1/SV2/SV4/SV5) — every user-supplied invalid value now rejected at config time instead of an opaque runtime stack trace.
 - **+25% pop-path RTT reclaimed** (U4) — the scientist-quantified default-config perf ceiling.
 - **Silent OOM prevented** (U5) — MemoryMembershipFilter + DelayQueueStrategy ship sane caps.
@@ -111,6 +119,7 @@ Round 9 alone moves the library materially toward v1.0 without touching any arch
 ## Open new-lens candidates (if `/loop` continues past execution)
 
 Untried insight dimensions (a future `/loop` fire could audit, finding newer issues):
+
 - 🔭 **Error-handling consistency** across 10 backends — do they uniformly wrap client-lib exceptions in `BackendError`-family, or do some leak raw `redis.exceptions.*`/`pymongo.errors.*`? (Uniform-catch contract.)
 - 🔭 **Concurrency beyond in-flight-set** — ConnectionManager singleton under multi-thread crawler construction; circuit-breaker under sustained OPEN.
 - 🔭 **README/doc accuracy vs actual behavior** — does the README describe what the code actually does (esp. after rounds 1-8 changes)?
