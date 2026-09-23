@@ -67,6 +67,7 @@ call `strategy.queue_len`) every Nth pop. Keep the backpressure signal fresh (de
 changes slowly relative to pop rate; sampling at 1/100 keeps it within ~1% variance).
 
 **TDD:**
+
 - RED: today `queue_len` called every pop → test asserts call_count == N after N
   pops. Post-fix: call_count == N/100 (rounding).
 - GREEN: with sampling, `on_queue_depth` still emitted within the window; backpressure
@@ -91,6 +92,7 @@ mechanism ALREADY EXISTS — just ship a sane default. `DelayQueueStrategy` heap
 (`queue/strategies/delay.py:69`) has the same unbounded-growth property.
 
 **Files:**
+
 - `src/scrapy_extension/dupefilter/filters/memory_filter.py:32` — change default
   `maxsize: int | None = None` → `maxsize: int | None = 1_000_000` (LRU eviction
   already implemented; None still allowed as explicit opt-out for advanced users).
@@ -99,9 +101,10 @@ mechanism ALREADY EXISTS — just ship a sane default. `DelayQueueStrategy` heap
   one-time warning (mirror factory.py `_warned` pattern) pointing at the
   distributed-delay roadmap (U10).
 - `src/scrapy_extension/settings/base.py` — `SCRAPY_MEMORY_FILTER_MAXSIZE: int = 1_000_000`
-  + `SCRAPY_DELAY_MAX_HELD: int = 100_000` (threaded into the strategy/factory).
+  - `SCRAPY_DELAY_MAX_HELD: int = 100_000` (threaded into the strategy/factory).
 
 **TDD:**
+
 - `test_memory_filter.py`: insert 1.5M items with default maxsize → assert LRU evicts
   (set_len stays ~1M), not grow; warn fires at threshold.
 - `test_delay_strategy.py`: hold >100k items → warn-once fires.
@@ -121,6 +124,7 @@ missing type-args, `Any`-return leaks. Downstream users running strict typing hi
 these. Cheapest high-credibility DX win.
 
 **Files:**
+
 - `pyproject.toml` `[tool.mypy]` — add `disallow_any_generics = true`,
   `warn_return_any = true` (incremental; do NOT flip the full `strict = true` flag
   in one step — enable the two cheapest flags, fix, then expand).
@@ -180,6 +184,7 @@ Not a correctness issue — a maintainability/readability debt. Sequence AFTER
 v1.0 Tier-1 (these are not v1.0 blockers).
 
 **Files (candidates, additive splits — no behavior change):**
+
 - `backends/redis.py` → extract `backends/redis_scripts.py` (Lua push/pop script
   constants, ~80 LOC) + `backends/redis_connection.py` (the 4 `_connect_*` mode
   methods, ~150 LOC). `RedisBackend` becomes ~600 LOC.
