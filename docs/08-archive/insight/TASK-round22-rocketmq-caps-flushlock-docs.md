@@ -35,7 +35,7 @@ default 3000 ms → 3 s unchanged.
    the real const is 5.0 s.
 2. **GREEN:** add module const `_FLUSH_LOCK_TIMEOUT_S: float = 5.0`; refactor
    `_flush()` to `acquired = self._flush_lock.acquire(timeout=…)` + try/finally
-   + skip-and-log on `not acquired`. Do NOT touch `close()`.
+   - skip-and-log on `not acquired`. Do NOT touch `close()`.
 3. `ruff` + `mypy --strict`.
 4. **Commit:** `fix(storage): bound BatchedStorageStrategy _flush_lock acquire so close()/flush() cannot hang on a wedged backend (R22-B)`.
 

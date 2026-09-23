@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from datetime import date
 from pathlib import Path
@@ -40,13 +41,18 @@ def test_waiver_fails_when_locked_package_leaves_justified_range(
 ) -> None:
     checkout = _policy_checkout(tmp_path)
     lock_path = checkout / "uv.lock"
-    lock_path.write_text(
-        lock_path.read_text(encoding="utf-8").replace(
-            'name = "scrapy"\nversion = "2.17.0"',
-            'name = "scrapy"\nversion = "3.0.0"',
-        ),
-        encoding="utf-8",
+    original = lock_path.read_text(encoding="utf-8")
+    # Mutation must track whatever version is currently locked so the
+    # negative test keeps exercising the "left waiver range" branch across
+    # routine lock updates instead of silently no-op'ing on a stale literal.
+    mutated = re.sub(
+        r'(name = "scrapy"\nversion = ")[^"]+(")',
+        r"\g<1>3.0.0\g<2>",
+        original,
+        count=1,
     )
+    assert mutated != original, "scrapy lock entry not found; mutation no-op"
+    lock_path.write_text(mutated, encoding="utf-8")
 
     with pytest.raises(WaiverPolicyError, match="left waiver range"):
         validate_waivers(checkout, today=date(2026, 8, 18))

@@ -100,7 +100,7 @@ endpoints, SASL).
   `KafkaSettings(security_protocol="SSL")` (both None — server-auth-only TLS)
   still constructs OK. Existing Kafka TLS tests
   (`test_kafka_connection_snapshot.py` constructs `KafkaSettings(security_protocol="SSL")` with no cert/key) stay green. Full suite + `ruff check`
-  + `mypy --strict` green.
+  - `mypy --strict` green.
 
 ## Acceptance criteria
 
