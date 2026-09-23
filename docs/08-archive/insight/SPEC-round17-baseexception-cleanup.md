@@ -21,6 +21,7 @@ R16-A established the package standard: `connect()` must clean up partial candid
 `Ctrl+C`/`SystemExit` (`BaseException`), not only on `Exception`. Two residual defects violate it:
 
 ### A — kafka `_abort_partial_connect` is close-then-null (R16-A's OWN regression) — MED
+
 `KafkaBackend._abort_partial_connect` (kafka.py:401-408) nulls **after** `close()` under
 `contextlib.suppress(Exception)` — which does NOT catch `BaseException`. R16-A's new
 `except BaseException` arm routes INTO this helper while a `BaseException` is already in flight.
@@ -31,6 +32,7 @@ R16-A's own comment claims to mirror. The sibling R16-A fix in rocketmq (`_abort
 rocketmq.py:253-268) is **correct** (null-first) — kafka is asymmetric within the same commit.
 
 ### B — rabbitmq `connect()` lacks the R16-A BaseException arm — MED
+
 rabbitmq.py:491-534: the candidate-build try has only `except ConfigurationError` / `except Exception`
 (498-508); the publish window (510-534, two lock `with` blocks) is unprotected; the file contains no
 `except BaseException` anywhere (grep-confirmed). A `Ctrl+C` in the window between candidate return
@@ -40,6 +42,7 @@ through graceful shutdown. **Resource leak, not wedge** — the candidate is nev
 `self._connection`/`self._channel` on the abort path, so `is_connected()` stays truthful.
 
 ### C — memcached `connect()` lacks the R16-A BaseException arm — LOW
+
 memcached.py:143-153: `candidate.stats()` (146) is the first command to open the TCP socket; the
 `except Exception` arm (147-153) closes the candidate, but a `Ctrl+C` during `stats()` bypasses it
 (pymemcache opens the socket lazily) → candidate socket leaks. Bounded: candidate never published
@@ -47,6 +50,7 @@ memcached.py:143-153: `candidate.stats()` (146) is the first command to open the
 rocketmq / dynamodb have the arm; memcached missed).
 
 ### D — R16-C contract test asserts on a mirror double — LOW (test-quality)
+
 `tests/test_mock_connection_manager_contract.py` calls the `mock_connection_manager` fixture's
 MagicMock-installed closure (conftest.py:38-55), not the real
 `ConnectionManager._push_queue_with_durability` (connectors.py:1615-1673, translation at 1654-1659).
@@ -54,6 +58,7 @@ Bounded false-green: real production coverage lives in `test_connectors.py:1329-
 future-tense (only bites if production translation changes AND the real-CM suite is deleted).
 
 ## Non-goals (DO-NOT-RE-FLAG)
+
 - **pulsar / rabbitmq / memcached `connect()` `from None`** — DELIBERATE secret-redaction
   (`test_*_error_traceback_does_not_echo_driver_secrets` prove underlying broker errors carry driver
   secrets). R16 false-positive — do NOT change to `from e`.
@@ -62,6 +67,7 @@ future-tense (only bites if production translation changes AND the real-CM suite
 - **v1-docs CHANGELOG gap** — the thrashed verify; deferred to a doc-only follow-up (not this round).
 
 ## Units (4)
+
 | ID | Sev | R16-reg | Surface | Fix |
 |----|-----|---------|---------|-----|
 | A | MED | ✅ | kafka.py:401-408 | null-first reorder (capture locals → null attrs → close locals under `try/except Exception`) |
@@ -70,6 +76,7 @@ future-tense (only bites if production translation changes AND the real-CM suite
 | D | LOW | — | test_mock_connection_manager_contract.py | retitle as fixture-parity + add real-CM test exercising connectors.py:1654-1659 |
 
 ## Success criteria
+
 - ruff clean; mypy --strict 0 issues / all files; pytest ≥ 3757 passed / 46 skipped; coverage ≥ 95%.
 - Each unit ships as ONE atomic commit; TDD (RED before GREEN) for A/B/C/D.
 - All work merged to `main`; only `main` remains (worktree branch deleted).

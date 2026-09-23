@@ -343,6 +343,39 @@ def test_scheduler_signal_workers_ack_and_nack_exact_delivery_tokens(
     assert "_backend_ack_token" not in nack_request.meta
 
 
+def test_in_flight_ack_rejects_spider_error_nack_for_the_same_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A callback error must not nack a delivery whose ack is already in flight."""
+    monkeypatch.setattr(scheduler_module, "reactor_is_running", lambda: True)
+    scheduler = BackendScheduler(Mock(name="manager"))
+    queue = Mock(name="queue")
+    scheduler._queue = queue
+    worker: Deferred[Any] = Deferred()
+    public: Deferred[Any] = Deferred()
+    monkeypatch.setattr(
+        scheduler_module,
+        "defer_to_thread_ordered",
+        lambda *_args, **_kwargs: (worker, public),
+    )
+    token = object()
+    request = Request(
+        "https://callback-error.example",
+        meta={"_backend_ack_token": token},
+    )
+    response = SimpleNamespace(request=request)
+
+    ack_result = scheduler._on_response_received(None, request, None)
+    nack_result = scheduler._on_spider_error(None, response, None)
+
+    assert ack_result is public
+    assert nack_result is None
+    queue.nack.assert_not_called()
+    assert request.meta["_backend_ack_token"] is token
+    worker.callback(None)
+    assert "_backend_ack_token" not in request.meta
+
+
 def test_scheduler_settlement_worker_failure_is_reported_and_token_is_retained(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

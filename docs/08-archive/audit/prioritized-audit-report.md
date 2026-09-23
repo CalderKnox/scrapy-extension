@@ -60,22 +60,26 @@ The codebase has **exceptional error-handling discipline** (no swallowed excepti
 ## 2. P0 — Correctness & security: fix immediately
 
 ### P0-1 · `_validate_key_name` trailing-newline bypass — 🔴 exploited live 🟢
+
 - **Evidence:** `KEY_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9._:-]+$")` at `backends/base.py:414` uses `$`, which matches before a trailing `\n`. PoC executed: `_validate_key_name("queue\n")` is **accepted**. Sibling `backends/kafka.py:95` uses `\Z` correctly (with a comment explaining exactly why).
 - **Blast radius:** the validator has **7 importing files** (correction: audit said 4 — also `pipeline/pipeline.py:21`, `schedule/scheduler.py:25`, `queue/snapshot.py:15`), so all key-derived names (queues, storage keys, snapshots) are affected; memcached's 250-byte key limit is additionally reachable via `namespace:storage:<key>` (Security F2).
 - **Fix:** `$` → `\Z` in `KEY_NAME_PATTERN`; add regression tests for `"queue\n"`, `"queue\r\n"`, and unicode newline variants; grep for sibling `re.compile(r"^...$")` validators.
 - **Effort:** S (minutes + tests). **Risk:** negligible.
 
 ### P0-2 · SQS purge sleeps 60 s in a sync path — **upgraded from "verify" to likely reactor freeze** 🔵
+
 - **Evidence:** `time.sleep(_SQS_PURGE_WINDOW_SECONDS)` with `_SQS_PURGE_WINDOW_SECONDS = 60.0` at `backends/sqs.py:112,1609`, holding the per-queue lock. Cross-validation confirmed the call is reachable in a sync path on close/purge.
 - **Fix:** force worker-thread execution for `clear_queue` (as the error-handling audit recommends) or convert to an async/deadline-bounded wait; add a guard that refuses reactor-thread execution loudly in dev.
 - **Effort:** M. **Risk:** low (admin path only today, but one strategy `clear()` away from a hang).
 
 ### P0-3 · Connect-failure message misreports attempt count in the common case 🔵
+
 - **Evidence:** `connectors/_manager.py:1862-1869` — after the retry-deadline `break` (deadline = `now + reactor_io_timeout()`, :1778), the error reports `total_attempts = retry_attempts + 1` (:1774) — the *configured max*, not attempts made. With defaults, deadline truncation is routine, so the miscount is the typical message and disagrees with `on_retry` monitor events.
 - **Fix:** track `attempts_made`; report it in the message and add a `backend/connect_attempts_exhausted` stat.
 - **Effort:** S.
 
 ### P0-4 · `finalization_errors` is write-only — deferred close failures vanish 🔵
+
 - **Evidence:** `backends/_generation.py:42,98` appends cleanup errors to `GenerationRecord.finalization_errors`; **zero readers** in `src/` (only a test asserts recording). Kafka/RabbitMQ/RocketMQ/Pulsar reentrant disconnects defer client close to the last lease release — those failures are silently dropped.
 - **Fix:** one diagnostic log + `backend/disconnect_failure` stat in `_run_finalizer`.
 - **Effort:** S.
@@ -85,32 +89,39 @@ The codebase has **exceptional error-handling discipline** (no swallowed excepti
 ## 3. P1 — Reproduced quick wins (high leverage, small effort)
 
 ### P1-1 · Cache `_atomic_dupefilter_methods` per dupefilter 🟢
+
 - **Evidence:** re-measured **14.9 µs/call** steady-state (audit: 15.0); result is class-invariant, no caching exists, and the scheduler calls it **inside `enqueue_request`** at `schedule/scheduler.py:3031` — paid per request.
 - **Fix:** compute once at dupefilter construction (or `functools.lru_cache` on the concrete class); invalidate never (class shape is static).
 - **Effort:** S. **Payback:** removes the largest verified per-request tax.
 
 ### P1-2 · Cache the breaker proxy per `(backend, breaker)` 🔵
+
 - **Evidence:** cross-validation confirmed the proxy is re-wrapped per operation; structure matches perf F4's per-op wrap family (`queue.py:866,1486,1513`, `connectors/_manager.py:2798,2885`).
 - **Fix:** memoize the wrap keyed on `(backend_id, breaker)`; unwrap/rebuild only on reconnect/new generation.
 - **Effort:** S.
 
 ### P1-3 · PEP 562 lazy exports in `settings/__init__.py` 🟢
+
 - **Evidence:** `import scrapy_extension` eagerly loads **16 settings submodules, 0 backend implementations, no optional SDKs** (~185 ms warm; audit ~180 ms). The lazy pattern already exists at the package root — `src/scrapy_extension/__init__.py:240` `__getattr__` + `__dir__` (:271) — but `settings/__init__.py:7-24+` re-imports every settings module eagerly, defeating it.
 - **Fix:** replace eager re-exports with module-level `__getattr__`/`__dir__` (PEP 562), keeping `Settings` eager; `test_lazy_imports.py` (113 tests, 0.53 s 🟢) is the guard — extend it to assert settings submodules stay unloaded on bare import.
 - **Effort:** S–M (watch for `isinstance`/enum users of `DynamoDBMode` etc.; keep those imports deliberate).
 
 ### P1-4 · CI: free parallel speedup + missing concurrency group 🔵
+
 - **Evidence:** reproduced `pytest -m "not integration" -n auto` → **8198 passed, 6 skipped in 12.4 s** (same pass count as the audit's serial gate, which takes ~75–90 s). xdist is already a dependency. Currently: 5-lane matrix with a 3.10 mega-lane (all steps gated `if: matrix.python-version == '3.10'`), serial coverage gate with pinned seed `1125147632` (×3), floors 95.0/91.0 enforced via a JSON assert in `ci.yml` (hence `fail_under = 0` in `pyproject.toml`), `-n 2` canary only, and **no `concurrency:` group** in any workflow (grep-verified empty). The CI comment itself admits order-dependent defensive-branch coverage.
 - **Fix:** (a) run the main unit lane with `-n auto`; (b) split the 3.10 mega-lane into parallel jobs; (c) add `concurrency:` cancel-in-progress groups; (d) keep the serial seeded run as a *scheduled* (nightly) determinism gate rather than a per-PR blocker.
 - **Effort:** S. **Payback:** ~6× faster PR signal.
 
 ### P1-5 · `JSONSerializer` double tree-walk 🟢
+
 - **Evidence:** structure confirmed — `_encode_json_value` walk + `object_pairs_hook=_json_object_from_pairs` + `_decode_json_value` second walk; serialize re-measured **8.96 µs** (audit 10.30; payload-dependent, same magnitude as the ~2–3× raw-json gap).
 - **Fix:** single-pass encode via `default=` (or fold sanitization into one traversal); keep the redaction behavior bit-identical — the existing serializer tests are the contract.
 - **Effort:** M.
 
 ### P1-6 · Hot-path micro-fix bundle 🔵
+
 All four structures verified; magnitudes consistent with the reproduced P1-1/P1-5 numbers 🟡:
+
 - **Perf F4:** `wrap_queue_backend` per op (cited above) — hoist to construction/generation change.
 - **Perf F6:** dupefilter steal path runs 6× `for level in range(self._levels)` loops with `MAX_STEAL_PEERS = 256` — bound or sample levels.
 - **Perf F7 / Conc P3-3:** fingerprint computed **inside** `with self._lifecycle_condition:` — compute outside the critical section.
@@ -118,6 +129,7 @@ All four structures verified; magnitudes consistent with the reproduced P1-1/P1-
 - **Effort:** S each; ship as one PR with per-fix benchmarks.
 
 ### P1-7 · Memcached: replace global op lock with per-client locking 🔵
+
 - **Evidence:** `memcached.py:270,427-445` — one global `Lock()` serializes socket transactions even though clients are per-thread; over-serialization confirmed.
 - **Fix:** scope locks to the client/socket; keep the disconnect barrier semantics.
 - **Effort:** M.
@@ -127,32 +139,39 @@ All four structures verified; magnitudes consistent with the reproduced P1-1/P1-
 ## 4. P2 — Structural fixes (several with corrected scope)
 
 ### P2-1 · DynamoDB serialization ceiling — **corrected scope: Resource→client migration FIRST** 🔵
+
 - **Evidence:** `dynamodb.py:346` states it outright: *"The boto3 Resource API is not thread-safe. This re-entrant lock is both"* — the code uses `table.put_item`/`get_item`/`delete_item` throughout. Cross-validation correction: the original concurrency audit's premise ("boto3 clients/resources are thread-safe; the lock is a pure throttle") is **half wrong** — boto3 *clients* are thread-safe, *Resources are documented not thread-safe*. The symptom is real (1 op in flight, pipeline stores capped at ~1/RTT), but the lock cannot simply be deleted.
 - **Fix (sequenced):** (1) migrate Resource → client API (`put_item`, `get_item`, `delete_item`, `resource_exists` via `describe_table`); (2) *then* convert the global op lock to per-generation leases like the other backends. Update the timeout/error-code mapping (`ResourceNotFoundException` → client `ResourceNotFoundException` codes are unchanged, but verify `ResourceInUseException` handling on the client API).
 - **Effort:** **L** (raised from the original estimate). **Risk:** M — this is the durability-critical backend; require the integration suite plus a throughput benchmark before/after.
 
 ### P2-2 · `ring_buffer` `full_policy="block"` is one setting from a hard hang 🔵
+
 - **Evidence:** `full_policy="block"` makes `_not_full` wait **without timeout on the reactor thread**; default `reject` confirmed. Bounded-work discipline elsewhere makes this the outlier.
 - **Fix:** reject `block` (or force-reject) when the queue runs on the reactor thread; add a no-timeout-wait lint/test.
 - **Effort:** S.
 
 ### P2-3 · Interrupt-window hardening (B2) 🔵
+
 - **Evidence:** `queue.py:_end_operation` two-step decrement (:1429-1439) + no-timeout close wait (:1830-1831); dupefilter `_admit_operation` finally + no-timeout `_wait_for_quiescence_locked` (:614-624). Sound today, but both windows rely on discipline rather than a shared pattern.
 - **Fix:** extract the reconcile pattern used by the audited-correct paths into a helper; convert no-timeout waits to deadline-bounded waits that escalate to a loud error.
 - **Effort:** M.
 
 ### P2-4 · Breaker observability + HALF_OPEN probe deadline 🔵
+
 - **Evidence:** `Monitor` has no `on_breaker_*` hook (P1-3); `on_error` is wired at exactly two seams (`queue.py:965`, `pipeline.py:1378`); scheduler folds breaker-open into one static log line (`scheduler.py:3569-3576`). Separately, a hung HALF_OPEN probe holds `_probe_in_flight` forever (P2-5) — the last unbounded state in the breaker.
 - **Fix:** add `on_breaker_state(name, state)` to the protocol and emit transitions; wire `on_error` at push/ack/nack/dupefilter/connect seams; give the probe a deadline that re-opens with `last_failure_time = now`.
 - **Effort:** M.
 
 ### P2-5 · Unify disconnect-cleanup taxonomy 🔵
+
 - **Evidence (P2-4, EH audit):** the same event (driver close raising) has four different outcomes across the 10 backends (re-raise / swallow+typed error / swallow+diagnostic / `_swallow` / redis `contextlib.suppress`).
 - **Fix:** one shared `close_handles(*clients) -> (failed, control_error)` helper; align redis (the silent-suppression outlier) first. Fits the documented ConnectionManager decomposition roadmap.
 - **Effort:** M.
 
 ### P2-6 · Security hardening bundle 🔵
+
 All four structures confirmed:
+
 - **F2:** no length bound on key names — enforce per-backend limits (memcached 250 bytes reachable today). S.
 - **F3:** `scheduler-queue:{project}:{spider}` template + `:` allowed by the charset → field ambiguity — either reject `:` in field values or switch the delimiter. S.
 - **F4:** private pydantic-settings API (`_source._set_current_state()/_set_settings_sources_data()`, `settings/_redacted.py:648-649`) — pin pydantic-settings tightly and add an import-time smoke test; wrap in a local façade. S.
@@ -160,6 +179,7 @@ All four structures confirmed:
 - **Effort:** S+S+S+M; ship F2/F3 with P0-1.
 
 ### P2-7 · Remaining error-handling gaps 🔵
+
 - **P2-6 (EH):** warn once at manager init when `Σ backoff > retry budget`; document worst-case latency formula in the runbook. S.
 - **P3-8 (EH):** `_on_spider_closed` — emit a stat and call `retry_pending_releases()` once. S.
 - **P3-9 (EH):** cap `_pending_release_leases`/`_pending_release_managers` + one-shot warning. S.

@@ -34,6 +34,7 @@ Honor `QueueStrategy.pop`'s "next ready item or None if empty" contract for the 
 Mirror R84's priority.py fix. In both `pop` and `pop_with_ack`, replace the single blocking `return qb.pop(own, remaining)` with: block on own; on non-None return it; **on None, re-scan own + all peers non-blocking, return the first non-empty, else None.**
 
 `pop` (replace L250-253):
+
 ```python
         remaining = self._remaining_timeout(deadline)
         if remaining > 0:
@@ -56,6 +57,7 @@ Mirror R84's priority.py fix. In both `pop` and `pop_with_ack`, replace the sing
 `pop_with_ack` (replace L285-288): mirror with `_pop_backend_instance_with_ack` — block on own; on non-None data return `(data, token)`; on None re-scan own + peers non-blocking, returning the first non-None as `(data, token)`, else `(None, None)`.
 
 Semantics:
+
 - **Own non-block / steal finds an item** → returned unchanged.
 - **All empty + timeout≤0** → None unchanged.
 - **All empty + timeout>0, blocking own returns an item** → returned immediately (no re-scan). Byte-identical to today.
