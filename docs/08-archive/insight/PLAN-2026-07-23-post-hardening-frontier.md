@@ -75,7 +75,7 @@ Three hard gates, run in this order (CI order — ruff before pytest):
 
 ## Dependency graph
 
-```
+```text
 U1 ──┐
 U2 ──┤
 U3 ──┼──► U7 (gate) ──► ship

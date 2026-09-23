@@ -35,6 +35,7 @@ from scrapy_extension.spider._shortcuts import (
     build_redis_shortcuts,
     build_rocketmq_shortcuts,
 )
+from scrapy_extension.utils._crawler_compat import crawler_late_attr
 from scrapy_extension.utils.identity import (
     DEFAULT_DUPEFILTER_KEY_TEMPLATE,
     DEFAULT_QUEUE_KEY_TEMPLATE,
@@ -1892,12 +1893,9 @@ class BackendSpiderMixin(Spider):
                 or os.environ.get("SCRAPY_SET_BACKEND_TYPE")
                 or os.environ.get("SCRAPY_BACKEND_TYPE")
             )
+            fingerprinter = crawler_late_attr(crawler, "request_fingerprinter")
             factory_kwargs: dict[str, Any] = {
-                "fingerprinter": (
-                    getattr(crawler, "request_fingerprinter", None)
-                    if crawler is not None
-                    else None
-                ),
+                "fingerprinter": fingerprinter,
                 "monitor": monitor,
                 "key_override": key_override,
             }

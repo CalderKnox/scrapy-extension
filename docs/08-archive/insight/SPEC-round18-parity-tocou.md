@@ -18,6 +18,7 @@ backend still missing the BaseException arm. Plus two docs-drift findings.
 ## Problem statement
 
 ### A — runbook cites a phantom dupefilter stat key — MED
+
 `docs/runbook.md:602` (the "Diagnose a stuck crawl" table) and `:630` (ack-error
 differential prose) direct operators to read `dupefilter/filtered`. **No code emits
 that key** (`grep -rn 'dupefilter/filtered' src/` → 0). The real counters are
@@ -28,6 +29,7 @@ during an incident, sees it flat-zero, and concludes dedup is idle. (Pre-existin
 surfaced now because the monitor-stats dimension was added.)
 
 ### B — pulsar `connect()` is the last backend missing the BaseException arm — LOW
+
 `pulsar.py:430` builds `client = pulsar.Client(...)` (the C++ binding starts background
 IO/service threads in the ctor), bumps generation (431), publishes `self._client = client`
 (432). Only `except Exception` (441). A Ctrl+C in the 430→432 window escapes without
@@ -38,6 +40,7 @@ pulsar is the lone holdout. Resource leak, not wedge (`is_connected()` stays tru
 client never published).
 
 ### C — R17-B `published`-flag TOCTOU closes a just-published live session — LOW (R17 regression)
+
 My R17-B `except BaseException` arm (`rabbitmq.py:549`) guards on `if not published and
 candidate is not None`. But `published = True` (524) runs **after** `_publish_handles_locked`
 (519-523) — which installs the candidate as `self._connection`/`self._channel` as a
@@ -45,10 +48,12 @@ candidate is not None`. But `published = True` (524) runs **after** `_publish_ha
 call return and `published = True` reaches the arm with `published` still False while the
 candidate *is* the live session → the arm closes it (violating the arm's own "close ONLY
 when not published" invariant). Two independent dimensions flagged this (#3 r17-diff-regression
+
 + #5 race-correctness — same defect). **Found by me shipping too fast in R17-B; the fix is
 an identity guard on actual state instead of a lagging flag.**
 
 ### D — CHANGELOG Kafka `clear_queue` bullet stale — LOW
+
 `.github/CHANGELOG.md:115` says Kafka `clear_queue()` "is explicitly unsupported… fails
 before admin I/O" without naming the exception. Commit `6e228da` (R15) changed it to
 `QueueError` (kafka.py:1377; parity w/ pulsar/rocketmq). A sibling bullet (:103) uses
@@ -58,17 +63,19 @@ pulsar/rocketmq `queue_len`) — an operator pattern-matches and writes
 README:527 + migration-guide:449 were corrected; CHANGELOG is the lone stale surface.
 
 ## Non-goals (DO-NOT-RE-FLAG — accumulated)
-- bloom/cuckoo filters (never-FN). · pulsar/rabbitmq/memcached `connect()` `from None`
+
++ bloom/cuckoo filters (never-FN). · pulsar/rabbitmq/memcached `connect()` `from None`
   (DELIBERATE secret-redaction). · pulsar `_RedactedStr`. · dynamodb `clear_storage`
   TOCTOU (documented best-effort). · `_push_is_durable` class-flag pin. · R17 just-shipped
   arms (rabbitmq `_open_prepared_channel` BaseException, memcached connect BaseException,
   kafka `_abort_partial_connect` null-first) — **except** the R17-B publish-window guard,
   which finding C critiques (in-scope: critique the implementation, not re-flag the closed fix).
-- sqs has 0 BaseException arms but was NOT flagged — sqs `connect()` uses a boto3 client
++ sqs has 0 BaseException arms but was NOT flagged — sqs `connect()` uses a boto3 client
   whose construction does not start unmanaged background threads the way pulsar/pika do;
   leaving as-is unless a future scan flags it with a concrete leak.
 
 ## Units (4)
+
 | ID | Sev | R17-reg | Surface | Fix |
 |----|-----|---------|---------|-----|
 | A | MED | — | runbook.md:602,630 | `dupefilter/filtered` → `dupefilter/hit_count` (+ note `miss_count`) |
@@ -77,6 +84,7 @@ README:527 + migration-guide:449 were corrected; CHANGELOG is the lone stale sur
 | D | LOW | — | CHANGELOG.md:115 | Kafka clear_queue bullet → name `QueueError` |
 
 ## Success criteria
-- ruff clean; mypy --strict 0 issues; pytest ≥ 3763 passed / 46 skipped (unsandboxed — e2e probe needs sandbox off); coverage ≥ 95%.
-- Each unit: ONE atomic commit; TDD (RED before GREEN) for B + C; A + D are docs.
-- All merged to `main`; only `main` remains. Claude-only.
+
++ ruff clean; mypy --strict 0 issues; pytest ≥ 3763 passed / 46 skipped (unsandboxed — e2e probe needs sandbox off); coverage ≥ 95%.
++ Each unit: ONE atomic commit; TDD (RED before GREEN) for B + C; A + D are docs.
++ All merged to `main`; only `main` remains. Claude-only.
