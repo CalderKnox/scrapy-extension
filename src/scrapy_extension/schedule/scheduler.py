@@ -810,6 +810,10 @@ class BackendScheduler:
         # set before releasing the queue manager.
         self._settlement_lock = threading.Lock()
         self._pending_settlements: set[Deferred[Any]] = set()
+        # Tokens with an ack or nack already accepted. A later signal for the
+        # same delivery must not start a second broker call while the first
+        # worker is still running (response_received ack vs spider_error nack).
+        self._settlement_claims: set[Any] = set()
 
     @classmethod
     def from_settings(
@@ -2285,6 +2289,7 @@ class BackendScheduler:
         negative: bool,
         log_message: str,
         on_authoritative_success: Callable[[], None] | None = None,
+        on_authoritative_failure: Callable[[], None] | None = None,
     ) -> Deferred[bool] | None:
         """Settle one broker token off-reactor while retaining best-effort policy."""
         ordered = self._settle_token_async_ordered(
@@ -2314,37 +2319,93 @@ class BackendScheduler:
                     # has accepted the backend call. Conservatively retain the
                     # request token rather than claiming settlement without proof.
                     pass
+
         # The authoritative failure is already represented by the bounded view's
         # one diagnostic callback. Consume only this worker chain's late failure;
-        # callers still receive the public timeout/failure Deferred.
+        # callers still receive the public timeout/failure Deferred. A public
+        # timeout must not release the claim: the worker may still succeed.
+        def consume_authoritative_failure(_failure: Any) -> None:
+            if on_authoritative_failure is not None:
+                try:
+                    on_authoritative_failure()
+                except BaseException:
+                    pass
+            return None
+
         try:
-            operation.addErrback(lambda _failure: None)
+            operation.addErrback(consume_authoritative_failure)
         except BaseException:
             try:
-                operation.addErrback(lambda _failure: None)
+                operation.addErrback(consume_authoritative_failure)
             except BaseException:
+                # The worker was already accepted. Releasing the claim here would
+                # let a second signal settle the same delivery.
                 pass
         return bounded
 
+    def _claim_request_settlement(self, request: Any) -> Any | None:
+        """Reserve one delivery so a second signal cannot settle it too.
+
+        ``response_received`` and ``spider_error`` are both synchronous, but the
+        broker call runs on a thread. The token stays on the request until that
+        call succeeds, so without this claim the later signal would start a
+        second ack or nack for the same delivery.
+        """
+        meta = getattr(request, "meta", None)
+        if not isinstance(meta, MutableMapping):
+            return None
+        token = meta.get(BACKEND_ACK_TOKEN_META_KEY)
+        if token is None:
+            return None
+        with self._settlement_lock:
+            if meta.get(BACKEND_ACK_TOKEN_META_KEY) is not token:
+                return None
+            if token in self._settlement_claims:
+                return None
+            self._settlement_claims.add(token)
+        return token
+
+    def _release_settlement_claim(self, token: Any) -> None:
+        """Allow a later signal to settle a delivery whose worker failed."""
+        with self._settlement_lock:
+            self._settlement_claims.discard(token)
+
+    def _complete_claimed_request_token(self, request: Any, token: Any) -> None:
+        """Drop the request token and its claim after the broker call succeeds."""
+        with self._settlement_lock:
+            self._remove_request_token_if_same(request, token)
+            self._settlement_claims.discard(token)
+
     def _ack_request_token(self, request: Request, *, log_message: str) -> Any:
         """Best-effort ack of the token carried by ``request``."""
+        if reactor_is_running():
+            token = self._claim_request_settlement(request)
+            if token is None:
+                return None
+            try:
+                result = self._settle_token_async(
+                    token,
+                    negative=False,
+                    log_message=log_message,
+                    on_authoritative_success=lambda: (
+                        self._complete_claimed_request_token(request, token)
+                    ),
+                    on_authoritative_failure=lambda: self._release_settlement_claim(
+                        token
+                    ),
+                )
+            except BaseException:
+                self._release_settlement_claim(token)
+                raise
+            if result is None:
+                self._release_settlement_claim(token)
+                return None
+            return result
         if getattr(request, "meta", None) is None:
             return None
         token = request.meta.get(BACKEND_ACK_TOKEN_META_KEY)
         if token is None:
             return None
-        if reactor_is_running():
-            result = self._settle_token_async(
-                token,
-                negative=False,
-                log_message=log_message,
-                on_authoritative_success=lambda: self._remove_request_token_if_same(
-                    request, token
-                ),
-            )
-            if result is None:
-                return None
-            return result
         if self._ack_token(token, log_message=log_message):
             self._remove_request_token_if_same(request, token)
         return None
@@ -2385,23 +2446,34 @@ class BackendScheduler:
 
     def _nack_request_token(self, request: Request, *, log_message: str) -> Any:
         """Best-effort nack of the token carried by ``request``."""
+        if reactor_is_running():
+            token = self._claim_request_settlement(request)
+            if token is None:
+                return None
+            try:
+                result = self._settle_token_async(
+                    token,
+                    negative=True,
+                    log_message=log_message,
+                    on_authoritative_success=lambda: (
+                        self._complete_claimed_request_token(request, token)
+                    ),
+                    on_authoritative_failure=lambda: self._release_settlement_claim(
+                        token
+                    ),
+                )
+            except BaseException:
+                self._release_settlement_claim(token)
+                raise
+            if result is None:
+                self._release_settlement_claim(token)
+                return None
+            return result
         if getattr(request, "meta", None) is None:
             return None
         token = request.meta.get(BACKEND_ACK_TOKEN_META_KEY)
         if token is None:
             return None
-        if reactor_is_running():
-            result = self._settle_token_async(
-                token,
-                negative=True,
-                log_message=log_message,
-                on_authoritative_success=lambda: self._remove_request_token_if_same(
-                    request, token
-                ),
-            )
-            if result is None:
-                return None
-            return result
         if self._nack_token(token, log_message=log_message):
             self._remove_request_token_if_same(request, token)
         return None
