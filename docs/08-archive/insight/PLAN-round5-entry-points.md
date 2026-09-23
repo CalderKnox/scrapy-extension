@@ -26,6 +26,7 @@ coupling debt and lets 3rd-party packages register a backend via
 - **Group**: `scrapy_extension.backends`.
 - **Name**: backend-type string (`^[a-z][a-z0-9_]*$`), e.g. `"mybackend"` — the `SCRAPY_BACKEND_TYPE` value.
 - **Value**: dotted path to a registration CALLABLE (no args) returning a `BackendDescriptor`:
+
   ```python
   @dataclass(frozen=True)
   class BackendDescriptor:
@@ -33,7 +34,9 @@ coupling debt and lets 3rd-party packages register a backend via
     backend_cls_path: str          # "mypkg.backends.MyBackend"
     settings_cls_path: str         # "mypkg.settings.MySettings"
     capabilities: frozenset[str]   # subset of {"queue","set","storage"}
+
   ```
+
   ONE registration declares the backend class, settings class, AND capability matrix — no editing
   other registries. The callable returns PATHS only (must NOT import the backend module).
 - **Precedence**: bundled-wins + `UserWarning` on name conflict (deterministic, safe; the project's
@@ -42,18 +45,22 @@ coupling debt and lets 3rd-party packages register a backend via
 ## Units (fan-out; coherent refactor + parallel docs)
 
 ### Unit R5-1 — refactor (one executor; the chain is tightly coupled)
+
 **Files**: NEW `src/scrapy_extension/backends/registry.py`; `src/scrapy_extension/backends/connectors.py`
 (delete 4 registries, dispatch via `get_descriptor`); `schedule/scheduler.py` + `dupefilter/dupefilter.py`
-+ `pipeline/pipeline.py` (pass `{"queue"}`/`{"set"}`/`{"storage"}` to `resolve_backend_config`);
+
+- `pipeline/pipeline.py` (pass `{"queue"}`/`{"set"}`/`{"storage"}` to `resolve_backend_config`);
 NEW `tests/test_registry.py`; extend `tests/test_connectors.py`. Also widen `backends/base.py`
 `Backend.backend_type` annotation to `BackendType | str` (additive).
 
 ### Unit R5-2 — docs (parallel, independent)
+
 **Files**: `CLAUDE.md` (Backend Implementation Matrix note: 3rd-party via entry-points);
 NEW `docs/backend-plugins.md` (the 3rd-party contract: group, descriptor dataclass, capability
 frozenset, bundled-wins precedence, lazy-import rule, a worked example).
 
 ## TDD contract (the acceptance gate — `tests/test_registry.py` + `test_connectors.py`)
+
 1. **bundled_still_work**: `SCRAPY_BACKEND_TYPE=redis` → resolves + builds `RedisBackend`. Byte-identical.
 2. **third_party_discovered**: mock entry-point → registry returns its descriptor → resolves + instantiates stub.
 3. **capability_gated**: 3rd-party descriptor `{"queue"}` only → selecting for set/storage → `ConfigurationError` w/ `setting_name` + capable-backend list.
@@ -65,11 +72,13 @@ frozenset, bundled-wins precedence, lazy-import rule, a worked example).
 Plus: registry-cache isolation helper `_reset_registry_cache()` (test-only, mirrors `ConnectionManager.clear_registry`).
 
 ## Acceptance
+
 - 7 TDD tests green; `uv run pytest` full suite green (no regression in test_connectors/test_connection_manager/test_components).
 - `ruff check` / `mypy` / `bandit` clean; coverage ≥ 95% on `registry.py` + refactored `connectors.py`.
 - Backward-compat: `SCRAPY_BACKEND_TYPE=redis` (all 10 bundled) byte-identical; `BackendType` still exported + usable.
 - Independent verifier + code-reviewer approval lane: APPROVE, 0 CRITICAL/HIGH — especially that lazy-import holds (Test #6) and one broken plugin never breaks the bundled set (Test #5).
 
 ## Non-goals (remain Tier-2/3)
+
 - Security-parity cluster (round-6). Distributed Delay/Throttle. Sentinel failover re-discovery.
 - rocketmq-client replacement. B5 reconnect in-flight-survival test.

@@ -5,7 +5,7 @@
     "GHSA-h7wm-ph43-c39p"
   ],
   "package": "scrapy",
-  "reported_version": "2.17.0",
+  "reported_version": "2.19.0",
   "affected_range": ">=0.7,<=2.15.2",
   "fix_versions": [],
   "source": "https://github.com/advisories/GHSA-h7wm-ph43-c39p",

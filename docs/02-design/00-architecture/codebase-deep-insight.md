@@ -9,7 +9,7 @@
 > [`insight/ITERATIVE-HARDENING-2026-07-21.md`](../../08-archive/insight/ITERATIVE-HARDENING-2026-07-21.md);
 > for the active frontier/closeout see
 > [`insight/SPEC-2026-07-23-post-hardening-frontier.md`](../../08-archive/insight/SPEC-2026-07-23-post-hardening-frontier.md).
-
+>
 > **Generated:** 2026-07-05 (incremental from `/loop` + author deep-read of core ABCs)
 > **Updated:** 2026-07-09 — §3.2 RocketMQ ack model corrected (it is **deferred-ack**, not atomic-pop; matches `rocketmq.py:66 requires_ack=True`); §3.3 serialization is now **symmetric** (P0 landed, `{"__b64__":...}` marker); test counts refreshed (1,972 passed). For the verified implementation-level risk register, see [`docs/08-archive/insight/DEEP-INSIGHT-2026-07-09-parallel-verified.md`](../../08-archive/insight/DEEP-INSIGHT-2026-07-09-parallel-verified.md).
 > **Updated:** 2026-07-11 — in-session follow-up landed three TDD fixes (adversarially reviewed): (1) circuit breaker now wraps `pop_with_ack` AND `queue.py:_pop_with_ack` unwraps the breaker proxy so MQ per-message ack tokens survive under `SCRAPY_CIRCUIT_BREAKER_ENABLED`; (2) `BackendScheduler.from_settings` warns on strategy+MQ ack bypass; (3) `BackendSpiderMixin.setup_backend` acquires via the `ConnectionManager.get_manager` singleton. Suite re-synced: **2,026 collected / 1,989 passed / 37 skipped; coverage 99.42%; ruff + mypy --strict clean**. Remaining open: spider_mixin `from_settings` routing (issue), ES `StorageError`/`ttl()` (issue).
@@ -24,6 +24,7 @@
 **`scrapy-extension`** is a Scrapy extension that turns a single-process crawler into a **distributed** one by externalizing Scrapy's in-process scheduler state, dedup set, and item sink onto pluggable backends.
 
 **In scope:**
+
 - Distributed request queue (priority-ordered, FIFO within priority)
 - Distributed deduplication (exact or probabilistic membership)
 - Distributed item storage (KV with TTL)
@@ -33,6 +34,7 @@
 - Observability: Scrapy stats hooks
 
 **Out of scope:**
+
 - Scraping logic itself (spiders are user-authored; this package provides the *plumbing*)
 - Proxy rotation, rate limiting at the HTTP layer, JS rendering
 - Backend administration (brokers are externally managed)
@@ -45,7 +47,7 @@
 
 Five layers, each independently substitutable:
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────┐
 │  L5  Scrapy components    scheduler / dupefilter / queue /        │
 │      (Scrapy-facing)      pipeline / spider_mixin                │
@@ -223,11 +225,14 @@ both `from_settings()` and `from_crawler()`; `BackendSpiderMixin` exposes
 ### 7.2 Multi-Backend Coexistence
 
 The killer feature. Override per component:
-```
+
+```text
 SCRAPY_QUEUE_BACKEND_TYPE=redis     + SCRAPY_QUEUE_BACKEND_SETTINGS=...
 SCRAPY_SET_BACKEND_TYPE=mongodb     + SCRAPY_SET_BACKEND_SETTINGS=...
 SCRAPY_STORAGE_BACKEND_TYPE=elasticsearch + SCRAPY_STORAGE_BACKEND_SETTINGS=...
+
 ```
+
 Unset keys fall back to `SCRAPY_BACKEND_TYPE` / `SCRAPY_BACKEND_SETTINGS`. Each component gets its own `ConnectionManager` (keyed separately in the registry).
 
 ### 7.3 Resilience — four independent mechanisms
@@ -305,6 +310,7 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 ## 10. Tech Debt & Risk Posture
 
 ### Mature / low-risk
+
 - Backend ABCs and the 4-capability model — stable since early rounds
 - Ack-capability contract — non-obvious but well-tested
 - Circuit breaker — 100% coverage, 31-test suite (2026-07-11; wraps `push`/`pop`/`pop_with_ack`)
@@ -312,6 +318,7 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 - Lazy import with R14-H dep-vs-bug discrimination
 
 ### Architect-deferred (per 2026-07-03 backlog)
+
 - #17 Depth-probe before backpressure gate (MED) — bounded jitter; costs per-pop RPC
 - #18 Snapshot versioning + restore diagnostics (MED) — forward-looking
 - #19 Lock-free-read invariant doc + test (LOW)
@@ -320,11 +327,13 @@ Test architecture: pytest with mocked backends (no real services for unit); real
 - #22 RoundRobin cross-worker fairness doc (LOW)
 
 ### Recent additions (less battle-tested)
+
 - `monitor/stats.py` — Unit F Tier-2; 100% covered but newer
 - `storage/strategies/batched.py` — at-least-once semantics documented; crash-before-flush data loss is a known separate failure mode
 - RocketMQ integration suite — flake-tolerant (skips on apache proxy NPE; string-matches broker error text — fragile to broker version bumps)
 
 ### Operational cautions
+
 - `monitor/` and `StorageStrategy` are NOT in package `__all__` — internal-only surface (deliberate; separate API-export decision pending)
 - RocketMQ `queue_len` permanently `NotImplementedError` (apache 5.x SimpleConsumer has no depth API) — all 3 callers gracefully degrade, but operators reading depth stats need to know
 - Batched storage + crash = in-flight batch lost — documented but worth flagging in ops guides
@@ -353,6 +362,7 @@ This is a **mature, deliberately-evolved** codebase. Each round left the code mo
 ## 12. Onboarding Map
 
 **Read in this order:**
+
 1. `README.md` (project root) — system overview, capability matrix
 2. `src/scrapy_extension/backends/base.py` — the 4 ABCs + ack contract (this is the contract everything else implements)
 3. `src/scrapy_extension/exceptions/base.py` — error model + secret redaction
@@ -364,6 +374,7 @@ This is a **mature, deliberately-evolved** codebase. Each round left the code mo
 9. `docs/05-runbooks/runbook.md` — operational settings reference
 
 **Run to verify health:**
+
 ```bash
 uv sync
 uv run pytest -q                    # ~13s, 1989 passed / 37 skipped (2026 collected)

@@ -17,6 +17,7 @@ introduced no regressions). Deep diminishing returns — 3 LOW fixes.
 ## Problem statement
 
 ### A — ES `is_connected()`/`ping()` catches only TransportError — LOW (R19-A health-probe analog)
+
 `is_connected()` (elasticsearch.py:181-187) wraps `self._client.ping()` in `except TransportError:
 return False`. `TransportError` (transport-layer) and `ApiError` (HTTP-response hierarchy) are
 **siblings**, not parent/child — so an `AuthenticationException`/`AuthorizationException`/
@@ -27,6 +28,7 @@ ES hot-path catches `(ApiError, TransportError)`; every OTHER backend's `ping()`
 ES is the sole narrow-catch outlier.
 
 ### B — Pipeline `_close_locked` swallows BaseException during `connection_manager.close()` — LOW
+
 `_close_locked` (pipeline.py:411-432) wraps `storage_strategy.close()` in try/finally; the finally
 wraps `connection_manager.close()` in `try/except BaseException: logger.exception(...)` with **no
 `raise`**. When `storage_strategy.close()` succeeds and a Ctrl+C/SystemExit lands during the
@@ -36,6 +38,7 @@ operator can't break out of a hung shutdown. Same defect class as the R-swallow 
 — capture the strategy error, and when manager-close is the ONLY failure, re-raise it.
 
 ### C — `on_pop_rate` docstring prose claims tag "fixed at 1m" — LOW (docs)
+
 `stats.py:216-218` states "The window tag is fixed at ``1m`` because … ``BackendQueue`` always passes
 that window". This is false: the code emits a **dynamic** tag (`tag = '1m' if window_s ==
 DEFAULT_POP_RATE_WINDOW_S else f'{window_s:g}s'`, stats.py:226), and `BackendQueue` forwards the
@@ -44,6 +47,7 @@ below contradicts it. R19-C fixed the runbook + 4 sibling docstrings but skipped
 justification.
 
 ## Non-goals (DO-NOT-RE-FLAG — accumulated)
+
 - bloom/cuckoo. · all connect() `from None` (secret-redaction). · pulsar `_RedactedStr`. · dynamodb
   `clear_storage` TOCTOU. · `_push_is_durable` pin. · connect()-BaseException cluster (9 — CLOSED).
   · ES `add()` :417 R-dupe-1 narrowing. · ES `pop()` (ApiError, TransportError) — R19-A fixed.
@@ -51,6 +55,7 @@ justification.
   confirmed) — do NOT re-audit unless a concrete new outlier appears.
 
 ## Units (3)
+
 | ID | Sev | Surface | Fix |
 |----|-----|---------|-----|
 | A | LOW | elasticsearch.py:189 | `except TransportError` → `except (ApiError, TransportError): return False` |
@@ -58,6 +63,7 @@ justification.
 | C | LOW | stats.py:216-218 | rewrite prose: dynamic window-tag, not "fixed at 1m" |
 
 ## Success criteria
+
 - ruff clean; mypy --strict 0 issues; pytest ≥ 3767 passed / 46 skipped (unsandboxed); coverage ≥ 95%.
 - Each unit: ONE atomic commit; TDD (RED before GREEN) for A + B; C is docs.
 - All merged to `main`; only `main` remains. Claude-only.

@@ -119,7 +119,9 @@ green pytest is **not** a green CI:
    assert statement >= 95.0 and branch >= 91.0
    print(f"statement={statement:.2f}% branch={branch:.2f}%")
    PY
+
    ```
+
 7. Unit matrix 3.10–3.14 (`fail-fast: false`); one 3.12 integration job with
    10 live containerized backends.
 
@@ -132,7 +134,7 @@ Dependabot bumps daily (`rebase-strategy: disabled` — expect frequent
 
 ## Architecture map
 
-```
+```text
 Scrapy crawl
   └─ BackendScheduler ─┐            BackendDupeFilter ──► MembershipFilter
      (SCHEDULER)       │               (DUPEFILTER)        (set/memory/bloom/cuckoo)
@@ -332,7 +334,7 @@ Break any of these and the suite (rightly) falls over:
    the verbatim-duplicated `all` list** (it's a copy, not a self-reference);
    the dep in `[dependency-groups].test` (tests import backend modules
    directly); the CI smoke tuple in `ci.yml`; the integration service fixture
-   + `SCRAPY_TEST_*` env.
+   - `SCRAPY_TEST_*` env.
 5. Tests: mocked suite + modes wiring; `tests/test_backend_metadata_contract.py`
    cross-checks registry/lazy-extras/pyproject automatically. Update the docs
    matrix.
@@ -359,7 +361,7 @@ first use. The doc's example code block is executed by
    `ensure_fanout_backend_supported` (rejects kafka/rocketmq).
    In-process family: `bind()` → `_bind_single_queue`; implement
    `snapshot()`/`restore()` (versioned JSON, base64 items, *remaining* delays
-   + wall-clock — never absolute monotonic values; corrupt state → start
+   - wall-clock — never absolute monotonic values; corrupt state → start
    clean, never raise).
 3. Add the enum member + factory branch (`strategies/factory.py`); selection
    is purely `SCRAPY_QUEUE_STRATEGY`.
