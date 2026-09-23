@@ -38,6 +38,7 @@ from scrapy_extension.utils._config import (
     parse_float_setting,
     parse_int_setting,
 )
+from scrapy_extension.utils._crawler_compat import crawler_late_attr
 from scrapy_extension.utils._drain import bounded_drain_wait
 from scrapy_extension.utils.identity import (
     DEFAULT_DUPEFILTER_KEY_TEMPLATE,
@@ -1319,11 +1320,16 @@ class BackendDupeFilter:
         dupefilter = cls.from_settings(crawler.settings)
         factory_failure: BaseException | None = None
         try:
-            dupefilter._fingerprinter = getattr(crawler, "request_fingerprinter", None)
+            # scrapy >= 2.18: late Crawler attributes raise RuntimeError when
+            # read before the crawl starts; <= 2.17 returned None (see
+            # utils._crawler_compat). Normalize pre-crawl reads to None.
+            dupefilter._fingerprinter = crawler_late_attr(
+                crawler, "request_fingerprinter"
+            )
             # Default-on observability: wire a ScrapyStatsMonitor when crawler.stats is
             # available so dedup hit/miss counts show up on the Scrapy stats dump
             # without an explicit ``monitor=`` kwarg. Additive — existing stats untouched.
-            stats = getattr(crawler, "stats", None)
+            stats = crawler_late_attr(crawler, "stats")
             if stats is not None:
                 dupefilter._monitor = ScrapyStatsMonitor(stats)
                 dupefilter._set_filter_monitor()

@@ -24,6 +24,7 @@ The flag is initialized once in `__init__` and set `True` on the first overflow 
 `_last_delivery_tag` / `_last_delivery_queue` — but omit `_in_flight_overflow_warned`.
 
 End-to-end mechanism (verified by reading the actual code):
+
 1. A slow-ack / leak condition fills `_in_flight_tags` to the cap → the one-shot warning
    fires, `_in_flight_overflow_warned = True`.
 2. A reconnect cycle runs (`connect()` → `_publish_handles_locked` at line 594;

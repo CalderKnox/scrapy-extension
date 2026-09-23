@@ -52,6 +52,7 @@ from scrapy_extension.utils._config import (
     get_bool_setting,
     parse_int_setting,
 )
+from scrapy_extension.utils._crawler_compat import crawler_late_attr
 from scrapy_extension.utils.identity import (
     DEFAULT_PROJECT_NAME,
     DEFAULT_QUEUE_KEY_TEMPLATE,
@@ -1165,7 +1166,7 @@ class BackendScheduler:
         from scrapy_extension.monitor import NullMonitor, ScrapyStatsMonitor
 
         crawler = getattr(spider, "crawler", None)
-        stats = getattr(crawler, "stats", None) if crawler is not None else None
+        stats = crawler_late_attr(crawler, "stats")
         if stats is None:
             return NullMonitor()
         return ScrapyStatsMonitor(
@@ -1315,7 +1316,12 @@ class BackendScheduler:
         )
         factory_failure: BaseException | None = None
         try:
-            scheduler.stats = crawler.stats
+            # scrapy >= 2.18 made Crawler late attributes raise RuntimeError
+            # when read before the crawl starts; <= 2.17 returned None (see
+            # utils._crawler_compat). Pre-crawl construction (e.g. e2e
+            # fixtures) must keep working on both: unset stats -> None so the
+            # NullMonitor fallback engages, exactly as on older scrapy.
+            scheduler.stats = crawler_late_attr(crawler, "stats")
             dupefilter_path = crawler.settings.get("DUPEFILTER_CLASS")
             if dupefilter_path:
                 dupefilter_cls = load_object(dupefilter_path)
