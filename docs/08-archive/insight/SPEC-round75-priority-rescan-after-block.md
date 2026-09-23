@@ -42,6 +42,7 @@ Honor `QueueStrategy.pop`'s "next ready item or None if empty" contract: after t
 In both `pop` and `pop_with_ack`, replace the single blocking `return qb.pop(p0, timeout)` with: block on p0; on a non-None result return it; **on None, re-scan p0..p(N-1) non-blocking and return the first non-empty level** (else None).
 
 `pop` (replace L213-214):
+
 ```python
         if timeout > 0:
             item = qb.pop(self._bucket_queue(queue_name, 0), timeout)
@@ -60,6 +61,7 @@ In both `pop` and `pop_with_ack`, replace the single blocking `return qb.pop(p0,
 `pop_with_ack` (replace L232-237): mirror with `_pop_backend_instance_with_ack` — block on p0; on non-None data return `(data, token)`; on None re-scan `p0..p(N-1)` non-blocking via `_pop_backend_instance_with_ack(qb, bucket(level), 0.0)` returning the first non-None.
 
 Semantics:
+
 - **Non-blocking scan finds an item** → returned unchanged.
 - **All empty + timeout≤0** → None unchanged.
 - **All empty + timeout>0, blocking p0 returns an item** → returned immediately (no re-scan). Existing `test_pop_with_ack_uses_one_blocking_fallback_after_empty_scan` stays byte-identical (call_count unchanged).

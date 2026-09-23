@@ -15,6 +15,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 **Final verify:** 1203 passed / 27 skipped / 0 failed · ruff clean · mypy clean (65 files) · bandit clean.
 
 **Residual (not done — small / needs infra):**
+
 - Sentinel/Cluster malformed-entry errors propagate raw `ValueError` (round-3 pinned this; wrap in `BackendConnectionError`).
 - No explicit Sentinel failover re-discovery path (delegated to redis-py `master_for` proxy).
 - RocketMQ integration tests (need a runner image with native `librocketmq`).
@@ -23,10 +24,10 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 - ~~ES atomic pop (bet #6).~~ ✅ DONE — `elasticsearch.py:195-246` uses `if_seq_no`/`if_primary_term` + conflict retry (verified round-2).
 - ~~Integration CI job re-enable.~~ ✅ DONE — `.github/workflows/ci.yml:51` live, 5 services (verified round-2).
 
-
 ## Tier 1 — In-scope (parallel fan-out; disjoint files)
 
 ### Unit A — `backends/connectors.py`  *(CRITICAL + HIGH + MEDIUM)*
+
 - **A1 refcounting**: `get_manager()` increments `_users`; `close()` decrements; the **last holder**
   disconnects + evicts the registry entry. Thread-safe under `_registry_lock`. Fixes the colocated
   close-ordering hazard.
@@ -41,6 +42,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 - **Files**: `backends/connectors.py`, `tests/test_connectors.py`, `tests/test_connection_manager.py`.
 
 ### Unit B — `backends/redis.py`  *(HIGH)*
+
 - **B1 pop race**: `_POP_LUA` — return **distinct signals** for empty-queue vs lost-payload-race; the
   consumer treats a lost payload as "item consumed elsewhere" (DEBUG log, return `None`) instead of
   `QueueError`. Reserve `QueueError` for structural corruption only. Drop the integer `-1` sentinel.
@@ -49,6 +51,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 - **Files**: `backends/redis.py`, `tests/test_backends.py`.
 
 ### Unit C — `settings/redis.py` + `settings/rabbitmq.py`  *(HIGH × 2)*
+
 - **C1**: `redis.py` `ssl_check_hostname` default → `True` (field description notes opt-out for
   IP-only service discovery).
 - **C2**: `rabbitmq.py` — remove `default="guest"` (username) and `default=SecretStr("guest")`
@@ -58,16 +61,18 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 - **Files**: `settings/redis.py`, `settings/rabbitmq.py`, `tests/test_config.py`.
 
 ### Unit D — `queue/queue.py` + `pipeline/pipeline.py`  *(MEDIUM × 2)*
+
 - **D1 legacy body**: `_decode_body` — detect non-base64-but-valid-UTF8 → fallback
   `body.encode("utf-8")` + one-time `DeprecationWarning` (rolling-upgrade safety, no silent drop).
 - **D2 max-item-bytes**: configurable `SCRAPY_QUEUE_MAX_ITEM_BYTES` /
   `SCRAPY_PIPELINE_MAX_ITEM_BYTES` (default ~1 MB); reject oversize payloads with `SerializationError`
-  + a stat counter rather than silent drop.
+  - a stat counter rather than silent drop.
 - **Tests** (`tests/test_queue.py`, `tests/test_pipeline.py`): legacy body round-trips; oversize
   rejected with stat increment.
 - **Files**: `queue/queue.py`, `pipeline/pipeline.py`, `tests/test_queue.py`, `tests/test_pipeline.py`.
 
 ### Unit E — `schedule/scheduler.py` + `backends/{kafka,rabbitmq,rocketmq}.py`  *(HIGH + LOW × 2)*
+
 - **E1 ack fail-fast**: at scheduler init (or backend connect), if backend is Kafka/RabbitMQ **and**
   `CONCURRENT_REQUESTS>1` **and** not `SCRAPY_ACK_UNSAFE_CONCURRENT_REQUESTS=true` → raise
   `ConfigurationError`. Upgrades the existing warn → fail-fast (opt-out preserves escape hatch).
@@ -84,6 +89,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 ---
 
 ## Tier 2 — Deferred (spec'd, not in this pass)
+
 - Full ack in-flight-set correlation (meta-stashed ack tokens) — the real fix behind E1.
 - Observability: open `monitor/` namespace; `Monitor` protocol + `ScrapyStatsMonitor` default;
   backpressure hook on queue depth.
@@ -93,6 +99,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 - ES atomic pop (optimistic concurrency via `seq_no`/`primary_term`).
 
 ## Tier 3 — Test / infra (deferred)
+
 - Re-enable integration CI job (`.github/workflows/ci.yml:47`) with `services:` blocks
   (redis/mongodb/elasticsearch/rabbitmq/kafka).
 - `hypothesis` property tests (serialization round-trip, round-robin fairness, filter FP-rate).
@@ -102,6 +109,7 @@ See [INSIGHT.md](./INSIGHT.md) for evidence, [SPEC.md](./SPEC.md) for goals/cons
 ---
 
 ## Execution & verification
+
 - **Fan-out**: Units A–E in parallel (disjoint files → no edit collision). Each executor:
   RED regression test → minimal fix → smoke-import own module. Do **not** run the full suite
   (concurrent mid-edit noise); the orchestrator runs the single authoritative full-suite verify.

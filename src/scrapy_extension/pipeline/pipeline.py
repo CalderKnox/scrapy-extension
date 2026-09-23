@@ -40,6 +40,7 @@ from scrapy_extension.storage.strategies.passthrough import (
     PassthroughStorageStrategy,
 )
 from scrapy_extension.utils._config import parse_float_setting, parse_int_setting
+from scrapy_extension.utils._crawler_compat import crawler_late_attr
 from scrapy_extension.utils.policy import DEFAULT_PIPELINE_MAX_STORAGE_ERRORS
 from scrapy_extension.utils.reactor import (
     DEFAULT_REACTOR_IO_TIMEOUT_S,
@@ -526,7 +527,10 @@ class BackendPipeline:
             # Default-on observability — mirrors the dupefilter wiring. Only override
             # when no explicit monitor was provided (operators passing a custom monitor
             # via from_settings win over the default).
-            stats = getattr(crawler, "stats", None)
+            # scrapy >= 2.18: late Crawler attributes raise RuntimeError when read
+            # before the crawl starts; <= 2.17 returned None (see
+            # utils._crawler_compat). Pre-crawl construction must keep working.
+            stats = crawler_late_attr(crawler, "stats")
             if stats is not None and isinstance(pipeline._monitor, NullMonitor):
                 from scrapy_extension.monitor import ScrapyStatsMonitor
 
