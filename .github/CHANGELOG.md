@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Matching Scrapy breaker apply now promotes env-fallback provenance.**
+  A matching explicit policy still keeps the live breaker instance and
+  its CLOSED / OPEN / HALF_OPEN state. It now clears the env-fallback
+  flag so a later differing apply cannot take the override arm and
+  replace an OPEN breaker with a fresh CLOSED one.
+- **Dupefilter close no longer waits forever for a hung clear.** The
+  `_clear_in_progress` wait uses the same deadline-bounded drain helper
+  as quiescence, and escalates to `BackendOperationTimeout` after
+  `drain_timeout_s`.
+- **Elasticsearch pop retries a DELETE 404 the same way it retries 409.**
+  Concurrent CAS losers commonly see 404 after the winner deleted the
+  hit; three losses still return `None` instead of a hard `QueueError`.
+
 ### Changed
 
 - **The JSON wire codec lives in its own module.** The escaped recursive

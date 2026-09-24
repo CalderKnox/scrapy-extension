@@ -2,11 +2,14 @@
 
 - **Status:** accepted
 - **Owner:** maintainers
-- **Last updated:** 2026-09-14
-- **Related:** [ADR-001](../../01-adrs/0001-multi-backend-architecture.md), [backend API](../../03-api/)
+- **Last updated:** 2026-09-24
+- **Related:** [ADR-001](../../01-adrs/0001-multi-backend-architecture.md),
+  [backend API](../../03-api/),
+  [insight 2026-09-24](insight-2026-09-24.md)
 
 This is the active architecture description. The older
 [codebase-deep-insight](codebase-deep-insight.md) document is historical.
+The live risk register is [insight-2026-09-24](insight-2026-09-24.md).
 
 ## Boundaries
 
@@ -18,8 +21,9 @@ circuit-breaker wrapping, and leases. Adapters implement one or more of
 ```mermaid
 flowchart TD
   S[Scrapy components] --> Q[BackendQueue]
-  S --> F[MembershipFilter]
+  S --> D[BackendDupeFilter]
   S --> P[StorageStrategy]
+  D --> F[MembershipFilter]
   Q --> QS[QueueStrategy]
   F --> SB[SetBackend]
   P --> ST[StorageBackend]

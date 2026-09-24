@@ -45,6 +45,8 @@ the section README. Keep links relative so the docs remain usable in a source
 checkout and on GitHub. Run the documentation checks locally before opening a
 pull request (the same checks run in `.github/workflows/docs.yml`).
 
+The live risk register is
+[insight-2026-09-24](02-design/00-architecture/insight-2026-09-24.md).
 Maintainer execution history — round-based SPEC/PLAN/TASK records and the
 insight ledger — lives in [08-archive/insight/](08-archive/insight/).
 
