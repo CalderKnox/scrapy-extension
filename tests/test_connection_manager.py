@@ -2911,5 +2911,62 @@ def test_apply_matching_scrapy_policy_preserves_env_breaker(monkeypatch, target_
 
         assert manager._get_breaker() is breaker
         assert breaker.state is target_state
+        assert manager._breaker_resolved_from_env_fallback is False
+    finally:
+        manager.close()
+
+
+def test_matching_apply_promotes_env_fallback_so_later_differing_policy_is_dropped(
+    monkeypatch, caplog
+):
+    """R145-F2: a matching apply must promote provenance.
+
+    Leaving ``_breaker_resolved_from_env_fallback`` set after a matching
+    Scrapy apply lets a later differing apply take the env-override arm and
+    replace an OPEN breaker with a fresh CLOSED one.
+    """
+    monkeypatch.setenv("SCRAPY_CIRCUIT_BREAKER_ENABLED", "true")
+    monkeypatch.setenv("SCRAPY_CIRCUIT_BREAKER_FAILURE_THRESHOLD", "1")
+    monkeypatch.setenv("SCRAPY_CIRCUIT_BREAKER_RESET_TIMEOUT", "30")
+
+    from scrapy.settings import Settings as ScrapySettings
+
+    def _policy(threshold: int) -> ScrapySettings:
+        return ScrapySettings(
+            {
+                "SCRAPY_CIRCUIT_BREAKER_ENABLED": True,
+                "SCRAPY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": threshold,
+                "SCRAPY_CIRCUIT_BREAKER_RESET_TIMEOUT": 30.0,
+            }
+        )
+
+    manager = ConnectionManager.get_manager(
+        BackendType.REDIS, {"host": "r145-breaker-provenance-host"}
+    )
+    try:
+        breaker = manager._get_breaker()
+        assert breaker is not None
+        with pytest.raises(BackendError):
+            breaker.call(lambda: (_ for _ in ()).throw(BackendError("failure")))
+        assert breaker.state is BreakerState.OPEN
+        assert manager._breaker_resolved_from_env_fallback is True
+
+        manager.apply_scrapy_breaker_policy(_policy(1))
+        assert manager._get_breaker() is breaker
+        assert breaker.state is BreakerState.OPEN
+        assert manager._breaker_resolved_from_env_fallback is False
+
+        with caplog.at_level(logging.WARNING, logger=connectors_module.__name__):
+            manager.apply_scrapy_breaker_policy(_policy(3))
+
+        warnings = [
+            record
+            for record in caplog.records
+            if "circuit breaker policy" in record.getMessage()
+        ]
+        assert len(warnings) == 1
+        assert manager._get_breaker() is breaker
+        assert breaker.state is BreakerState.OPEN
+        assert breaker.failure_threshold == 1
     finally:
         manager.close()
