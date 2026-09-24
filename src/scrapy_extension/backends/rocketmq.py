@@ -49,6 +49,7 @@ from scrapy_extension.backends.base import (
     BackendType,
     QueueBackend,
 )
+from scrapy_extension.core.types import normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 from scrapy_extension.exceptions import (
     BackendConnectionError,
@@ -177,6 +178,18 @@ def _validate_queue_name_argument(
 ) -> None:
     """Validate a public queue argument before its terminal error boundary."""
     _validate_key_name(queue_name, "queue_name")
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Reject a non-finite wait before the receive condition can block forever."""
+    _validate_key_name(queue_name, "queue_name")
+    normalize_pop_timeout(timeout)
 
 
 def _validate_topic_prefix(topic_prefix: object) -> str:
@@ -1285,7 +1298,7 @@ class RocketMQBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop RocketMQ message.",
         safe_messages=_ROCKETMQ_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop(self, queue_name: str, timeout: float = 0.0) -> bytes | None:
         """Pop item from queue WITHOUT acking (deferred-ack model).
@@ -1326,7 +1339,7 @@ class RocketMQBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop RocketMQ message.",
         safe_messages=_ROCKETMQ_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop_with_ack(
         self, queue_name: str, timeout: float = 0.0

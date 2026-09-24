@@ -37,6 +37,7 @@ from functools import wraps
 from typing import Any
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import normalize_pop_timeout as _normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
@@ -112,25 +113,6 @@ _SQS_SAFE_QUEUE_MESSAGES: frozenset[str] = frozenset(
 
 # SQS caps WaitTimeSeconds at 20.
 _MAX_WAIT_SECONDS = 20
-
-
-def _normalize_pop_timeout(timeout: float) -> float:
-    """Validate and normalize a public receive timeout before any SQS I/O."""
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    try:
-        normalized = float(timeout)
-    except (OverflowError, TypeError, ValueError) as exc:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        ) from exc
-    if not math.isfinite(normalized) or normalized < 0:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    return normalized
 
 
 # PurgeQueue is asynchronous. AWS documents that both old messages and messages

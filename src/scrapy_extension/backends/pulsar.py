@@ -33,6 +33,7 @@ from scrapy_extension.backends._generation import (
     GenerationUnavailable,
 )
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
@@ -108,6 +109,18 @@ def _validate_queue_name_argument(
 ) -> None:
     """Validate a public queue argument before its terminal error boundary."""
     _validate_key_name(queue_name, "queue_name")
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Reject a non-finite wait before pump retirement can be waited on forever."""
+    _validate_key_name(queue_name, "queue_name")
+    normalize_pop_timeout(timeout)
 
 
 class _PulsarAckToken:
@@ -1295,7 +1308,7 @@ class PulsarBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop Pulsar message.",
         safe_messages=_PULSAR_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop(self, queue_name: str, timeout: float = 0.0) -> bytes | None:
         """Receive the next message from the Shared subscription.
@@ -1335,7 +1348,7 @@ class PulsarBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop Pulsar message.",
         safe_messages=_PULSAR_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop_with_ack(
         self, queue_name: str, timeout: float = 0.0

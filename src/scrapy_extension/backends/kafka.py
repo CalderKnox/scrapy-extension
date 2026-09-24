@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import math
 import re
 import threading
 from collections import defaultdict
@@ -24,6 +25,7 @@ from typing import Any, cast
 from pydantic import ValidationError
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import normalize_pop_timeout
 
 try:
     from kafka import (
@@ -123,6 +125,11 @@ def _validate_logical_queue_name(name: str) -> None:
         raise ValueError("Invalid topic/queue name: logical queue identity is invalid.")
 
 
+# poll() takes milliseconds. A finite-but-huge seconds value overflows
+# ``int(timeout * 1000)`` or becomes an unbounded client wait.
+_KAFKA_MAX_POLL_TIMEOUT_MS = 2_147_483_647
+
+
 def _validate_queue_name_argument(
     _backend: object,
     queue_name: str,
@@ -131,6 +138,23 @@ def _validate_queue_name_argument(
 ) -> None:
     """Validate a logical queue argument before its terminal error boundary."""
     _validate_logical_queue_name(queue_name)
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Reject waits that never expire or cannot be expressed as poll milliseconds."""
+    _validate_logical_queue_name(queue_name)
+    normalized = normalize_pop_timeout(timeout)
+    milliseconds = normalized * 1000.0
+    if not math.isfinite(milliseconds) or milliseconds > _KAFKA_MAX_POLL_TIMEOUT_MS:
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        )
 
 
 logger = logging.getLogger(__name__)
@@ -1775,7 +1799,7 @@ class KafkaBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop Kafka message.",
         safe_messages=_KAFKA_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop(self, queue_name: str, timeout: float = 0.0) -> bytes | None:
         """Pop highest priority item from queue.
@@ -1826,7 +1850,7 @@ class KafkaBackend(Backend, QueueBackend):
         "pop",
         "Failed to pop Kafka message.",
         safe_messages=_KAFKA_SAFE_QUEUE_MESSAGES,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
     )
     def pop_with_ack(
         self, queue_name: str, timeout: float = 0.0
@@ -2070,8 +2094,21 @@ class KafkaBackend(Backend, QueueBackend):
                         )
                     self._subscribed_topic = topic_name
 
-                # Poll for messages
-                timeout_ms = int(timeout * 1000)
+                # Poll for messages. The public validator already rejected
+                # non-finite and overflowing values; repeat the conversion guard
+                # so a direct helper call cannot pass infinity into the client.
+                milliseconds = timeout * 1000.0
+                if (
+                    isinstance(timeout, bool)
+                    or not isinstance(timeout, (int, float))
+                    or not math.isfinite(milliseconds)
+                    or milliseconds > _KAFKA_MAX_POLL_TIMEOUT_MS
+                    or milliseconds < 0
+                ):
+                    raise ValueError(
+                        f"timeout must be a finite non-negative number, got {timeout!r}"
+                    )
+                timeout_ms = int(milliseconds)
                 with self._consumer_io_lock:
                     messages = consumer.poll(timeout_ms=timeout_ms, max_records=1)
                 if handles is not None and handles.retired:
