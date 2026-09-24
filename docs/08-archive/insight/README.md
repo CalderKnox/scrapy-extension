@@ -18,6 +18,8 @@ when an archived record differs from present behavior.
 - [Insight ledger](LEDGER.md) — findings marked landed, refuted, deferred, or
   duplicate; check this before reopening an old concern.
 - [Deep-insight report](INSIGHT.md) — dated evidence and themes.
+- [R145 deep-insight report](DEEP-INSIGHT-2026-09-24-R145.md) — 2026-09-24
+  post-R144 maintenance audit; 14 runtime-verified open findings.
 - [Baseline spec](SPEC.md) · [baseline plan](PLAN.md) — original hardening
   pass context.
 - [Archive root](../README.md)

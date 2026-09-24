@@ -7,7 +7,10 @@ Entries are keyed by `(file:line, root-class)` and use one of these states:
 **Coverage:** This ledger records insight findings through R143 (R141-R143 were produced and landed by the 2026-08-23 deep-insight/fix/verify pipeline). For maintenance
 commits after R140, verify the current state against Git history and the latest
 [`CHANGELOG`](../../../.github/CHANGELOG.md); the absence of a later ledger row is
-not evidence that no maintenance change occurred.
+not evidence that no maintenance change occurred. R145 (2026-09-24, insight only,
+no fixes landed) proposes 14 rows in
+[`DEEP-INSIGHT-2026-09-24-R145.md`](DEEP-INSIGHT-2026-09-24-R145.md) §6; they are
+appended here when triaged.
 
 | Round | Finding | Location | Root class | State | Evidence |
 |---|---|---|---|---|---|
