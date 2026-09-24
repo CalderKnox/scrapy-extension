@@ -1417,8 +1417,9 @@ class BackendPipeline:
     def _inc_stat(spider: Spider, stat_name: str) -> None:
         """Increment a Scrapy stat, tolerating missing crawler/stats.
 
-        Defensively chains ``spider.crawler.stats`` via ``getattr`` because
-        legacy spider classes (or test doubles) may not expose ``crawler``.
+        Defensively reads ``spider.crawler.stats`` through ``crawler_late_attr``
+        because legacy spider classes (or test doubles) may not expose
+        ``crawler``, and Scrapy 2.18+ raises while the collector is unset.
         Silent skip when the chain is broken — the spider continues either
         way; a missing counter is preferable to crashing the pipeline.
 
@@ -1428,7 +1429,7 @@ class BackendPipeline:
             stat_name: The Scrapy stats key to increment.
         """
         crawler = getattr(spider, "crawler", None)
-        stats = getattr(crawler, "stats", None) if crawler is not None else None
+        stats = crawler_late_attr(crawler, "stats")
         if stats is not None:
             stats_failed = False
             try:

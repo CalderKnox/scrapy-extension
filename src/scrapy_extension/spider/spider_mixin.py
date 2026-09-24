@@ -1855,7 +1855,7 @@ class BackendSpiderMixin(Spider):
         try:
             settings = self._component_settings()
             crawler = getattr(self, "crawler", None)
-            stats = getattr(crawler, "stats", None) if crawler is not None else None
+            stats = crawler_late_attr(crawler, "stats")
             monitor = ScrapyStatsMonitor(stats) if stats is not None else None
             configured_key = settings.get("SCRAPY_DUPEFILTER_KEY")
             key_override = (
@@ -1978,9 +1978,7 @@ class BackendSpiderMixin(Spider):
             factory_kwargs: dict[str, Any] = {
                 "spider_name": self.name,
                 "queue_key": queue_name,
-                "stats": (
-                    getattr(crawler, "stats", None) if crawler is not None else None
-                ),
+                "stats": crawler_late_attr(crawler, "stats"),
                 "dupefilter": self._resolve_scheduler_dupefilter(factory_settings),
             }
             if self._queue_factory_uses_shared_manager(factory_settings):

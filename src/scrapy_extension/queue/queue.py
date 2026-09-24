@@ -50,6 +50,7 @@ from scrapy_extension.queue.strategies.base import (
     normalize_queue_timeout,
 )
 from scrapy_extension.queue.strategies.passthrough import PassthroughQueueStrategy
+from scrapy_extension.utils._crawler_compat import crawler_late_attr
 from scrapy_extension.utils._drain import bounded_drain_wait
 from scrapy_extension.utils.identity import project_name_from_spider
 from scrapy_extension.utils.reactor import (
@@ -1647,9 +1648,11 @@ class BackendQueue:
     def _inc_stat(self, stat_name: str) -> None:
         """Increment a Scrapy stat, tolerating missing spider/crawler/stats.
 
-        Defensively chains ``self._spider.crawler.stats`` via ``getattr`` because
-        the queue may be constructed without a spider (e.g. in tests) and legacy
-        spiders may not expose ``crawler``. Silent skip when the chain is broken —
+        Defensively reads ``self._spider.crawler.stats`` through
+        ``crawler_late_attr`` because the queue may be constructed without a
+        spider (e.g. in tests), legacy spiders may not expose ``crawler``, and
+        Scrapy 2.18+ raises when the collector is not set yet. Silent skip when
+        the chain is broken —
         the ``SerializationError`` already surfaced the condition; a missing
         counter is preferable to crashing the push path. Mirrors the pipeline's
         ``_inc_stat``.
@@ -1658,7 +1661,7 @@ class BackendQueue:
             stat_name: The Scrapy stats key to increment.
         """
         crawler = getattr(self._spider, "crawler", None) if self._spider else None
-        stats = getattr(crawler, "stats", None) if crawler is not None else None
+        stats = crawler_late_attr(crawler, "stats")
         stats_failed = False
         if stats is not None:
             try:
@@ -1681,9 +1684,10 @@ class BackendQueue:
         crawler, or no stats) return a :class:`~scrapy_extension.monitor.NullMonitor`
         — the no-op default that never crashes a hook call.
 
-        The ``getattr`` chain mirrors :meth:`_inc_stat`: the queue is often built
-        without a spider (unit tests, ad-hoc use), and legacy spiders may not
-        expose ``crawler``. Default-on where possible, safe everywhere else.
+        The read mirrors :meth:`_inc_stat`: the queue is often built without a
+        spider (unit tests, ad-hoc use), legacy spiders may not expose
+        ``crawler``, and Scrapy 2.18+ raises while ``stats`` is still unset.
+        Default-on where possible, safe everywhere else.
 
         Args:
             spider: Optional spider to resolve a stats collector from.
@@ -1693,7 +1697,7 @@ class BackendQueue:
             else a ``NullMonitor``.
         """
         crawler = getattr(spider, "crawler", None) if spider is not None else None
-        stats = getattr(crawler, "stats", None) if crawler is not None else None
+        stats = crawler_late_attr(crawler, "stats")
         if stats is not None:
             return ScrapyStatsMonitor(stats)
         return NullMonitor()
