@@ -289,8 +289,20 @@ def test_terminal_retirement_never_exceeds_caller_budget(
     """A failed close starts, but terminal delivery honors the poll deadline."""
     close_started = Event()
     release_close = Event()
+    receive_started = Event()
+    release_receive = Event()
     failed_consumer = MagicMock(name="budgeted-failed-consumer")
-    failed_consumer.receive.side_effect = RuntimeError("budgeted receive failure")
+
+    def failed_receive(*, timeout_millis: int) -> Any:
+        # Gate the failure so the pump-starting poll deterministically returns
+        # None before the worker records the terminal error (the raise only
+        # races the first poll under CPU contention otherwise).
+        del timeout_millis
+        receive_started.set()
+        release_receive.wait(timeout=2.0)
+        raise RuntimeError("budgeted receive failure")
+
+    failed_consumer.receive.side_effect = failed_receive
 
     def blocked_close() -> None:
         close_started.set()
@@ -303,6 +315,8 @@ def test_terminal_retirement_never_exceeds_caller_budget(
     try:
         assert backend.pop("budgeted-retirement", timeout=0) is None
         failed_pump = backend._receive_pumps[topic]
+        assert receive_started.wait(timeout=0.5)
+        release_receive.set()
         assert failed_pump.stopped.wait(timeout=0.5)
 
         started = monotonic()
@@ -327,11 +341,22 @@ def test_retirement_start_that_launches_then_raises_preserves_terminal_error(
     """An ambiguous Thread.start failure keeps its fence until close completes."""
     close_started = Event()
     release_close = Event()
+    receive_started = Event()
+    release_receive = Event()
     pump_error = KeyboardInterrupt("pump control marker")
     start_error = SystemExit("retirement start marker")
     failed_consumer = MagicMock(name="ambiguous-start-consumer")
     recovered_consumer = _ControllableConsumer()
-    failed_consumer.receive.side_effect = pump_error
+
+    def failed_receive(*, timeout_millis: int) -> Any:
+        # Gate the control-error raise so the pump-starting poll returns None
+        # deterministically before the worker records the terminal error.
+        del timeout_millis
+        receive_started.set()
+        release_receive.wait(timeout=2.0)
+        raise pump_error
+
+    failed_consumer.receive.side_effect = failed_receive
 
     def blocked_close() -> None:
         close_started.set()
@@ -342,6 +367,8 @@ def test_retirement_start_that_launches_then_raises_preserves_terminal_error(
     topic = "scrapy-ambiguous-start"
     assert backend.pop("ambiguous-start", timeout=0) is None
     failed_pump = backend._receive_pumps[topic]
+    assert receive_started.wait(timeout=0.5)
+    release_receive.set()
     assert failed_pump.stopped.wait(timeout=0.5)
 
     real_start = Thread.start
@@ -382,14 +409,18 @@ def test_failed_consumer_close_fences_concurrent_replacement_across_disconnect(
 ) -> None:
     """A blocked failed close conserves one subscription until it truly exits."""
     receive_started = Event()
+    release_receive = Event()
     close_started = Event()
     release_close = Event()
     failed_consumer = MagicMock(name="failed-exclusive-consumer")
     recovered_consumer = _ControllableConsumer()
 
     def failed_receive(*, timeout_millis: int) -> Any:
+        # Gate the raise so the pump-starting poll returns None deterministically
+        # before the worker records the terminal error.
         del timeout_millis
         receive_started.set()
+        release_receive.wait(timeout=2.0)
         raise receive_error
 
     def blocked_close() -> None:
@@ -415,6 +446,7 @@ def test_failed_consumer_close_fences_concurrent_replacement_across_disconnect(
     assert backend.pop("serialized-retirement", timeout=0) is None
     failed_pump = backend._receive_pumps[topic]
     assert receive_started.wait(timeout=0.5)
+    release_receive.set()
     assert failed_pump.stopped.wait(timeout=0.5)
 
     def observe_failure() -> None:
@@ -521,9 +553,20 @@ def test_disconnect_retires_unobserved_terminal_consumer_across_reconnect(
     """Teardown fences a failed consumer even before a poll observes failure."""
     close_started = Event()
     release_close = Event()
+    receive_started = Event()
+    release_receive = Event()
     failed_consumer = MagicMock(name="unobserved-failed-consumer")
     recovered_consumer = _ControllableConsumer()
-    failed_consumer.receive.side_effect = RuntimeError("unobserved receive failure")
+
+    def failed_receive(*, timeout_millis: int) -> Any:
+        # Gate the raise so the pump-starting poll returns None deterministically
+        # (the failure stays unobserved by a poll, which is the scenario here).
+        del timeout_millis
+        receive_started.set()
+        release_receive.wait(timeout=2.0)
+        raise RuntimeError("unobserved receive failure")
+
+    failed_consumer.receive.side_effect = failed_receive
 
     def blocked_close() -> None:
         close_started.set()
@@ -543,6 +586,8 @@ def test_disconnect_retires_unobserved_terminal_consumer_across_reconnect(
 
     assert backend.pop("unobserved-retirement", timeout=0) is None
     failed_pump = backend._receive_pumps[topic]
+    assert receive_started.wait(timeout=0.5)
+    release_receive.set()
     assert failed_pump.stopped.wait(timeout=0.5)
 
     backend.disconnect()
@@ -684,6 +729,8 @@ def test_publication_failure_fences_blocked_candidate_close_across_reconnect(
 
     close_started = Event()
     release_close = Event()
+    subscribe_started = Event()
+    release_subscribe = Event()
     stale_consumer = MagicMock(name="publication-failure-consumer")
     replacement_consumer = _ControllableConsumer()
 
@@ -693,7 +740,15 @@ def test_publication_failure_fences_blocked_candidate_close_across_reconnect(
 
     stale_consumer.close.side_effect = blocked_close
     old_client = MagicMock(name="publication-failure-old-client")
-    old_client.subscribe.return_value = stale_consumer
+
+    def blocked_subscribe(*_args: Any, **_kwargs: Any) -> Any:
+        # Gate bootstrap so the pump-starting poll returns None deterministically
+        # before the worker reaches the (failing) consumer publication.
+        subscribe_started.set()
+        release_subscribe.wait(timeout=2.0)
+        return stale_consumer
+
+    old_client.subscribe.side_effect = blocked_subscribe
     new_client = MagicMock(name="publication-failure-new-client")
     new_client.subscribe.return_value = replacement_consumer
     mocker.patch.object(pulsar, "Client", side_effect=[old_client, new_client])
@@ -705,6 +760,8 @@ def test_publication_failure_fences_blocked_candidate_close_across_reconnect(
     topic = "scrapy-publication-failure"
 
     assert backend.pop("publication-failure", timeout=0) is None
+    assert subscribe_started.wait(timeout=0.5)
+    release_subscribe.set()
     assert close_started.wait(timeout=0.5)
     with pytest.raises(KeyboardInterrupt, match="publication marker"):
         backend.pop("publication-failure", timeout=0.2)
@@ -741,6 +798,8 @@ def test_disconnect_reuses_unobserved_publication_retirement(mocker: Any) -> Non
 
     close_started = Event()
     release_close = Event()
+    subscribe_started = Event()
+    release_subscribe = Event()
     stale_consumer = MagicMock(name="unobserved-publication-consumer")
     replacement_consumer = _ControllableConsumer()
 
@@ -750,7 +809,15 @@ def test_disconnect_reuses_unobserved_publication_retirement(mocker: Any) -> Non
 
     stale_consumer.close.side_effect = blocked_close
     old_client = MagicMock(name="unobserved-publication-old-client")
-    old_client.subscribe.return_value = stale_consumer
+
+    def blocked_subscribe(*_args: Any, **_kwargs: Any) -> Any:
+        # Gate bootstrap so the pump-starting poll returns None deterministically
+        # before the worker reaches the (failing) consumer publication.
+        subscribe_started.set()
+        release_subscribe.wait(timeout=2.0)
+        return stale_consumer
+
+    old_client.subscribe.side_effect = blocked_subscribe
     new_client = MagicMock(name="unobserved-publication-new-client")
     new_client.subscribe.return_value = replacement_consumer
     mocker.patch.object(pulsar, "Client", side_effect=[old_client, new_client])
@@ -762,6 +829,8 @@ def test_disconnect_reuses_unobserved_publication_retirement(mocker: Any) -> Non
     topic = "scrapy-unobserved-publication"
 
     assert backend.pop("unobserved-publication", timeout=0) is None
+    assert subscribe_started.wait(timeout=0.5)
+    release_subscribe.set()
     assert close_started.wait(timeout=0.5)
     pump = backend._receive_pumps[topic]
     retirement = pump.retirement
