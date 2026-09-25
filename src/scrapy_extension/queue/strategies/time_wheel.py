@@ -34,6 +34,7 @@ __all__ = [
 ]
 
 import base64
+import bisect
 import heapq
 import itertools
 import json
@@ -439,6 +440,11 @@ class TimeWheelQueueStrategy(QueueStrategy):
             now_tick = self._tick_at(now)
             # (ready_at, sequence, source, slot, item, priority)
             candidates: list[tuple[float, int, str, int, bytes, float]] = []
+            # Original wheel index captured during the scan. Deletions shift
+            # later live indexes, so commit resolves the live index from how
+            # many smaller originals in that slot were already removed.
+            wheel_origin: dict[tuple[int, int], int] = {}
+            removed_origins: dict[int, list[int]] = {}
             # Preserve the wheel's tick-gated release contract (a sub-tick item
             # waits for the next tick), while scanning a full rotation after a
             # long idle so no due slot is stranded.  Ordering itself is global
@@ -454,10 +460,12 @@ class TimeWheelQueueStrategy(QueueStrategy):
                 for index in range(len(dq)):
                     ready_at, item, priority = dq[index]
                     if ready_at <= now:
+                        sequence = sequences[index]
+                        wheel_origin[(slot, sequence)] = index
                         candidates.append(
                             (
                                 ready_at,
-                                sequences[index],
+                                sequence,
                                 "wheel",
                                 slot,
                                 item,
@@ -475,9 +483,17 @@ class TimeWheelQueueStrategy(QueueStrategy):
                 if source == "wheel":
                     dq = self._wheel[slot]
                     sequences = self._wheel_sequences[slot]
-                    try:
-                        entry_index = sequences.index(sequence)
-                    except ValueError:
+                    origin = wheel_origin.get((slot, sequence))
+                    if origin is None:
+                        continue
+                    removed = removed_origins.get(slot)
+                    entry_index = origin - (
+                        bisect.bisect_left(removed, origin) if removed else 0
+                    )
+                    if (
+                        entry_index >= len(sequences)
+                        or sequences[entry_index] != sequence
+                    ):
                         # A prior candidate can only remove its own entry; this
                         # guard keeps a defensive custom container from replaying
                         # an already-settled candidate.
@@ -499,6 +515,9 @@ class TimeWheelQueueStrategy(QueueStrategy):
                         if len(sequences) < sequence_count:
                             sequences.insert(entry_index, sequence)
                         raise
+                    else:
+                        recorded = removed_origins.setdefault(slot, [])
+                        recorded.insert(bisect.bisect_left(recorded, origin), origin)
                     finally:
                         self._recompute_slot_min_deadline(slot)
                 else:

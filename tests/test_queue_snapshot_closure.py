@@ -728,12 +728,16 @@ def test_time_wheel_append_drain_and_clear_rollback_preserve_state(monkeypatch):
     assert list(strategy._wheel[1]) == []
 
     # A wheel candidate which vanished between scan and settlement is skipped.
+    class VanishAfterScan(deque):
+        def __getitem__(self, index):
+            value = super().__getitem__(index)
+            if getattr(self, "_scanned", False):
+                return value + 1
+            self._scanned = True
+            return value
+
     strategy._wheel[0] = deque([(0.0, b"gone", 0.0)])
-    strategy._wheel_sequences[0] = type(
-        "MissingSequence",
-        (deque,),
-        {"index": lambda self, _value: (_ for _ in ()).throw(ValueError())},
-    )([0])
+    strategy._wheel_sequences[0] = VanishAfterScan([0])
     strategy._last_tick = -1
     strategy._drain_ready("q")
     assert backend.push.call_count == 0
