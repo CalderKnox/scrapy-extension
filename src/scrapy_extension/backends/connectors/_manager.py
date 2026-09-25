@@ -757,6 +757,10 @@ class ConnectionManager:
             tuple[Backend, CircuitBreaker | None] | None
         ) = None
         self._plugin_queue_backend: _DeferredAckPluginQueueBackend | None = None
+        self._set_backend_source: tuple[Backend, CircuitBreaker] | None = None
+        self._set_backend: SetBackend | None = None
+        self._storage_backend_source: tuple[Backend, CircuitBreaker] | None = None
+        self._storage_backend: StorageBackend | None = None
         # ``get_manager()`` fills these fields when it inserts the instance into
         # the shared registry. Pooled managers use the acquire-time values for
         # every operation and for eventual eviction, so mutations of the public
@@ -3035,17 +3039,30 @@ class ConnectionManager:
         Returns:
             The SetBackend interface of the backend.
         """
-        backend, breaker = self._get_backend_breaker_snapshot()
-        if not isinstance(backend, SetBackend):
-            msg = (
-                f"Backend {backend.__class__.__name__} does not support set operations"
-            )
-            raise NotImplementedError(msg)
-        if breaker is None:
-            return backend
-        from scrapy_extension.backends.circuit_breaker import wrap_set_backend
+        while True:
+            backend, breaker = self._get_backend_breaker_snapshot()
+            if not isinstance(backend, SetBackend):
+                msg = f"Backend {backend.__class__.__name__} does not support set operations"
+                raise NotImplementedError(msg)
+            if breaker is None:
+                return backend
+            with self._lock:
+                if backend is not self._backend or breaker is not self._breaker:
+                    continue
+                cached_source = self._set_backend_source
+                if (
+                    cached_source is not None
+                    and cached_source[0] is backend
+                    and cached_source[1] is breaker
+                ):
+                    assert self._set_backend is not None
+                    return self._set_backend
+                from scrapy_extension.backends.circuit_breaker import wrap_set_backend
 
-        return wrap_set_backend(backend, breaker)
+                wrapped = wrap_set_backend(backend, breaker)
+                self._set_backend_source = (backend, breaker)
+                self._set_backend = wrapped
+                return wrapped
 
     @_manager_terminal_error_boundary("storage")
     @configuration_error_boundary(
@@ -3071,15 +3088,32 @@ class ConnectionManager:
         Returns:
             The StorageBackend interface of the backend.
         """
-        backend, breaker = self._get_backend_breaker_snapshot()
-        if not isinstance(backend, StorageBackend):
-            msg = f"Backend {backend.__class__.__name__} does not support storage operations"
-            raise NotImplementedError(msg)
-        if breaker is None:
-            return backend
-        from scrapy_extension.backends.circuit_breaker import wrap_storage_backend
+        while True:
+            backend, breaker = self._get_backend_breaker_snapshot()
+            if not isinstance(backend, StorageBackend):
+                msg = f"Backend {backend.__class__.__name__} does not support storage operations"
+                raise NotImplementedError(msg)
+            if breaker is None:
+                return backend
+            with self._lock:
+                if backend is not self._backend or breaker is not self._breaker:
+                    continue
+                cached_source = self._storage_backend_source
+                if (
+                    cached_source is not None
+                    and cached_source[0] is backend
+                    and cached_source[1] is breaker
+                ):
+                    assert self._storage_backend is not None
+                    return self._storage_backend
+                from scrapy_extension.backends.circuit_breaker import (
+                    wrap_storage_backend,
+                )
 
-        return wrap_storage_backend(backend, breaker)
+                wrapped = wrap_storage_backend(backend, breaker)
+                self._storage_backend_source = (backend, breaker)
+                self._storage_backend = wrapped
+                return wrapped
 
 
 def release_manager_acquire(
