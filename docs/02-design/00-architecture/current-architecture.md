@@ -8,7 +8,7 @@
   [insight 2026-09-24](insight-2026-09-24.md)
 
 This is the active architecture description. The older
-[codebase-deep-insight](codebase-deep-insight.md) document is historical.
+[codebase-deep-insight](../../08-archive/codebase-deep-insight.md) document is historical.
 The live risk register is [insight-2026-09-24](insight-2026-09-24.md).
 
 ## Boundaries

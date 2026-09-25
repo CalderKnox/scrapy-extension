@@ -1,6 +1,6 @@
 # Backend Plugins — Authoring a 3rd-Party Backend
 
-> Back to [Codebase Overview](../../02-design/00-architecture/codebase-deep-insight.md) · [README](../../../README.md)
+> Back to [Codebase Overview](../../02-design/00-architecture/current-architecture.md) · [README](../../../README.md)
 
 `scrapy-extension` ships 10 bundled backends (Redis, MongoDB, Kafka, RabbitMQ,
 ElasticSearch, RocketMQ, Pulsar, SQS, Memcached, DynamoDB). You do **not** need to
@@ -501,7 +501,7 @@ Also verify the lazy-import rule manually: importing `scrapy_extension.backends.
 
 ## See Also
 
-- [Codebase Overview](../../02-design/00-architecture/codebase-deep-insight.md) — backend implementation
+- [Codebase Overview](../../02-design/00-architecture/current-architecture.md) — backend implementation
   matrix, multi-mode support, connection management.
 - [README](../../../README.md) — installation, quick start, backend configuration.
 - `src/scrapy_extension/backends/base.py` — the `Backend` / `QueueBackend` /

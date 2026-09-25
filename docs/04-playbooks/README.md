@@ -10,9 +10,9 @@ Step-by-step how-to guides for recurring tasks and workflows.
 
 ## What belongs here
 
-- Development workflow guides: releasing, reviewing, testing
-- Task-oriented how-tos for common operations
-- Onboarding exercises for new contributors
+- Task-oriented how-tos for recurring engineering work
+- One topic per playbook, linked from this index
 
-One topic per playbook; link each from this index. Procedures for operating
-the system in production belong in [05-runbooks/](../05-runbooks/).
+Contributor onboarding belongs in
+[06-guides/developer-guides/](../06-guides/developer-guides/). Procedures for
+operating the system in production belong in [05-runbooks/](../05-runbooks/).

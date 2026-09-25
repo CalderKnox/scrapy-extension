@@ -13,10 +13,16 @@ the relevant design, API, guide, or runbook directory.
 
 ## Navigation
 
-Use the [archive root](../README.md) for the complete historical map. The
-[plans/](plans/) subdirectory collects dated implementation plans and has its
-own index. This directory intentionally has no “current status” index: plans
-here describe earlier work and may be incomplete or superseded.
+Use the [archive root](../README.md) for the complete historical map. Dated
+implementation plans live in this directory, at the same level as this index.
+This directory intentionally has no “current status” index: plans here describe
+earlier work and may be incomplete or superseded.
+
+## Contents
+
+| Document | Description |
+| -------- | ----------- |
+| [RocketMQ backend plan (2026-04-18)](2026-04-18-rocketmq-backend.md) | Retired implementation plan for the RocketMQ backend |
 
 When citing one of these documents, include its date or round and link to the
 replacement RFC, ADR, or design document when one exists. Do not edit a retired

@@ -64,21 +64,32 @@ insight ledger — lives in [08-archive/insight/](08-archive/insight/).
 
 ## Document quality
 
-The documentation job in `.github/workflows/ci.yml` runs before every other
-CI job. It checks every visible docs directory for an index and a local
-template, and verifies key cross-links on pushes and pull requests.
+Every directory must contain both `README.md` and `_template.md`. The
+documentation job in `.github/workflows/ci.yml` runs before every other CI job
+and lints Markdown with
+[.markdownlint.yaml](../.markdownlint.yaml).
 
-`01-adrs/` and `02-design/01-decisions/` are complementary:
+`README.md` is mandatory at the second and third directory levels under
+`docs/` (`docs/<section>/` and `docs/<section>/<subsection>/`). These indexes
+are the navigation contract. Deeper directories follow the same convention
+when they exist; this tree stops at the third level.
+
+## ADRs versus design decisions
+
+These are complementary records with different levels of authority:
 
 | Use | `01-adrs/` | `02-design/01-decisions/` |
 | --- | --- | --- |
 | Scope | Cross-cutting or externally visible architecture | Local implementation or component trade-off |
-| Authority | Durable project decision | Working design note |
-| Change policy | Append a superseding ADR; preserve history | Update as the design evolves |
+| Authority | Durable project decision with named deciders | Working design note owned by the design/code author |
+| Change policy | Append a superseding ADR; do not rewrite history | Update the note as the design evolves, keeping a short history |
+| Required context | Alternatives, consequences, and governance rationale | Constraints, chosen option, and implementation impact |
+| Relationship | May be linked from design docs | Link to the governing ADR when one exists |
 
-If a design note gains cross-cutting impact or creates a long-lived
-compatibility promise, promote it to an ADR and link the replacement from the
-original note.
+If a design note gains cross-cutting impact, security or compliance weight, or
+a long-lived compatibility promise, promote it to an ADR and leave a link in
+the original note. An ADR should not record a transient choice that is only
+relevant to one module.
 
 ## Where does my document go?
 

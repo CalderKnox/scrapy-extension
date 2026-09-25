@@ -14,6 +14,8 @@ this directory is a current task queue or implementation contract.
   consolidated [execution index](insight/EXECUTION-INDEX.md) and
   [finding ledger](insight/LEDGER.md).
 - [Archived superpowers](superpowers/) — retired plans and design specs.
+- [Codebase deep insight](codebase-deep-insight.md) — historical 2026-07
+  component deep dive.
 - [Code review (2026-06-15)](code-review-2026-06-15.md) — standalone historical
   review.
 
@@ -28,6 +30,7 @@ with active code or documentation, the active source wins.
 | [audit/](audit/) | Point-in-time audit reports (cross-validation, prioritized findings, resource lifecycle) |
 | [insight/](insight/) | Round-based SPEC/PLAN/TASK records, deep-insight reports, execution index, and ledger |
 | [superpowers/](superpowers/) | Historical implementation plans and design specs |
+| [Codebase deep insight](codebase-deep-insight.md) | Historical 2026-07 component deep dive, superseded by the active architecture docs |
 | [Devil's Critic Code Review 2026-06-15](code-review-2026-06-15.md) | Round-81 full-codebase critical review |
 
 Move documents here when they no longer reflect current practice. Add a short
