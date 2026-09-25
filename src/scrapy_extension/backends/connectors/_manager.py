@@ -1051,9 +1051,9 @@ class ConnectionManager:
         snapshot_failed = False
         try:
             settings_snapshot = deepcopy(settings) if settings is not None else {}
-            # The public mapping remains mutable for compatibility, but it must not
-            # alias the operational snapshot retained by a pooled manager.
-            public_settings_snapshot = deepcopy(settings_snapshot)
+            # The public mapping is copied only when this acquire publishes a new
+            # manager. Registry hits never retain it, and it must not alias the
+            # operational snapshot used for the registry key.
             key = cls._registry_key(normalized_backend_type, settings_snapshot)
         except Exception:  # noqa: BLE001 - nested config values are untrusted
             snapshot_failed = True
@@ -1069,7 +1069,6 @@ class ConnectionManager:
             del key
             raise input_error
         assert settings_snapshot is not None
-        assert public_settings_snapshot is not None
         assert key is not None
 
         while True:
@@ -1133,6 +1132,7 @@ class ConnectionManager:
                 # This is deliberately outside ``_registry_lock``: construction can
                 # discover entry points, load plugin classes, and validate arbitrary
                 # class attributes.
+                public_settings_snapshot = deepcopy(settings_snapshot)
                 candidate = cls(backend_type, public_settings_snapshot)
             except BaseException:
                 # KeyboardInterrupt and other control-flow exceptions must release
