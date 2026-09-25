@@ -14,13 +14,13 @@ __all__ = [
     "normalize_queue_timeout",
 ]
 
-import math
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from scrapy_extension.core.types import normalize_pop_timeout
 from scrapy_extension.exceptions import QueueError
 
 if TYPE_CHECKING:
@@ -32,24 +32,10 @@ def normalize_queue_timeout(timeout: float) -> float:
     """Return a finite non-negative queue timeout.
 
     A non-finite timeout is not merely malformed input for polling backends:
-    Redis' deadline loop never expires for ``NaN`` or ``inf``. Keep one strict
-    contract for every strategy before any backend is touched.
+    a deadline of ``NaN`` or ``inf`` never expires. Every strategy and every
+    bundled queue backend shares :func:`normalize_pop_timeout`.
     """
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    try:
-        normalized = float(timeout)
-    except (OverflowError, TypeError, ValueError) as e:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        ) from e
-    if not math.isfinite(normalized) or normalized < 0:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    return normalized
+    return normalize_pop_timeout(timeout)
 
 
 class _QueueAckToken(ABC):

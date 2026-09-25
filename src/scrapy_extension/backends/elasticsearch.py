@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 from pydantic import ValidationError
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
@@ -348,6 +349,18 @@ def _validate_queue_name_argument(
 ) -> None:
     """Validate a direct ElasticSearch queue name before terminal handling."""
     _validate_key_name(queue_name, "queue_name")
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Reject a malformed timeout even though ElasticSearch does not block on it."""
+    _validate_key_name(queue_name, "queue_name")
+    normalize_pop_timeout(timeout)
 
 
 def _validate_set_name_argument(
@@ -1218,7 +1231,7 @@ class ElasticSearchBackend(Backend, QueueBackend, SetBackend, StorageBackend):
     @queue_operation_error_boundary(
         "pop",
         _ELASTICSEARCH_QUEUE_POP_ERROR,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
         handled_exception_types=(
             QueueError,
             QueueOutcomeIndeterminateError,
@@ -1332,7 +1345,7 @@ class ElasticSearchBackend(Backend, QueueBackend, SetBackend, StorageBackend):
     @queue_operation_error_boundary(
         "pop",
         _ELASTICSEARCH_QUEUE_POP_ERROR,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
         handled_exception_types=(
             QueueError,
             QueueOutcomeIndeterminateError,

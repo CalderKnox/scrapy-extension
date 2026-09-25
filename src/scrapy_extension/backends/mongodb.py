@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
+from scrapy_extension.core.types import normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 # Import the distribution's top-level package before its bundled ``bson``
@@ -160,6 +161,18 @@ def _validate_queue_name_argument(
 ) -> None:
     """Validate a direct MongoDB queue name outside its terminal boundary."""
     _validate_key_name(queue_name, "queue_name")
+
+
+def _validate_pop_arguments(
+    _backend: object,
+    queue_name: str,
+    timeout: float = 0.0,
+    *_args: Any,
+    **_kwargs: Any,
+) -> None:
+    """Reject a malformed timeout even though MongoDB does not block on it."""
+    _validate_key_name(queue_name, "queue_name")
+    normalize_pop_timeout(timeout)
 
 
 def _validate_queue_push_arguments(
@@ -1338,7 +1351,7 @@ class MongoDBBackend(Backend, QueueBackend, SetBackend, StorageBackend):
     @queue_operation_error_boundary(
         "pop",
         _MONGODB_QUEUE_POP_ERROR,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
         handled_exception_types=(QueueError, BackendConnectionError),
     )
     def pop(self, queue_name: str, timeout: float = 0.0) -> bytes | None:
@@ -1384,7 +1397,7 @@ class MongoDBBackend(Backend, QueueBackend, SetBackend, StorageBackend):
     @queue_operation_error_boundary(
         "pop",
         _MONGODB_QUEUE_POP_ERROR,
-        validator=_validate_queue_name_argument,
+        validator=_validate_pop_arguments,
         handled_exception_types=(QueueError, BackendConnectionError),
     )
     def pop_with_ack(

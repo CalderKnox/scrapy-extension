@@ -250,13 +250,16 @@ class QueueBackend(ABC):
 
         Args:
             queue_name: The name of the queue.
-            timeout: Seconds to wait for an item (0 = non-blocking).
+            timeout: Seconds to wait for an item (0 = non-blocking). Must be a
+                finite, non-negative number. Atomic backends may ignore a
+                positive wait; they still reject a malformed timeout.
 
         Returns:
             The popped item, or None if the queue is empty.
 
         Raises:
             QueueError: If the pop operation fails.
+            ValueError: If ``timeout`` is not a finite, non-negative number.
         """
 
     @abstractmethod

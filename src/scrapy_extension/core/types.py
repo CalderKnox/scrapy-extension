@@ -10,6 +10,7 @@ re-export their former names, so every existing import keeps working.
 
 from __future__ import annotations
 
+import math
 import re
 from enum import Enum
 
@@ -19,6 +20,7 @@ __all__ = [
     "CIRCUIT_BREAKER_MAX_RESET_TIMEOUT_S",
     "KEY_NAME_PATTERN",
     "BackendType",
+    "normalize_pop_timeout",
     "validate_key_name",
 ]
 
@@ -138,3 +140,28 @@ def validate_key_name(
             f"Invalid {safe_field_name}. Only alphanumeric, dots, underscores, "
             "hyphens, and colons allowed."
         )
+
+
+def normalize_pop_timeout(timeout: float) -> float:
+    """Return a finite, non-negative queue pop timeout.
+
+    ``NaN`` and ``inf`` never expire a monotonic deadline, so a blocking pop
+    waits forever. Bools are rejected because ``True`` is an ``int`` and would
+    otherwise wait one second. Call this before any backend I/O so the
+    ``ValueError`` stays outside the queue error boundary.
+    """
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        )
+    try:
+        normalized = float(timeout)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        ) from exc
+    if not math.isfinite(normalized) or normalized < 0:
+        raise ValueError(
+            f"timeout must be a finite non-negative number, got {timeout!r}"
+        )
+    return normalized

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import math
 import threading
 import time
 import uuid
@@ -25,6 +24,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from scrapy_extension.backends._optional import _is_missing_optional_dependency
 from scrapy_extension.backends._redaction import _redact
+from scrapy_extension.core.types import normalize_pop_timeout as _normalize_pop_timeout
 from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
@@ -170,25 +170,6 @@ redis.call('ZADD', KEYS[1], ARGV[2], member)
 redis.call('HSET', KEYS[2], member, ARGV[3])
 return member
 """
-
-
-def _normalize_pop_timeout(timeout: float) -> float:
-    """Return a finite, non-negative timeout before any Redis I/O."""
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    try:
-        normalized = float(timeout)
-    except (OverflowError, TypeError, ValueError) as exc:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        ) from exc
-    if not math.isfinite(normalized) or normalized < 0:
-        raise ValueError(
-            f"timeout must be a finite non-negative number, got {timeout!r}"
-        )
-    return normalized
 
 
 def _validate_queue_name_argument(
