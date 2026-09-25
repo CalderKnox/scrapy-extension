@@ -1595,7 +1595,7 @@ class BackendSpiderMixin(Spider):
         from scrapy_extension.queue.queue import BackendQueue
         from scrapy_extension.schedule.scheduler import BackendScheduler
 
-        name = queue_name or self._mixin_queue_key()
+        name = queue_name
         reserved = self._reserve_component_construction(
             "queue",
             "_queue",
@@ -1605,6 +1605,8 @@ class BackendSpiderMixin(Spider):
         if not isinstance(reserved, tuple):
             queue = reserved
             with self._lifecycle_lock:
+                if name is None:
+                    name = self._queue_name or self._mixin_queue_key()
                 self._claim_consumer_queue(name)
                 if self._queue_name != name:
                     raise ConfigurationError(
@@ -1623,6 +1625,8 @@ class BackendSpiderMixin(Spider):
                     queue.set_monitor(monitor, pop_rate_window_s=window)
             return cast(BackendQueue, queue)
 
+        if name is None:
+            name = self._mixin_queue_key()
         manager, construction = reserved
         factory_scheduler: BackendScheduler | None = None
         candidate: BackendQueue | None = None

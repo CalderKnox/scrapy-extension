@@ -42,8 +42,6 @@ from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import boto3
-    from botocore import UNSIGNED
-    from botocore.config import Config as BotoConfig
 except ImportError as e:
     if not _is_missing_optional_dependency(e, "boto3"):
         raise
@@ -52,7 +50,7 @@ except ImportError as e:
     ) from e
 
 from scrapy_extension.backends._close import swallow_close_failures
-from scrapy_extension.backends._redaction import _diagnostic_repr, _redact
+from scrapy_extension.backends._redaction import _diagnostic_repr
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -73,7 +71,7 @@ from scrapy_extension.settings import (
 )
 from scrapy_extension.settings._aws import (
     _AWS_SAFE_CONFIGURATION_MESSAGES,
-    is_remote_http_endpoint,
+    build_boto3_client_kwargs,
     validate_aws_credentials,
     validate_aws_endpoint,
     validate_aws_region_name,
@@ -574,27 +572,12 @@ class SqsBackend(Backend, QueueBackend):
             queue_name_generation=queue_name_generation,
             visibility_timeout=visibility_timeout,
         )
-        # A permitted remote HTTP endpoint is intentionally anonymous.  A private
-        # Session still resolves boto3's ambient environment/profile/metadata chain,
-        # so explicitly disable botocore signing rather than allowing those
-        # credentials to authenticate the plaintext request.
-        config_kwargs: dict[str, Any] = {
-            "ignore_configured_endpoint_urls": True,
-        }
-        if is_remote_http_endpoint(endpoint_url):
-            config_kwargs["signature_version"] = UNSIGNED
-        kwargs: dict[str, Any] = {
-            "region_name": region_name,
-            # SQS endpoint policy belongs to the validated settings snapshot.
-            # Ignore AWS_ENDPOINT_URL[_SQS] and shared-config endpoint overrides so
-            # an ambient HTTP URL cannot bypass the cloud-mode TLS guard.
-            "config": BotoConfig(**config_kwargs),
-        }
-        if endpoint_url is not None:
-            kwargs["endpoint_url"] = endpoint_url
-        if key_id is not None and secret is not None:
-            kwargs["aws_access_key_id"] = _redact(key_id)
-            kwargs["aws_secret_access_key"] = _redact(secret)
+        kwargs = build_boto3_client_kwargs(
+            region_name=region_name,
+            endpoint_url=endpoint_url,
+            access_key_id=key_id,
+            secret_access_key=secret,
+        )
         return snapshot, kwargs
 
     @backend_connection_error_boundary(
