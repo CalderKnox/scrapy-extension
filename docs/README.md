@@ -43,7 +43,7 @@ To add a document: choose the section using the table below, copy that
 section's `_template.md`, replace every placeholder, then add the new file to
 the section README. Keep links relative so the docs remain usable in a source
 checkout and on GitHub. Run the documentation checks locally before opening a
-pull request (the same checks run in `.github/workflows/docs.yml`).
+pull request (the same checks run first in `.github/workflows/ci.yml`).
 
 The live risk register is
 [insight-2026-09-24](02-design/00-architecture/insight-2026-09-24.md).
@@ -64,9 +64,9 @@ insight ledger — lives in [08-archive/insight/](08-archive/insight/).
 
 ## Document quality
 
-The Documentation quality workflow checks every visible docs directory for an
-index and a local template, and verifies key cross-links on pushes and pull
-requests.
+The documentation job in `.github/workflows/ci.yml` runs before every other
+CI job. It checks every visible docs directory for an index and a local
+template, and verifies key cross-links on pushes and pull requests.
 
 `01-adrs/` and `02-design/01-decisions/` are complementary:
 

@@ -22,11 +22,64 @@ permissions:
   contents: read
 
 jobs:
+  # Documentation gate — always the first job. Every other job waits on it.
+  docs:
+    name: Lint and validate documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check documentation structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docs_root=docs
+          failures=0
+
+          if [[ ! -d "$docs_root" ]]; then
+            echo "docs-check: missing directory: $docs_root" >&2
+            exit 1
+          fi
+
+          while IFS= read -r directory; do
+            if [[ ! -f "$directory/README.md" ]]; then
+              echo "docs-check: missing $directory/README.md" >&2
+              failures=1
+            fi
+            if [[ ! -f "$directory/_template.md" ]]; then
+              echo "docs-check: missing $directory/_template.md" >&2
+              failures=1
+            fi
+          done < <(find "$docs_root" -type d -not -path '*/.*' -print | sort)
+
+          while IFS='|' read -r file link; do
+            if ! grep -Fq -- "$link" "$file"; then
+              echo "docs-check: $file must contain link $link" >&2
+              failures=1
+            fi
+          done <<'REQUIRED_LINKS'
+          docs/01-adrs/README.md|../02-design/01-decisions/_template.md
+          docs/02-design/README.md|../01-adrs/
+          docs/02-design/01-decisions/README.md|../../01-adrs/
+          REQUIRED_LINKS
+
+          if (( failures )); then
+            exit 1
+          fi
+
+          echo "docs-check: all visible directories have README.md and _template.md"
+      - name: Lint Markdown
+        uses: DavidAnson/markdownlint-cli2-action@v24
+        with:
+          globs: '**/*.md'
+
   # Fast unit job — runs on every push to main and every pull request. No external services required.
   # Integration tests (tests/integration/, marker `integration`) are
   # deselected here; they need live backends and are run in the parallel
   # integration-tests job below.
   unit-tests:
+    needs: docs
     runs-on: ubuntu-latest
     # Bound each matrix lane so a stalled dependency or test cannot consume
     # GitHub Actions' multi-hour default timeout.  The normal suite completes
@@ -368,6 +421,7 @@ jobs:
   # (rocketmq-python-client 5.1.1) needs no native lib, so the suite runs on
   # the stock GitHub runner. See #44.
   integration-tests:
+    needs: docs
     runs-on: ubuntu-latest
     # Bound the whole job, including GitHub's service-image initialization. A
     # hung broker-client op (no per-op timeout) used to bleed to Actions'
@@ -563,6 +617,7 @@ jobs:
   # run keeps drift (a test that only passes when shuffled differently)
   # visible without taxing every PR by ~6x the parallel runtime.
   nightly-serial-determinism:
+    needs: docs
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -587,6 +642,7 @@ jobs:
   # Uses pinned tooling to avoid flaky network requirements in ordinary unit checks.
   # Runs in parallel with unit-tests so it never blocks the fast unit lane.
   security-scan:
+    needs: docs
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Skip the security scan on pull requests from forks to avoid

@@ -82,8 +82,9 @@ SCRAPY_TEST_INTEGRATION=1 SCRAPY_TEST_REDIS_URL=redis://localhost:6379/0 \
 
 ## Quality gates and CI
 
-CI (`.github/workflows/ci.yml`) runs on every PR, in this order — a locally
-green pytest is **not** a green CI:
+CI (`.github/workflows/ci.yml`) runs on every PR. The documentation job
+runs first and the other jobs wait for it. A locally green pytest is **not**
+a green CI. Inside the unit job the order is:
 
 1. `ruff check` (all lanes) — lint before anything else.
 2. `ruff format --check src tests conftest.py` (3.10 lane) — the repo is
