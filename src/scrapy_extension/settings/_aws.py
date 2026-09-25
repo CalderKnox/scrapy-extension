@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 from urllib.parse import urlsplit
 
 from pydantic import SecretStr
@@ -269,3 +270,38 @@ def validate_aws_endpoint(
             setting_name="endpoint_url",
         )
     return endpoint_url
+
+
+def build_boto3_client_kwargs(
+    *,
+    region_name: str,
+    endpoint_url: str | None,
+    access_key_id: str | None,
+    secret_access_key: str | None,
+) -> dict[str, Any]:
+    """Return Session client kwargs for a validated AWS connection snapshot.
+
+    A permitted remote HTTP endpoint is anonymous: disable botocore signing so
+    ambient credentials cannot authenticate the plaintext request. Ignore
+    configured endpoint URLs so an ambient HTTP URL cannot bypass the TLS guard.
+    """
+    from botocore import UNSIGNED
+    from botocore.config import Config as BotoConfig
+
+    from scrapy_extension.backends._redaction import _redact
+
+    config_kwargs: dict[str, Any] = {
+        "ignore_configured_endpoint_urls": True,
+    }
+    if is_remote_http_endpoint(endpoint_url):
+        config_kwargs["signature_version"] = UNSIGNED
+    kwargs: dict[str, Any] = {
+        "region_name": region_name,
+        "config": BotoConfig(**config_kwargs),
+    }
+    if endpoint_url is not None:
+        kwargs["endpoint_url"] = endpoint_url
+    if access_key_id is not None and secret_access_key is not None:
+        kwargs["aws_access_key_id"] = _redact(access_key_id)
+        kwargs["aws_secret_access_key"] = _redact(secret_access_key)
+    return kwargs

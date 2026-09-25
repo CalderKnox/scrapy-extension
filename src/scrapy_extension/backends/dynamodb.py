@@ -37,8 +37,7 @@ from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import boto3
-    from botocore import UNSIGNED
-    from botocore.config import Config as BotoConfig
+    from botocore import UNSIGNED  # noqa: F401  # snapshot tests compare this constant
 except ImportError as e:
     if not _is_missing_optional_dependency(e, "boto3"):
         raise
@@ -48,7 +47,6 @@ except ImportError as e:
     ) from e
 
 from scrapy_extension.backends._close import swallow_close_failures
-from scrapy_extension.backends._redaction import _redact
 from scrapy_extension.backends.base import (
     Backend,
     BackendType,
@@ -66,7 +64,7 @@ from scrapy_extension.exceptions.base import StorageError
 from scrapy_extension.settings import DynamoDBMode, DynamoDBSettings
 from scrapy_extension.settings._aws import (
     _AWS_SAFE_CONFIGURATION_MESSAGES,
-    is_remote_http_endpoint,
+    build_boto3_client_kwargs,
     validate_aws_credentials,
     validate_aws_endpoint,
     validate_aws_region_name,
@@ -437,29 +435,12 @@ class DynamoDBBackend(Backend, StorageBackend):
             allow_unfenced_legacy_clear=allow_unfenced_legacy_clear,
             allow_remote_http=allow_remote_http,
         )
-        # A permitted remote HTTP endpoint is intentionally anonymous.  A private
-        # Session still resolves boto3's ambient environment/profile/metadata chain,
-        # so explicitly disable botocore signing rather than allowing those
-        # credentials to authenticate the plaintext request.
-        config_kwargs: dict[str, Any] = {
-            "ignore_configured_endpoint_urls": True,
-        }
-        if is_remote_http_endpoint(endpoint_url):
-            config_kwargs["signature_version"] = UNSIGNED
-        kwargs: dict[str, Any] = {
-            "region_name": region_name,
-            # The endpoint policy belongs to this validated snapshot. Ignore
-            # AWS_ENDPOINT_URL[_DYNAMODB] and shared-config endpoint overrides so an
-            # ambient HTTP URL cannot bypass the cloud-mode transport guard.
-            "config": BotoConfig(**config_kwargs),
-        }
-        if endpoint_url is not None:
-            kwargs["endpoint_url"] = endpoint_url
-        if key_id is not None and secret is not None:
-            # Preserve the SDK's required string behavior without retaining the
-            # credentials in the published settings snapshot or exposing their repr.
-            kwargs["aws_access_key_id"] = _redact(key_id)
-            kwargs["aws_secret_access_key"] = _redact(secret)
+        kwargs = build_boto3_client_kwargs(
+            region_name=region_name,
+            endpoint_url=endpoint_url,
+            access_key_id=key_id,
+            secret_access_key=secret,
+        )
         return snapshot, kwargs
 
     @staticmethod
