@@ -766,6 +766,15 @@ upgrading.
 
 ### Fixed
 
+- **Unset Scrapy crawler stats no longer abort mixin setup.** Scrapy 2.18+
+  raises `RuntimeError` when `Crawler.stats` is read before the crawl starts,
+  and `Crawler.crawl()` creates the spider before it applies settings. Mixin
+  `setup_backend()`, `get_dupefilter()`, `get_scheduler()`, and the queue and
+  pipeline stat helpers still used `getattr`, which only swallows
+  `AttributeError`, so a real crawler crashed while wiring the monitor.
+  Those reads now use the same late-attribute helper as the component
+  factories and treat an unset collector as “no stats yet.”
+
 - **P1-5: `JSONSerializer.deserialize` decodes in a single pass.** The
   marker decode (bytes/datetime/date tags, escaped dicts, legacy
   `__b64__`) previously re-walked the fully-built value tree after

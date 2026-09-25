@@ -8,6 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 from scrapy import Spider, signals
+from scrapy.crawler import Crawler
 from scrapy.settings import Settings as ScrapySettings
 
 from scrapy_extension.backends.base import BackendType
@@ -294,6 +295,33 @@ class TestSetupBackend:
         assert wired_calls, "set_monitor should have been called"
         last_wired = wired_calls[-1].args[0]
         assert isinstance(last_wired, ScrapyStatsMonitor)
+
+    def test_from_crawler_tolerates_unset_scrapy_late_stats(self, mocker) -> None:
+        """Scrapy 2.18+ creates the spider before Crawler.stats exists.
+
+        ``Crawler.crawl()`` calls ``from_crawler`` and only then
+        ``_apply_settings()``, which publishes ``stats``. Reading the late
+        attribute raises ``RuntimeError``; ``getattr(..., None)`` does not
+        catch that, so mixin setup must treat an unset collector as absent.
+        """
+        mock_manager = mocker.MagicMock(spec=ConnectionManager)
+        mocker.patch.object(ConnectionManager, "get_manager", return_value=mock_manager)
+
+        class TestSpider(BackendSpiderMixin, Spider):
+            name = "late_stats_spider"
+            backend_type = BackendType.REDIS
+
+        crawler = Crawler(TestSpider)
+        with pytest.raises(RuntimeError, match="is not set yet"):
+            _ = crawler.stats
+
+        spider = TestSpider.from_crawler(crawler)
+        try:
+            wired = mock_manager.set_monitor.call_args.args[0]
+            assert isinstance(wired, NullMonitor)
+            assert spider._connection_manager is mock_manager
+        finally:
+            spider.close_backend()
 
     def test_setup_backend_merges_scrapy_breaker_policy(
         self, mocker, monkeypatch
