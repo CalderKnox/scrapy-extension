@@ -666,7 +666,44 @@ class TestQueue:
         # All 3 attempts tried (max_attempts); each searched then lost the race.
         assert b._client.search.call_count == 3
 
-    def test_pop_delete_not_found_is_not_empty_success(self, mocker):
+    def test_pop_retries_on_delete_not_found(self, mocker):
+        """R145-F4: a DELETE 404 is the common CAS-delete race, not a hard error."""
+        b = _mock_backend(mocker)
+        b._client.search.side_effect = [
+            _search_response(
+                [
+                    {
+                        "_id": "1",
+                        "_seq_no": 10,
+                        "_primary_term": 1,
+                        "_source": {"item": "bG9zdA=="},
+                    }
+                ]
+            ),
+            _search_response(
+                [
+                    {
+                        "_id": "2",
+                        "_seq_no": 20,
+                        "_primary_term": 1,
+                        "_source": {"item": "d29u"},
+                    }
+                ]
+            ),
+        ]
+        b._client.delete.side_effect = [
+            _make_not_found_error(),
+            {
+                **_DELETE_RESPONSE,
+                "_index": "scrapy_queue",
+                "_id": "2",
+            },
+        ]
+
+        assert b.pop("q") == b"won"
+        assert b._client.search.call_count == 2
+
+    def test_pop_returns_none_when_all_attempts_lose_delete_not_found(self, mocker):
         b = _mock_backend(mocker)
         b._client.search.return_value = _search_response(
             [
@@ -680,8 +717,8 @@ class TestQueue:
         )
         b._client.delete.side_effect = _make_not_found_error()
 
-        with pytest.raises(QueueError, match="queue pop failed"):
-            b.pop("q")
+        assert b.pop("q") is None
+        assert b._client.search.call_count == 3
 
     def test_pop_empty(self, mocker):
         b = _mock_backend(mocker)

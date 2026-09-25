@@ -30,3 +30,5 @@ the filename remains the stable identifier.
 
 These files are maintainer history, not a public roadmap. To revive a finding,
 open a current RFC or ADR and link back to the relevant archived evidence.
+The live risk register after the 2026-09-24 rescan is
+[insight-2026-09-24](../../02-design/00-architecture/insight-2026-09-24.md).

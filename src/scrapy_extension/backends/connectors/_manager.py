@@ -2777,6 +2777,11 @@ class ConnectionManager:
         with self._lock:
             if self._breaker_configured and self._breaker_resolved_from_env_fallback:
                 if self._breaker_policy_values == policy_values:
+                    # Matching apply must keep the live instance (R140-F2) and
+                    # promote provenance. Leaving the env-fallback flag set
+                    # lets a later differing apply take this override arm and
+                    # replace an OPEN breaker with a fresh CLOSED one.
+                    self._breaker_resolved_from_env_fallback = False
                     return
                 self._install_breaker_locked(
                     enabled,

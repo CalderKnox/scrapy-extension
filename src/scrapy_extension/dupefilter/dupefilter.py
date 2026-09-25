@@ -1683,10 +1683,21 @@ class BackendDupeFilter:
     def _close_locked(self) -> None:
         """Run reserved filter/manager callbacks outside ``_lifecycle_lock``."""
         with self._lifecycle_condition:
-            while self._clear_in_progress:
-                if self._lifecycle_transition_thread_id == get_ident():
-                    raise RuntimeError("dupefilter close re-entered an active clear")
-                self._lifecycle_condition.wait()
+            if (
+                self._clear_in_progress
+                and self._lifecycle_transition_thread_id == get_ident()
+            ):
+                raise RuntimeError("dupefilter close re-entered an active clear")
+            # R144-F23 bounded the following quiescence wait; a hung
+            # ``filter.clear()`` still held ``_clear_in_progress`` with no
+            # deadline. Drive that sibling wait through the same helper so
+            # close escalates instead of wedging crawl shutdown.
+            bounded_drain_wait(
+                self._lifecycle_condition,
+                lambda: self._clear_in_progress,
+                timeout_s=self._drain_timeout_s,
+                operation="backend-dupefilter-close-clear-drain",
+            )
             self._wait_for_quiescence_locked(include_reservations=False)
             # Retire the old epoch only after every admitted filter call has
             # returned. Late commits/forgets now become

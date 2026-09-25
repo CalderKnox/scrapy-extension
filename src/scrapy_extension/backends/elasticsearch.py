@@ -1245,8 +1245,9 @@ class ElasticSearchBackend(Backend, QueueBackend, SetBackend, StorageBackend):
         ``_primary_term`` for each hit, and the delete passes them as
         ``if_seq_no`` / ``if_primary_term``. If another worker deleted or
         modified the doc between search and delete, ES raises
-        ``ConflictError`` (HTTP 409) and we retry the search to find the
-        next available item.
+        ``ConflictError`` (HTTP 409) or ``NotFoundError`` (HTTP 404 after
+        the winner deleted the hit). Neither is proof the queue is empty;
+        we retry the search to find the next available item.
 
         Args:
             queue_name: Name of the queue.
@@ -1312,14 +1313,13 @@ class ElasticSearchBackend(Backend, QueueBackend, SetBackend, StorageBackend):
                             expected_id=document_id,
                         ):
                             raise _ElasticSearchResponseError
-                    except ConflictError:
-                        # Lost the race to another worker — retry to find the next item.
+                    except (ConflictError, NotFoundError):
+                        # Lost the race to another worker. Optimistic locking
+                        # via if_seq_no/if_primary_term yields HTTP 409 when
+                        # the document is still present with a new version, and
+                        # HTTP 404 when the winner already deleted it. Neither
+                        # is proof the queue is empty — retry the search.
                         continue
-                    except NotFoundError:
-                        # A DELETE 404 is a race, not proof that the queue was empty.
-                        raise QueueError(
-                            _ELASTICSEARCH_QUEUE_POP_ERROR, operation="pop"
-                        ) from None
                     except (TransportError, _ElasticSearchResponseError):
                         raise QueueOutcomeIndeterminateError(
                             _ELASTICSEARCH_QUEUE_POP_ERROR, operation="pop"

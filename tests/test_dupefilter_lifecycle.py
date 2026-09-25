@@ -19,7 +19,7 @@ from scrapy_extension.dupefilter.dupefilter import BackendDupeFilter
 from scrapy_extension.dupefilter.filters.base import MembershipFilter
 from scrapy_extension.dupefilter.filters.bloom_filter import BloomMembershipFilter
 from scrapy_extension.dupefilter.filters.memory_filter import MemoryMembershipFilter
-from scrapy_extension.exceptions.base import QueueError
+from scrapy_extension.exceptions.base import BackendOperationTimeout, QueueError
 from scrapy_extension.queue.queue import BackendQueue
 from scrapy_extension.schedule.scheduler import BackendScheduler
 from scrapy_extension.spider.spider_mixin import BackendSpiderMixin
@@ -715,6 +715,49 @@ def test_close_waits_for_a_blocked_clear_before_filter_close() -> None:
     assert not close_thread.is_alive()
     assert close_errors == []
     membership.close.assert_called_once_with()
+
+
+def test_close_times_out_when_a_hung_clear_never_finishes() -> None:
+    """R145-F3: close must not wait forever for ``_clear_in_progress``."""
+    membership = MagicMock(spec=MembershipFilter)
+    entered = Event()
+    release = Event()
+
+    def hung_clear() -> None:
+        entered.set()
+        assert release.wait(timeout=2.0)
+
+    membership.clear.side_effect = hung_clear
+    dupefilter = BackendDupeFilter(
+        connection_manager=MagicMock(),
+        membership_filter=membership,
+        drain_timeout_s=0.2,
+    )
+    dupefilter.open()
+
+    clear_thread = Thread(target=dupefilter.clear, name="dupefilter-hung-clear")
+    clear_thread.start()
+    assert entered.wait(timeout=2.0)
+
+    close_errors: list[BaseException] = []
+    close_done = Event()
+
+    def close() -> None:
+        _capture_error(close_errors, dupefilter.close, "close")
+        close_done.set()
+
+    close_thread = Thread(target=close, name="dupefilter-close-timeout")
+    close_thread.start()
+    assert close_done.wait(timeout=2.0)
+    close_thread.join(timeout=2.0)
+    assert not close_thread.is_alive()
+    assert len(close_errors) == 1
+    assert isinstance(close_errors[0], BackendOperationTimeout)
+    membership.close.assert_not_called()
+
+    release.set()
+    clear_thread.join(timeout=2.0)
+    assert not clear_thread.is_alive()
 
 
 def test_stale_forget_cannot_remove_a_marker_from_a_new_epoch() -> None:
