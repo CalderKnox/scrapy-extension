@@ -70,7 +70,7 @@ jobs:
 
           echo "docs-check: all visible directories have README.md and _template.md"
       - name: Lint Markdown
-        uses: DavidAnson/markdownlint-cli2-action@v24
+        uses: DavidAnson/markdownlint-cli2-action@v25
         with:
           globs: '**/*.md'
 
