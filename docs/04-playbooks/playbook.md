@@ -66,7 +66,7 @@ uv run poe format-fix             # ruff format src tests conftest.py (the only 
 uv run poe lint-fix               # ruff check --fix --unsafe-fixes
 uv run mypy --strict src
 uv run poe test                   # 3.11–3.14 + 3.14t matrix (uv fetches interpreters)
-uv run poe test-py310             # single lane
+uv run poe test-py311             # single lane
 uv build                          # sdist + wheel -> dist/
 uv run poe clean                  # caches/coverage/reports
 ```

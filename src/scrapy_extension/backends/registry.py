@@ -196,7 +196,7 @@ def _discover_entry_points() -> dict[str, BackendDescriptor]:
     """Discover 3rd-party backend descriptors via ``importlib.metadata``.
 
     Uses the modern ``entry_points(group=...)`` keyword API, available on
-    every supported Python (>=3.10). The former ``sys.version_info < (3, 12)``
+    every supported Python (>=3.11). The former ``sys.version_info < (3, 12)``
     branch — which used the legacy dict shape ``entry_points().get(group, [])``
     — was based on the false premise that the keyword form was unavailable
     before 3.12; it has been available since 3.10. The dict fallback emitted
@@ -221,7 +221,7 @@ def _discover_entry_points() -> dict[str, BackendDescriptor]:
     enumeration_failed = False
     try:
         # ``entry_points(group=...)`` is the modern select-by-group API,
-        # available on every supported Python (>=3.10). The legacy dict form
+        # available on every supported Python (>=3.11). The legacy dict form
         # ``entry_points().get(group, [])`` was formerly used on a
         # ``sys.version_info < (3, 12)`` branch, but the keyword form has been
         # available since 3.10 — the branch was based on a false premise and
