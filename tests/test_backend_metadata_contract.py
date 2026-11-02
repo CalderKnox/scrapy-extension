@@ -10,15 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import tomllib
 
 import scrapy_extension
 import scrapy_extension.backends as public_backends
 from scrapy_extension.backends.registry import _BUNDLED_DESCRIPTORS
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
-    import tomli as tomllib
 
 pytestmark = pytest.mark.unit
 

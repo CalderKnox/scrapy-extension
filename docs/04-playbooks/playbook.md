@@ -62,8 +62,10 @@ uv run pytest                     # full unit suite (integration/benchmarks auto
 uv run pytest tests/test_backends.py                          # one file
 uv run pytest tests/test_backends.py::TestRedisBackend::test_connect_success -v
 uv run poe check                  # read-only: format-check + lint + type-check + security
+uv run poe full                   # the same checks plus deptry dependency hygiene
 uv run poe format-fix             # ruff format src tests conftest.py (the only rewriter)
 uv run poe lint-fix               # ruff check --fix --unsafe-fixes
+uv run poe audit                  # deptry: dependency hygiene (missing/unused/transitive)
 uv run pyrefly check src
 uv run poe test                   # 3.11–3.14 + 3.14t matrix (uv fetches interpreters)
 uv run poe test-py311             # single lane
@@ -94,8 +96,9 @@ a green CI. Inside the unit job the order is:
    `ignore-missing-imports = ["*"]` are broader than the old per-module
    mypy relaxation for stub-less 3rd-party clients (redis, kafka, pika,
    pymemcache, rocketmq, pulsar); first-party code stays strictly checked.
-4. `bandit -r src -c pyproject.toml` + `uv audit --locked` (one pinned
-   advisory ignore, `PYSEC-2017-83`, with in-file rationale).
+4. `bandit -r src -c pyproject.toml` + `deptry .` (3.11 lane) +
+   `uv audit --locked` (one pinned advisory ignore, `PYSEC-2017-83`, with
+   in-file rationale).
 5. Build + verify + smoke-test the package artifacts (3.11 lane): build →
    grep wheel/sdist listings against a forbidden regex (secrets /
    credentials / key material / `docs/08-archive/` must not ship — overlapping

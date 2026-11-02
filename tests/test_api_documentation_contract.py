@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import tomllib
 import yaml
 from pydantic import ValidationError
 
@@ -27,11 +28,6 @@ from scrapy_extension.settings.elasticsearch import ElasticSearchSettings
 from scrapy_extension.spider.spider_mixin import BackendSpiderMixin
 from scrapy_extension.storage.strategies.factory import create_storage_strategy
 from tests.integration import bench_es_push_refresh
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
-    import tomli as tomllib
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _README = (_REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")

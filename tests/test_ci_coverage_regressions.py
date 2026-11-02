@@ -14,6 +14,7 @@ from uuid import UUID
 from weakref import ref
 
 import pytest
+import tomllib
 import yaml
 from pydantic import SecretStr, ValidationError
 from scrapy import Request
@@ -48,11 +49,6 @@ from scrapy_extension.settings.rabbitmq import (
     parse_rabbitmq_node,
     validate_rabbitmq_connection,
 )
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
-    import tomli as tomllib
 
 
 class _RegistryEnum(str, Enum):

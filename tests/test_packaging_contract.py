@@ -5,11 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
-    import tomli as tomllib
-
+import tomllib
 
 _REQUIRED_SOURCE_ENTRIES = {
     ".github/audit-fixtures/**",

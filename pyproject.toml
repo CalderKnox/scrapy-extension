@@ -91,15 +91,20 @@ all = [
 ]
 
 [dependency-groups]
-# dev is the full local environment: lint + test tooling + the task runner.
-# Keep explicit version ranges here so `uv lock --upgrade` cannot cross major
-# boundaries without review.
+# dev is the minimal local environment: lint/type-check tooling plus the task
+# runner. It intentionally does not include the test group or the audit group,
+# so a default sync stays free of backend SDKs, pytest, and deptry (deptry has
+# no free-threaded wheel). The test group remains self-contained for an
+# extracted sdist. Keep explicit version ranges here so `uv lock --upgrade`
+# cannot cross major boundaries without review.
 dev = [
     { include-group = "lint" },
-    { include-group = "test" },
+    "packaging>=26.0,<27",
     "poethepoet",
 ]
-lint = ["ruff>=0.16,<0.18", "pyrefly>=1.4,<2"]
+lint = ["ruff>=0.16,<0.18", "bandit[toml]", { include-group = "typecheck" }]
+typecheck = ["pyrefly>=1.4,<2"]
+audit = ["deptry>=0.25,<0.26"]
 
 test = [
     "packaging>=26.0,<27",
@@ -116,9 +121,11 @@ test = [
     "pytest-sugar",
     "pytest-instafail",
     "pytest-socket",
-    "pyrefly>=1.4,<2",
-    "bandit[toml]",
     "hypothesis>=6.165.9,<7",
+    # Tests import yaml directly. bandit used to provide PyYAML transitively,
+    # but bandit is dev-only now, so declare it to keep this group
+    # self-contained.
+    "pyyaml>=6.0,<7",
     # Backend deps — tests import backend modules directly, which triggers
     # the module-level lazy-import guard. All backends must be installable
     # for the test suite to collect.
@@ -135,6 +142,7 @@ test = [
     "pulsar-client>=3.13.0,<4",
     "pymemcache>=4.0,<5",
     "boto3>=1.43.72,<2",
+    { include-group = "typecheck" },
 ]
 
 [tool.uv]
@@ -156,6 +164,34 @@ constraint-dependencies = [
     "twisted>=26.10.0",
     "urllib3>=2.8.0",
 ]
+
+[tool.deptry]
+# src layout: the package is imported as `scrapy_extension`, never as the
+# distribution name; examples are runnable scripts, not installed deps.
+known_first_party = ["scrapy_extension", "examples"]
+extend_exclude = ["conftest\\.py"]
+
+[tool.deptry.package_module_name_map]
+# Distribution name -> importable module name(s) where they differ. boto3 ships
+# botocore, kafka-python-ng is imported as `kafka`, pymongo ships `bson`,
+# pulsar-client is imported as `pulsar`, and rocketmq-python-client as
+# `rocketmq`.
+boto3 = ["boto3", "botocore"]
+kafka-python-ng = "kafka"
+pymongo = ["pymongo", "bson"]
+pulsar-client = "pulsar"
+rocketmq-python-client = "rocketmq"
+
+[tool.deptry.per_rule_ignores]
+# DEP003 (transitive dependency): scrapy/pydantic provide these imports; they
+# are intentionally not declared as direct dependencies.
+DEP003 = ["twisted", "pydispatch", "pydantic_core", "itemadapter"]
+# DEP002 (unused dependency): security floors for transitive dependencies that
+# `uv audit --locked` treats as fatal; they are intentionally not imported.
+DEP002 = ["pyasn1", "protego"]
+# DEP004 (dev dependency imported by non-dev code): packaging is CI/test-only
+# tooling used by tools/check_audit_waiver.py, which runs against the lock.
+DEP004 = ["packaging"]
 
 [tool.uv.build-backend]
 source-include = [
@@ -227,7 +263,7 @@ source-exclude = [
 
 [tool.poe]
 executor.type = "uv"
-tasks.full = ["check"]
+tasks.full = ["check", "audit"]
 tasks.check = ["format-check", "lint-check", "type-check", "security-check"]
 tasks.test = [
     "test-py311",
@@ -245,6 +281,9 @@ tasks.lint-check = "ruff check"
 tasks.lint-fix = "ruff check --fix --unsafe-fixes"
 tasks.type-check = "pyrefly check src"
 tasks.security-check = "bandit -r src -c pyproject.toml"
+# Dependency hygiene is a separate task because it is slower and currently not
+# part of the default `poe check` aggregate.
+tasks.audit = { shell = "uvx deptry==0.25.1 ." }
 
 # Keep the existing entry points, but make them safe read-only aliases.
 tasks.format = ["format-check"]
