@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The type checker is Pyrefly.** `mypy --strict src` is replaced by
+  `pyrefly check src` in `poe check` and CI; `mypy` is removed from the
+  `test` dependency group and the `[tool.mypy]` configuration is
+  deleted. The new `[tool.pyrefly]` config preserves the strict contract
+  (`check-unannotated-defs`, `unannotated-return`, `no-any-return`,
+  `implicit-any-parameter`, `implicit-any-type-argument`,
+  `unused-type-ignore`, and `redundant-cast = "warn"`), while the `legacy`
+  preset keeps untyped third-party imports at `Any` and keeps existing
+  `# type: ignore[...]` comments effective. Four return-type violations
+  that mypy accepted are now explicit (three implicit-`Any` returns and one
+  mis-typed annotation tuple), and the 14 suppressions pyrefly proved
+  unnecessary were removed.
+
 - **The JSON wire codec lives in its own module.** The escaped recursive
   codec (round-trip markers, escaped-dict collision guards, SecretStr
   terminal rejection, `Serializer`, `secret_value`, `JSONSerializer`)

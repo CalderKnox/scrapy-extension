@@ -114,10 +114,10 @@ uv run poe test-py311    # one version
 ## Lint, types, and format
 
 ```bash
-uv run poe check         # read-only Ruff format/lint, strict Mypy, and Bandit checks
+uv run poe check         # read-only Ruff format/lint, strict Pyrefly, and Bandit checks
 uv run poe format-fix    # explicitly rewrite src/, tests/, and conftest.py
 uv run poe lint-fix      # explicitly apply Ruff lint fixes
-uv run mypy --strict src # verify the typed public package
+uv run pyrefly check src # verify the typed public package
 uv run bandit -r src -c pyproject.toml # security scan first-party code
 ```
 
@@ -146,7 +146,7 @@ uv build                 # sdist + wheel → dist/
 `.github/workflows/ci.yml` runs the unit suite across Python 3.11–3.14 on every
 push/PR. Every lane syncs the locked environment against its declared Python
 minor and asserts that interpreter before testing. The minimum supported lane
-also runs strict mypy, Bandit, branch coverage, and an sdist/wheel installation
+also runs strict pyrefly, Bandit, branch coverage, and an sdist/wheel installation
 smoke test. A separate Python 3.12 integration job starts Redis, MongoDB,
 ElasticSearch, RabbitMQ, Kafka, RocketMQ, Pulsar, Memcached, and LocalStack
 (SQS and DynamoDB), then exercises their live-service suites with localhost
