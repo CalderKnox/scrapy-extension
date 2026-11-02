@@ -64,7 +64,7 @@ uv run pytest tests/test_backends.py::TestRedisBackend::test_connect_success -v
 uv run poe check                  # read-only: format-check + lint + type-check + security
 uv run poe format-fix             # ruff format src tests conftest.py (the only rewriter)
 uv run poe lint-fix               # ruff check --fix --unsafe-fixes
-uv run mypy --strict src
+uv run pyrefly check src
 uv run poe test                   # 3.11–3.14 + 3.14t matrix (uv fetches interpreters)
 uv run poe test-py311             # single lane
 uv build                          # sdist + wheel -> dist/
@@ -89,9 +89,11 @@ a green CI. Inside the unit job the order is:
 1. `ruff check` (all lanes) — lint before anything else.
 2. `ruff format --check src tests conftest.py` (3.11 lane) — the repo is
    **4-space indent, ruff-format-enforced**.
-3. `mypy --strict src` (3.11 lane) — the `py.typed` promise. The only
-   relaxation is per-module `disallow_untyped_calls = false` for stub-less
-   3rd-party clients (redis, kafka, pika, pymemcache, rocketmq, pulsar).
+3. `pyrefly check src` (3.11 lane) — the `py.typed` promise. The `legacy`
+   preset (`replace-untyped-imports-with-any = ["*"]`) plus
+   `ignore-missing-imports = ["*"]` are broader than the old per-module
+   mypy relaxation for stub-less 3rd-party clients (redis, kafka, pika,
+   pymemcache, rocketmq, pulsar); first-party code stays strictly checked.
 4. `bandit -r src -c pyproject.toml` + `uv audit --locked` (one pinned
    advisory ignore, `PYSEC-2017-83`, with in-file rationale).
 5. Build + verify + smoke-test the package artifacts (3.11 lane): build →
@@ -437,7 +439,7 @@ fidelity, never N==N; zero delivery is `pytest.fail`, not skip.
 
 ## Troubleshooting and traps
 
-- **Local pytest green ≠ CI green**: CI runs ruff/format/mypy-strict/bandit
+- **Local pytest green ≠ CI green**: CI runs ruff/format/pyrefly/bandit
   *before* pytest. Run `uv run poe check` locally.
 - **Backend import fails in tests but not runtime**: tests import backend
   modules directly, so all SDKs are pinned in the `test` dep-group.
@@ -507,7 +509,7 @@ memory or commit count) is the authoritative round counter.
    commit per concern, conventional-commit format
    (`fix(queue): ...`, `feat(backends): ...`, `docs: ...`, `chore(build): ...`).
 2. Write the failing test first; keep the suite, `ruff check`, `ruff format`,
-   and `mypy --strict` green before pushing.
+   and `pyrefly check` green before pushing.
 3. `main` is the only long-lived branch — ff-merge and delete feature
    branches; never force-push main.
 4. Behavior-affecting changes update: README/runbook as needed,
