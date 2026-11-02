@@ -231,6 +231,34 @@ def test_ci_gates_statement_and_branch_coverage_independently() -> None:
     assert pyproject["tool"]["coverage"]["report"]["fail_under"] == 0
 
 
+def test_pytest_addopts_keep_socket_and_strict_contract() -> None:
+    """An accidental ``--disable-socket`` removal would let unit tests open
+    real network connections, silently turning the socket-blocked default
+    suite into one that can reach live services. Pin the whole addopts
+    contract the coverage lane relies on: socket blocking, strict config
+    parsing, and strict marker validation.
+    """
+    repository_root = Path(__file__).resolve().parents[1]
+    with (repository_root / "pyproject.toml").open("rb") as stream:
+        pyproject = tomllib.load(stream)
+
+    pytest_options = pyproject["tool"]["pytest"]["ini_options"]
+    addopts = pytest_options["addopts"]
+
+    assert "--disable-socket" in addopts
+    assert "--strict-config" in addopts
+    assert pytest_options["strict_markers"] is True
+
+    # pytest-socket flags that would re-open the boundary even though
+    # ``--disable-socket`` remains present.
+    for reopening_flag in (
+        "--allow-hosts",
+        "--allow-unix-socket",
+        "--force-enable-socket",
+    ):
+        assert not any(option.startswith(reopening_flag) for option in addopts)
+
+
 def test_ci_artifact_smoke_installs_all_extras_and_root_exports() -> None:
     """R45: every release artifact must prove its optional surface installs."""
     workflow = (
