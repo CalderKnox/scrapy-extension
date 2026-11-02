@@ -249,7 +249,7 @@ class BackendSpiderMixin(Spider):
         ``__init__``. Subclasses with no ``backend_type`` remain ordinary spiders
         until they opt into backend access explicitly.
         """
-        spider = super().from_crawler(crawler, *args, **kwargs)
+        spider: Self = super().from_crawler(crawler, *args, **kwargs)
         if spider.backend_type is not None:
             spider.setup_backend()
         return spider
