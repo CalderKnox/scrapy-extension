@@ -482,8 +482,10 @@ def _secret_annotation_kind(
     inner = args[0] if args[1] is type(None) else args[1]
     while get_origin(inner) is Annotated:
         inner = get_args(inner)[0]
-    if inner in (SecretStr, SecretBytes):
-        return cast("type[SecretStr] | type[SecretBytes]", inner), True
+    if inner is SecretStr:
+        return SecretStr, True
+    if inner is SecretBytes:
+        return SecretBytes, True
     return None
 
 
