@@ -88,7 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - name: Set up Python ${{ matrix.python-version }}
@@ -105,7 +105,7 @@ jobs:
           "import sys; expected = tuple(map(int, '${{ matrix.python-version }}'.split('.')));
           assert sys.version_info[:2] == expected, (sys.version, expected)"
       - name: Repository hygiene contracts
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           set -euo pipefail
@@ -114,16 +114,16 @@ jobs:
       - name: Ruff
         run: uv run --no-sync ruff check
       - name: Ruff format
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         run: uv run --no-sync ruff format --check src tests conftest.py
       - name: Mypy (strict)
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         run: uv run --no-sync mypy --strict src
       - name: Bandit
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         run: uv run --no-sync bandit -r src -c pyproject.toml
       - name: Dependency vulnerability audit
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         # The checker binds the one waiver to its package, lock range, owner,
         # evidence fixture, and expiry before exposing its advisory ID. The
@@ -133,7 +133,7 @@ jobs:
           waiver_id=$(uv run --no-sync python tools/check_audit_waiver.py)
           uv audit --locked --ignore "$waiver_id"
       - name: Discover and import examples without starting a crawl
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           set -euo pipefail
@@ -164,13 +164,13 @@ jobs:
           print(f"imported {len(modules)} example modules without broker I/O")
           PY
       - name: Pytest xdist/benchmark compatibility canary
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         run: >-
           uv run --no-sync pytest -n 2 --benchmark-disable
           --randomly-seed=1125147632
           tests/test_memory_filter.py::TestMemoryMembershipFilter::test_add_new_returns_true -q
       - name: Benchmark smoke (five measurements)
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           uv run --no-sync pytest \
@@ -194,7 +194,7 @@ jobs:
           assert all(result["stats"]["rounds"] > 0 for result in benchmarks)
           PY
       - name: Build package artifacts from a clean tracked archive twice
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           set -euo pipefail
@@ -213,7 +213,7 @@ jobs:
           cp .artifact-build-1/* dist/
           cat .artifact-hashes-1
       - name: Verify wheel and source artifact manifests
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           set -euo pipefail
@@ -258,7 +258,7 @@ jobs:
             exit 1
           fi
       - name: Test the extracted sdist in its own locked environment
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           set -euo pipefail
@@ -274,7 +274,7 @@ jobs:
               tests/test_packaging_contract.py tests/test_collection_gates.py -q
           )
       - name: Smoke-test package artifacts
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         shell: bash
         run: |
           shopt -s nullglob
@@ -364,10 +364,10 @@ jobs:
           PY
           done
       - name: Reactor lifecycle heartbeat regression
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         run: uv run --no-sync pytest tests/test_reactor_lifecycle.py -q --disable-socket
       - name: Unit tests with statement and branch coverage (integration deselected)
-        if: matrix.python-version == '3.10'
+        if: matrix.python-version == '3.11'
         env:
           SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP: "1"
         shell: bash
@@ -397,7 +397,7 @@ jobs:
           assert branch_rate >= branch_floor, "branch coverage floor failed"
           PY
       - name: Unit tests (integration deselected)
-        if: matrix.python-version != '3.10'
+        if: matrix.python-version != '3.11'
         env:
           SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP: "1"
         run: >-
@@ -623,14 +623,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - name: Set up Python 3.10
+      - name: Set up Python 3.11
         uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install uv
         run: python -m pip install uv==0.11.29
       - name: Sync dependencies (test group)
-        run: uv sync --python 3.10 --locked --group test
+        run: uv sync --python 3.11 --locked --group test
       - name: Serial seeded determinism gate
         env:
           SCRAPY_TEST_FAIL_ON_UNEXPECTED_SKIP: "1"

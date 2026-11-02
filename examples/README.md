@@ -8,7 +8,7 @@ topology is required.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/) or pip
 - Redis for the default scheduler, distributed deduplication, and item storage
 - The backend named by the spider you run
