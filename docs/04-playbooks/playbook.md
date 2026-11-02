@@ -49,7 +49,7 @@ point-in-time and may drift.
 
 Everything is **pure-Python, lazy-imported, and strictly typed**: `pip install
 scrapy-extension` works with zero backend deps; each backend's client is an
-optional extra loaded on first use (PEP 562). Python 3.10+, built with uv.
+optional extra loaded on first use (PEP 562). Python 3.11+, built with uv.
 
 ## Environment and everyday commands
 
@@ -65,8 +65,8 @@ uv run poe check                  # read-only: format-check + lint + type-check 
 uv run poe format-fix             # ruff format src tests conftest.py (the only rewriter)
 uv run poe lint-fix               # ruff check --fix --unsafe-fixes
 uv run mypy --strict src
-uv run poe test                   # 3.10–3.14 + 3.14t matrix (uv fetches interpreters)
-uv run poe test-py310             # single lane
+uv run poe test                   # 3.11–3.14 + 3.14t matrix (uv fetches interpreters)
+uv run poe test-py311             # single lane
 uv build                          # sdist + wheel -> dist/
 uv run poe clean                  # caches/coverage/reports
 ```
@@ -87,20 +87,20 @@ runs first and the other jobs wait for it. A locally green pytest is **not**
 a green CI. Inside the unit job the order is:
 
 1. `ruff check` (all lanes) — lint before anything else.
-2. `ruff format --check src tests conftest.py` (3.10 lane) — the repo is
+2. `ruff format --check src tests conftest.py` (3.11 lane) — the repo is
    **4-space indent, ruff-format-enforced**.
-3. `mypy --strict src` (3.10 lane) — the `py.typed` promise. The only
+3. `mypy --strict src` (3.11 lane) — the `py.typed` promise. The only
    relaxation is per-module `disallow_untyped_calls = false` for stub-less
    3rd-party clients (redis, kafka, pika, pymemcache, rocketmq, pulsar).
 4. `bandit -r src -c pyproject.toml` + `uv audit --locked` (one pinned
    advisory ignore, `PYSEC-2017-83`, with in-file rationale).
-5. Build + verify + smoke-test the package artifacts (3.10 lane): build →
+5. Build + verify + smoke-test the package artifacts (3.11 lane): build →
    grep wheel/sdist listings against a forbidden regex (secrets /
    credentials / key material / `docs/08-archive/` must not ship — overlapping
    with, not identical to, the broader `source-exclude` list in
    `pyproject.toml`; keep both consistent) → fresh wheel install of `[all]`,
    asserting every `Backend/Mode/Settings` trio imports.
-6. `pytest -m "not integration" --cov` (3.10 lane) runs in branch mode with
+6. `pytest -m "not integration" --cov` (3.11 lane) runs in branch mode with
    the fixed `--randomly-seed=1125147632` coverage order. Coverage.py
    intentionally has `fail_under = 0`; CI reads `coverage.json` and separately
    enforces **95% statement coverage** and **91% branch coverage**. Reproduce the
@@ -123,7 +123,7 @@ a green CI. Inside the unit job the order is:
 
    ```
 
-7. Unit matrix 3.10–3.14 (`fail-fast: false`); one 3.12 integration job with
+7. Unit matrix 3.11–3.14 (`fail-fast: false`); one 3.12 integration job with
    10 live containerized backends.
 
 Also: `--disable-socket` is in global pytest addopts (unit tests must not open

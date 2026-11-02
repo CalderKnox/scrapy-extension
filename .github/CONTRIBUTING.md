@@ -13,7 +13,7 @@ dependency management.
 uv sync --locked --group test  # exact locked runtime + test deps (creates .venv)
 ```
 
-Python 3.10+ (`requires-python = ">=3.10"`). The CI matrix tests 3.10–3.14.
+Python 3.11+ (`requires-python = ">=3.11"`). The CI matrix tests 3.11–3.14.
 
 ## Running the tests
 
@@ -102,8 +102,8 @@ docker compose --profile optional -f tests/integration/docker-compose.yml down -
 `poe` tasks run the suite across Python versions (uv fetches the interpreters):
 
 ```bash
-uv run poe test          # 3.10, 3.11, 3.12, 3.13, 3.14, 3.14t
-uv run poe test-py310    # one version
+uv run poe test          # 3.11, 3.12, 3.13, 3.14, 3.14t
+uv run poe test-py311    # one version
 ```
 
 > Note: `poe test-py314t` (free-threaded) runs on 3.14t, but `lxml` (a scrapy
@@ -131,7 +131,7 @@ uv run pytest --cov=scrapy_extension --cov-report=term-missing
 ```
 
 CI independently enforces **≥95% statement coverage** and **≥91% branch
-coverage** on the Python 3.10 lane. The local command reports both metrics;
+coverage** on the Python 3.11 lane. The local command reports both metrics;
 `tool.coverage.report.fail_under` stays disabled because its combined percentage
 would not enforce those two contracts separately.
 
@@ -143,7 +143,7 @@ uv build                 # sdist + wheel → dist/
 
 ## CI
 
-`.github/workflows/ci.yml` runs the unit suite across Python 3.10–3.14 on every
+`.github/workflows/ci.yml` runs the unit suite across Python 3.11–3.14 on every
 push/PR. Every lane syncs the locked environment against its declared Python
 minor and asserts that interpreter before testing. The minimum supported lane
 also runs strict mypy, Bandit, branch coverage, and an sdist/wheel installation

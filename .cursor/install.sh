@@ -7,7 +7,7 @@ set -euo pipefail
 
 export PATH="$HOME/.local/bin:$PATH"
 
-# uv drives dependency management and downloads the pinned CPython 3.10
+# uv drives dependency management and downloads the pinned CPython 3.11
 # interpreter (see .python-version). Installed into ~/.local/bin, which is on
 # the agent's PATH. Pinned for reproducibility.
 if ! command -v uv >/dev/null 2>&1; then

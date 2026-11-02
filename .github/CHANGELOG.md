@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **The locked dependency graph is advisory-free, and Python 3.10 support is
+  retired.** `uv audit --locked` reported findings across aiohttp, brotli,
+  brotlicffi, certifi, dnspython, filelock, multidict, opentelemetry-api,
+  pyasn1, pymongo, setuptools, twisted, and urllib3. Every package now
+  resolves to a release with the advisory fixed, and
+  `[tool.uv].constraint-dependencies` records the first fixed version so a
+  future re-resolve cannot silently regress. dnspython 2.9.x and filelock
+  4.2.x require Python >=3.11, so the vulnerable 3.10-only resolutions were
+  removed rather than waived. The single documented `PYSEC-2017-83`
+  Scrapy-record waiver remains in force.
+
 ### Changed
 
 - **The JSON wire codec lives in its own module.** The escaped recursive
@@ -186,6 +199,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
+- **Python 3.10 is no longer supported.** `requires-python` is now `>=3.11`.
+  Python 3.10 reached upstream end-of-life on 2026-10-01, and the fixed
+  dnspython 2.9.x / filelock 4.2.x releases required by the dependency audit
+  do not support it. The CI and local `poe` matrices now cover 3.11–3.14
+  (plus 3.14t).
 - **Remote anonymous plaintext is fail-closed across Redis, MongoDB,
   Elasticsearch, Kafka, Pulsar, and RocketMQ.** Non-loopback plaintext now
   requires the backend's exact `ALLOW_REMOTE_PLAINTEXT=True` trusted-network
