@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The `dev` dependency group is minimal, and deptry gates dependency
+  hygiene.** `dev` no longer includes the test or audit groups: it contains
+  only lint/type-check tooling, `packaging`, and the task runner, so a default
+  sync stays free of backend SDKs, pytest, and deptry (deptry has no
+  free-threaded wheel). A new `audit` group carries deptry; `poe full`
+  includes `poe audit`, and the 3.11 unit lane runs `deptry .` so fork PRs are
+  covered too. The test group remains self-contained (PyYAML is
+  now declared explicitly). A new `[tool.deptry]` configuration (module-name
+  maps, first-party roots, and narrow per-rule ignores) catches missing,
+  unused, and misplaced dependencies. The dead `tomli` fallback in the audit
+  waiver checker and contract tests is removed now that
+  `requires-python = ">=3.11"`.
+
 - **The type checker is Pyrefly.** `mypy --strict src` is replaced by
   `pyrefly check src` in `poe check` and CI; `mypy` is removed from the
   `test` dependency group and the `[tool.mypy]` configuration is

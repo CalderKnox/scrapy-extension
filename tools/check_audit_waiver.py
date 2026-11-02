@@ -8,13 +8,9 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import tomllib
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
-    import tomli as tomllib
 
 
 class WaiverPolicyError(ValueError):

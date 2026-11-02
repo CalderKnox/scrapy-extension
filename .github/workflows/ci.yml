@@ -98,7 +98,7 @@ jobs:
       - name: Install uv
         run: python -m pip install uv==0.11.29
       - name: Sync dependencies (test group)
-        run: uv sync --python ${{ matrix.python-version }} --locked --group test
+        run: uv sync --python ${{ matrix.python-version }} --locked --group test --group audit
       - name: Verify project Python ${{ matrix.python-version }}
         run: >-
           uv run --no-sync python -c
@@ -122,6 +122,9 @@ jobs:
       - name: Bandit
         if: matrix.python-version == '3.11'
         run: uv run --no-sync bandit -r src -c pyproject.toml
+      - name: Dependency hygiene (deptry)
+        if: matrix.python-version == '3.11'
+        run: uv run --no-sync deptry .
       - name: Dependency vulnerability audit
         if: matrix.python-version == '3.11'
         shell: bash
@@ -656,7 +659,7 @@ jobs:
           python-version: "3.12"
       - name: Install uv and pinned audit tooling
         run: python -m pip install uv==0.11.29
-      - name: Sync locked audit environment
+      - name: Sync locked security-scan environment
         run: uv sync --locked --no-default-groups --group dev
       - name: Lock dependency graph and run audit
         run: |

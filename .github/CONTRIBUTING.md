@@ -115,10 +115,12 @@ uv run poe test-py311    # one version
 
 ```bash
 uv run poe check         # read-only Ruff format/lint, strict Pyrefly, and Bandit checks
+uv run poe full          # the same checks plus deptry dependency hygiene
 uv run poe format-fix    # explicitly rewrite src/, tests/, and conftest.py
 uv run poe lint-fix      # explicitly apply Ruff lint fixes
 uv run pyrefly check src # verify the typed public package
 uv run bandit -r src -c pyproject.toml # security scan first-party code
+uv run poe audit         # deptry: missing/unused/transitive dependency hygiene
 ```
 
 `poe full`, `poe format`, and `poe lint` are compatibility aliases for
