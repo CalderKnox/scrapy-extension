@@ -94,7 +94,7 @@ all = [
 dev = [
     "packaging>=26.0,<27",
     "poethepoet",
-    "ruff>=0.16,<0.17",
+    "ruff>=0.16,<0.18",
 ]
 test = [
     "packaging>=26.0,<27",
