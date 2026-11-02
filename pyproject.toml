@@ -305,8 +305,7 @@ python_functions = ["test_*", "it_*", "its_*", "check_*"]
 pythonpath = ["src", "."]
 testpaths = ["tests", "src"]
 addopts = [
-    "-v",
-    "--tb=short",
+    "--strict-config",
     "--disable-socket",
 ]
 strict_markers = true
