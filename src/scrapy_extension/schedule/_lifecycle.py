@@ -78,9 +78,7 @@ def _chain_lifecycle_result(
         try:
             result = continuation(value)
         except BaseException as exc:
-            settle_failure(
-                failure if failure is not None else TwistedFailure(exc)  # type: ignore[no-untyped-call]
-            )
+            settle_failure(failure if failure is not None else TwistedFailure(exc))
             return None
         operation = _lifecycle_operation(result)
         if operation is None:

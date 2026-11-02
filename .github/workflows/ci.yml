@@ -116,9 +116,9 @@ jobs:
       - name: Ruff format
         if: matrix.python-version == '3.11'
         run: uv run --no-sync ruff format --check src tests conftest.py
-      - name: Mypy (strict)
+      - name: Pyrefly
         if: matrix.python-version == '3.11'
-        run: uv run --no-sync mypy --strict src
+        run: uv run --no-sync pyrefly check src
       - name: Bandit
         if: matrix.python-version == '3.11'
         run: uv run --no-sync bandit -r src -c pyproject.toml
@@ -222,7 +222,7 @@ jobs:
           sdists=(dist/*.tar.gz)
           test "${#wheels[@]}" -eq 1
           test "${#sdists[@]}" -eq 1
-          forbidden='(^|/)(\.claude(-flow)?/|\.coverage($|\.)|\.benchmarks/|\.cache/|\.env[^/]*|\.hypothesis/|\.mypy_cache/|\.packaging-canary|\.pytest_cache/|\.ruff_cache/|\.secrets/|__pycache__/|credentials/|generated-canary|htmlcov/|reports/|secrets/)|\.(db|log|sqlite|sqlite3)(-|$)|\.(pem|key|crt|cer|p12|pfx|jks|keystore)$|(^|/)local[_-]settings\.|(^|/)docs/08-archive/'
+          forbidden='(^|/)(\.claude(-flow)?/|\.coverage($|\.)|\.benchmarks/|\.cache/|\.env[^/]*|\.hypothesis/|\.packaging-canary|\.pytest_cache/|\.ruff_cache/|\.secrets/|__pycache__/|credentials/|generated-canary|htmlcov/|reports/|secrets/)|\.(db|log|sqlite|sqlite3)(-|$)|\.(pem|key|crt|cer|p12|pfx|jks|keystore)$|(^|/)local[_-]settings\.|(^|/)docs/08-archive/'
           for artifact in "${wheels[0]}" "${sdists[0]}"; do
             if [[ "$artifact" == *.whl ]]; then
               contents=$(unzip -Z1 "$artifact")

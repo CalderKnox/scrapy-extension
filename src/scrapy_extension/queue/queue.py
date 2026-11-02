@@ -1352,7 +1352,7 @@ class BackendQueue:
         )
         if not must_probe:
             # Cached non-zero depth still inside the window — return it as-is.
-            return cached  # type: ignore[return-value]
+            return cached
 
         # Window elapsed (or empty/uninitialized) — hit the backend once, reset
         # the counter, cache result.

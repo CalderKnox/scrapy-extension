@@ -1468,9 +1468,7 @@ class BackendSpiderMixin(Spider):
                     if not result.called:
                         result.callback(None)
                 elif not result.called:
-                    result.errback(
-                        TwistedFailure(primary_error)  # type: ignore[no-untyped-call]
-                    )
+                    result.errback(TwistedFailure(primary_error))
                 return
             phase = phases[index]
             index += 1
@@ -1508,7 +1506,7 @@ class BackendSpiderMixin(Spider):
                             remember(exc)
                             finish_phase(
                                 phase,
-                                TwistedFailure(exc),  # type: ignore[no-untyped-call]
+                                TwistedFailure(exc),
                             )
                     try:
                         operation.addErrback(lambda _failure: None)
@@ -2145,9 +2143,7 @@ class BackendSpiderMixin(Spider):
                 inner = self.close_backend()
             except BaseException as exc:
                 if not composite.called:
-                    composite.errback(
-                        TwistedFailure(exc)  # type: ignore[no-untyped-call]
-                    )
+                    composite.errback(TwistedFailure(exc))
                 return None
             finally:
                 with self._lifecycle_lock:
@@ -2882,9 +2878,7 @@ class BackendSpiderMixin(Spider):
                         def finish_siblings(_ignored: Any = None) -> Any:
                             final_error = primary_error
                             if final_error is not None:
-                                final_failure = TwistedFailure(  # type: ignore[no-untyped-call]
-                                    final_error
-                                )
+                                final_failure = TwistedFailure(final_error)
                                 settle_composite(final_failure)
                                 return final_failure
                             settle_composite(None)
@@ -2986,7 +2980,7 @@ class BackendSpiderMixin(Spider):
                             try:
                                 settled = scheduler_settled(failure)
                             except BaseException as exc:
-                                settled = TwistedFailure(exc)  # type: ignore[no-untyped-call]
+                                settled = TwistedFailure(exc)
                             if isinstance(settled, Deferred):
                                 return settled.addBoth(mirror_authority)
                             mirror_authority(settled)
