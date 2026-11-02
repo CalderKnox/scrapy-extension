@@ -6,7 +6,7 @@ Distributed crawling for Scrapy with pluggable backends (**Redis**, **MongoDB**,
 [![CodeQL](https://github.com/azwpayne/scrapy-extension/actions/workflows/codeql.yml/badge.svg)](https://github.com/azwpayne/scrapy-extension/security/code-scanning)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/azwpayne/scrapy-extension/blob/main/LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://github.com/azwpayne/scrapy-extension/releases)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://github.com/azwpayne/scrapy-extension/releases)
 
 ## Contents
 

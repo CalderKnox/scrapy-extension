@@ -1,7 +1,7 @@
 # First distributed crawl
 
 This tutorial configures a new Scrapy project to use Redis for scheduling,
-duplicate filtering, and item storage. It assumes Python 3.10+, a Redis server
+duplicate filtering, and item storage. It assumes Python 3.11+, a Redis server
 on `localhost:6379`, and a project created with `scrapy startproject demo .`.
 
 ## Install and start Redis
