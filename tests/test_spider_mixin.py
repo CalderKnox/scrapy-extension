@@ -2013,7 +2013,7 @@ class TestConcurrentComponentGetters:
 
     @pytest.mark.parametrize(
         ("getter_name", "constructor_path"),
-        (
+        [
             ("get_queue", "scrapy_extension.queue.queue.BackendQueue"),
             (
                 "get_dupefilter",
@@ -2023,7 +2023,7 @@ class TestConcurrentComponentGetters:
                 "get_scheduler",
                 "scrapy_extension.schedule.scheduler.BackendScheduler.from_settings",
             ),
-        ),
+        ],
     )
     def test_concurrent_getter_constructs_component_once(
         self,

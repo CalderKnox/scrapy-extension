@@ -200,7 +200,8 @@ def test_scheduler_waits_for_delayed_dupefilter_lifecycle_hooks(mocker) -> None:
     closing = scheduler.close("delayed-close")
     assert closing is dupefilter.close_deferred
     owner = scheduler._close_attempt_owner
-    assert owner is not None and owner.active
+    assert owner is not None
+    assert owner.active
     assert dupefilter.close_reasons == ["delayed-close"]
     assert manager.close.call_count == 0
     assert scheduler._lifecycle_state == "closing"

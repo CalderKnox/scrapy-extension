@@ -264,19 +264,23 @@ def test_snapshot_buffer_copy_revalidates_untrusted_view_results(
     copied, error = SnapshotRepository._copy_buffer(b"abcd", 4)
 
     if copy_mode == "nested":
-        assert copied == b"abcd" and error is None
+        assert copied == b"abcd"
+        assert error is None
     else:
         if copy_mode == "long":
-            assert copied is None and error == snapshot_module._BUFFER_OVERSIZED
+            assert copied is None
+            assert error == snapshot_module._BUFFER_OVERSIZED
         else:
-            assert copied is None and error == snapshot_module._BUFFER_CONVERSION_FAILED
+            assert copied is None
+            assert error == snapshot_module._BUFFER_CONVERSION_FAILED
 
 
 def test_snapshot_manifest_oversize_is_treated_as_legacy_data() -> None:
     manifest, error = SnapshotRepository._decode_manifest(
         b"x" * (snapshot_module._MAX_MANIFEST_BYTES + 1)
     )
-    assert manifest is None and error is None
+    assert manifest is None
+    assert error is None
 
 
 @pytest.mark.parametrize(

@@ -25,9 +25,8 @@ pytestmark = pytest.mark.unit
 
 def _split_dotted_path(path: str) -> tuple[str, str]:
     module_path, separator, attribute_name = path.rpartition(".")
-    assert separator and module_path and attribute_name, (
-        f"Expected a dotted import path, got {path!r}"
-    )
+    if not (separator and module_path and attribute_name):
+        raise AssertionError(f"Expected a dotted import path, got {path!r}")
     return module_path, attribute_name
 
 

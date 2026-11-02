@@ -275,13 +275,8 @@ src = ["src", "tests"]
 exclude = ["examples"]
 
 [tool.ruff.lint]
-select = [
-    "B",
-    "F",
-    "I",
-    "RUF",
-    "UP",
-]
+select = ["B", "F", "I", "RUF", "UP"]
+extend-select = ["C4", "S", "PT"]
 ignore = [
     "B009",
     "B904",
@@ -291,10 +286,15 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"src/**/*.py" = [
+    "S101",  # invariant asserts; Bandit B101 is globally skipped
+    "S110",  # playbook:477-483 logging-handler isolation is intentional
+]
 "tests/**/*.py" = [
-    "F811",
-    "F841",
-    "RUF012",
+    "F811", "F841", "RUF012",
+    "S101", "S102", "S104", "S105", "S106", "S108", "S110", "S311",
+    "S603", "S607",
+    "PT011", "PT012", "PT017",
 ]
 
 [tool.pytest.ini_options]

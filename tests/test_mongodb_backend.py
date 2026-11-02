@@ -2204,7 +2204,8 @@ def test_mongodb_ttl_handles_naive_datetime(mocker):
 
     result = backend.ttl("k")
     # Must not raise TypeError (naive - aware); returns a positive remaining.
-    assert result is not None and result > 0
+    assert result is not None
+    assert result > 0
 
 
 def test_mongodb_backend_disconnect_clears_all_collections(mocker):
@@ -2544,7 +2545,7 @@ class TestMongoDBNotConnectedGuards:
     def test_push_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._queue_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(QueueError) as exc:
             backend.push("q", b"x")
         assert exc.value.operation == "push"
@@ -2553,7 +2554,7 @@ class TestMongoDBNotConnectedGuards:
     def test_pop_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._queue_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(QueueError) as exc:
             backend.pop("q")
         assert exc.value.operation == "pop"
@@ -2562,7 +2563,7 @@ class TestMongoDBNotConnectedGuards:
     def test_add_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._set_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.add("s", b"x")
         assert exc.value.backend_type == "mongodb"
@@ -2570,7 +2571,7 @@ class TestMongoDBNotConnectedGuards:
     def test_contains_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._set_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.contains("s", b"x")
         assert exc.value.backend_type == "mongodb"
@@ -2578,7 +2579,7 @@ class TestMongoDBNotConnectedGuards:
     def test_store_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.store("k", b"v")
         assert exc.value.backend_type == "mongodb"
@@ -2586,7 +2587,7 @@ class TestMongoDBNotConnectedGuards:
     def test_retrieve_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.retrieve("k")
         assert exc.value.backend_type == "mongodb"
@@ -2599,7 +2600,7 @@ class TestMongoDBNotConnectedGuards:
     def test_queue_len_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._queue_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(QueueError) as exc:
             backend.queue_len("q")
         assert exc.value.operation == "queue_len"
@@ -2608,7 +2609,7 @@ class TestMongoDBNotConnectedGuards:
     def test_clear_queue_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._queue_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(QueueError) as exc:
             backend.clear_queue("q")
         assert exc.value.operation == "clear_queue"
@@ -2617,7 +2618,7 @@ class TestMongoDBNotConnectedGuards:
     def test_set_remove_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._set_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.remove("s", b"x")
         assert exc.value.backend_type == "mongodb"
@@ -2625,7 +2626,7 @@ class TestMongoDBNotConnectedGuards:
     def test_set_len_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._set_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.set_len("s")
         assert exc.value.backend_type == "mongodb"
@@ -2633,7 +2634,7 @@ class TestMongoDBNotConnectedGuards:
     def test_clear_set_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._set_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.clear_set("s")
         assert exc.value.backend_type == "mongodb"
@@ -2655,7 +2656,7 @@ class TestMongoDBNotConnectedGuards:
     def test_delete_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.delete("k")
         assert exc.value.backend_type == "mongodb"
@@ -2663,7 +2664,7 @@ class TestMongoDBNotConnectedGuards:
     def test_exists_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.exists("k")
         assert exc.value.backend_type == "mongodb"
@@ -2671,7 +2672,7 @@ class TestMongoDBNotConnectedGuards:
     def test_ttl_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.ttl("k")
         assert exc.value.backend_type == "mongodb"
@@ -2679,7 +2680,7 @@ class TestMongoDBNotConnectedGuards:
     def test_clear_storage_per_collection_guard_fires(self, mocker):
         backend = self._connected(mocker)
         backend._storage_collection = None
-        mocker.patch.object(backend, "_assert_connected", lambda: None)
+        mocker.patch.object(backend, "_assert_connected", return_value=None)
         with pytest.raises(BackendConnectionError) as exc:
             backend.clear_storage()
         assert exc.value.backend_type == "mongodb"
@@ -2723,7 +2724,7 @@ def test_mongodb_valid_names_pass_validation(mocker):
     hyphens, colons) are NOT rejected — the default queue/storage naming
     (``scheduler:queue``, ``k1``, ``prefix:spider``) keeps working."""
     backend = MongoDBBackend(MongoDBSettings())
-    mocker.patch.object(backend, "_assert_connected", lambda: None)
+    mocker.patch.object(backend, "_assert_connected", return_value=None)
     backend._queue_collection = mocker.MagicMock()
     backend._set_collection = mocker.MagicMock()
     backend._storage_collection = mocker.MagicMock()

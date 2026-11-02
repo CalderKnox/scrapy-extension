@@ -163,7 +163,8 @@ def test_reactor_notification_and_timer_boundaries_are_nonfatal(monkeypatch):
         lambda: None, timeout=1, operation="timer-rejection"
     )
     errors = _errors(bounded)
-    assert errors and str(errors[0]) == "reactor is shutting down"
+    assert errors
+    assert str(errors[0]) == "reactor is shutting down"
     assert not operation.called
     worker.callback(None)
     assert operation.called
@@ -184,7 +185,8 @@ def test_reactor_bounded_view_attachment_and_timer_cancellation_failures(monkeyp
         source, timeout=1, operation="observer-rejection"
     )
     errors = _errors(bounded)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     source.callback(None)
 
     worker: Deferred[object] = Deferred()
@@ -228,7 +230,8 @@ def test_pipeline_submission_and_batched_attachment_roll_back(mocker):
     mocker.patch.object(pipeline_module, "deferToThread", reject)
     returned = pipeline_module._submit_thread(lambda: None)
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
 
     from scrapy_extension.storage.strategies import BatchedStorageStrategy
 
@@ -256,7 +259,8 @@ def test_pipeline_async_open_and_close_provider_failures_keep_retry_fences(
     monkeypatch.setattr(pipeline_module, "deferToThread", lambda *_a, **_k: worker)
     returned = pipeline.open_spider(spider)
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     assert pipeline._opening is True
     assert not pipeline._closed
 
@@ -269,7 +273,8 @@ def test_pipeline_async_open_and_close_provider_failures_keep_retry_fences(
     monkeypatch.setattr(reactor_module, "deferToThread", reject_submission)
     returned = pipeline.close_spider(spider)
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "close adapter rejected"
+    assert errors
+    assert str(errors[0]) == "close adapter rejected"
     assert not pipeline._closing
 
     pipeline = BackendPipeline(MagicMock())
@@ -277,7 +282,8 @@ def test_pipeline_async_open_and_close_provider_failures_keep_retry_fences(
     pipeline._async_tail = _AlwaysRejectingDeferred()
     returned = pipeline.close_spider(spider)
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     assert not pipeline._closing
 
 
@@ -415,7 +421,8 @@ def test_scheduler_async_open_failure_rolls_back_manager_and_preserves_error(
     release_fn()
     release_worker.callback(None)
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "queue build"
+    assert errors
+    assert str(errors[0]) == "queue build"
     assert scheduler._lifecycle_state == scheduler_module._LIFECYCLE_CLOSED
     manager.close.assert_called_once_with()
 
@@ -432,7 +439,8 @@ def test_scheduler_open_submission_and_callback_attachment_failures_reset_state(
     )
     returned = scheduler.open(spider)
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     assert scheduler._lifecycle_state == scheduler_module._LIFECYCLE_NEW
     assert scheduler._spider is None
     manager.close.assert_not_called()
@@ -447,7 +455,8 @@ def test_scheduler_open_submission_and_callback_attachment_failures_reset_state(
     result = scheduler._finish_open(spider)
     assert isinstance(result, Deferred)
     errors = _errors(result)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
 
 
 def test_scheduler_real_dupefilter_adapter_failure_stays_below_open_authority(
@@ -547,7 +556,8 @@ def test_scheduler_real_dupefilter_close_failure_retains_authority(monkeypatch, 
     with pytest.raises(RuntimeError, match="filter close"):
         function()
     worker.errback(RuntimeError("filter close"))
-    assert errors and str(errors[0]) == "filter close"
+    assert errors
+    assert str(errors[0]) == "filter close"
     assert scheduler.dupefilter is dupefilter
     assert scheduler._lifecycle_state == scheduler_module._LIFECYCLE_CLOSING
     manager.close.assert_not_called()
@@ -556,7 +566,8 @@ def test_scheduler_real_dupefilter_close_failure_retains_authority(monkeypatch, 
     retry = scheduler.close("filter-retry")
     retry_errors = _errors(retry)
     worker, function = adapter_jobs.pop() if adapter_jobs else (None, None)
-    assert worker is not None and function is not None
+    assert worker is not None
+    assert function is not None
     function()
     worker.callback(None)
     release_worker, release_function = release_jobs.pop()
@@ -608,7 +619,8 @@ def test_scheduler_close_queue_dupefilter_and_baseexception_outcomes(
     monkeypatch.setattr(scheduler_module, "reactor_is_running", lambda: True)
     returned = scheduler.close("filter-failure")
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "adapter rejected"
+    assert errors
+    assert str(errors[0]) == "adapter rejected"
     assert scheduler.dupefilter is dupefilter
     assert not manager.close.called
     del close_worker
@@ -627,7 +639,8 @@ def test_scheduler_close_callback_attachment_failure_releases_attempt_owner(
     returned = scheduler.close("attachment")
     assert isinstance(returned, Deferred)
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], RuntimeError)
+    assert errors
+    assert isinstance(errors[0], RuntimeError)
     assert scheduler._close_attempt_owner is None
 
 
@@ -696,7 +709,9 @@ def test_mixin_component_and_owner_deferred_cleanup_retain_leases(mocker, monkey
     monkeypatch.setattr(spider_module, "reactor_is_running", lambda: True)
     monkeypatch.setattr(spider_module, "deferToThread", lambda *_a, **_k: operation)
     started, immediate, succeeded = spider._start_owner_operation(owner, "close")
-    assert started is operation and immediate is None and not succeeded
+    assert started is operation
+    assert immediate is None
+    assert not succeeded
     worker_result = started
     worker_result.callback((True, None))
     del Owner
@@ -715,9 +730,9 @@ def test_mixin_orphan_and_candidate_baseexception_cleanup_is_retryable(mocker):
     spider._orphan_managers = [manager]
     error = spider._cleanup_orphan_candidates("retry")
     assert isinstance(error, KeyboardInterrupt)
-    assert (
-        spider._orphan_candidates and spider._orphan_leases and spider._orphan_managers
-    )
+    assert spider._orphan_candidates
+    assert spider._orphan_leases
+    assert spider._orphan_managers
 
 
 def test_mixin_async_close_waits_for_all_sibling_authorities(mocker, monkeypatch):
@@ -759,7 +774,8 @@ def test_mixin_async_close_waits_for_all_sibling_authorities(mocker, monkeypatch
     queue_release.callback(None)
     assert returned.called
     manager.close.assert_called_once_with()
-    assert spider._scheduler is None and spider._queue is None
+    assert spider._scheduler is None
+    assert spider._queue is None
     assert spider._dupefilter is None
 
 
@@ -853,7 +869,8 @@ def test_reactor_already_settled_and_bounded_timer_failure_paths(monkeypatch):
         source, timeout=1, operation="bounded-timer"
     )
     errors = _errors(bounded)
-    assert errors and str(errors[0]) == "timer unavailable"
+    assert errors
+    assert str(errors[0]) == "timer unavailable"
 
     source = Deferred()
     timer = MagicMock()
@@ -881,7 +898,8 @@ def test_scheduler_submission_and_factory_rollback_observers_are_retryable(
     mocker.patch.object(scheduler_module, "deferToThread", reject)
     failed = scheduler_module._submit_thread(lambda: None)
     errors = _errors(failed)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
 
     scheduler, manager, _spider = _scheduler(mocker)
     cleanup = Deferred()
@@ -924,7 +942,8 @@ def test_pipeline_item_observer_rejection_keeps_worker_ahead_of_close(
 
     item_result = pipeline.process_item({"value": 1}, spider)
     item_errors = _errors(item_result)
-    assert item_errors and isinstance(item_errors[0], RuntimeError)
+    assert item_errors
+    assert isinstance(item_errors[0], RuntimeError)
     assert len(workers) == 1
     assert not workers[0][0].called
 
@@ -1000,7 +1019,8 @@ def test_scheduler_open_generic_cleanup_and_close_authority_failure(
     returned = scheduler.open(spider)
     dupefilter.open_result.callback(None)
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "open finish"
+    assert errors
+    assert str(errors[0]) == "open finish"
     assert scheduler._queue is None
 
     scheduler, manager, spider = _scheduler(mocker)
@@ -1072,7 +1092,8 @@ def test_mixin_async_close_queue_failure_preserves_component_and_manager_lease(
     scheduler_close.callback(None)
     queue_close.errback(RuntimeError("queue sibling"))
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "queue sibling"
+    assert errors
+    assert str(errors[0]) == "queue sibling"
     assert spider._queue is queue
     assert spider._connection_manager is not None
     spider._queue = None
@@ -1101,7 +1122,8 @@ def test_mixin_async_close_dupefilter_snapshot_and_queue_lease_failures_retry(
     scheduler_close.callback(None)
     dupe_close.errback(RuntimeError("dupefilter close"))
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "dupefilter close"
+    assert errors
+    assert str(errors[0]) == "dupefilter close"
     assert spider._dupefilter is dupefilter
 
     # A separate retry exercises the exact snapshot-acquire failure fence.
@@ -1115,7 +1137,8 @@ def test_mixin_async_close_dupefilter_snapshot_and_queue_lease_failures_retry(
     returned = spider.close_backend()
     snapshot_release.errback(RuntimeError("snapshot release"))
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "snapshot release"
+    assert errors
+    assert str(errors[0]) == "snapshot release"
     assert spider._snapshot_connection_lease is snapshot
 
 
@@ -1131,7 +1154,8 @@ def test_mixin_parent_release_failure_is_authoritative_and_retryable(
     returned = spider.close_backend()
     parent_release.errback(RuntimeError("parent release"))
     errors = _errors(returned)
-    assert errors and str(errors[0]) == "parent release"
+    assert errors
+    assert str(errors[0]) == "parent release"
     assert spider._connection_manager is manager
     manager.close.return_value = None
     spider.close_backend()
@@ -1148,7 +1172,8 @@ def test_mixin_scheduler_control_failure_keeps_scheduler_for_retry(mocker):
     returned = spider.close_backend()
     first.errback(KeyboardInterrupt("scheduler interrupt"))
     errors = _errors(returned)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     assert spider._scheduler is scheduler
     retry = spider.close_backend()
     second.callback(None)
@@ -1180,7 +1205,8 @@ def test_scheduler_settlement_observer_rejection_keeps_worker_authority(
     result = scheduler._on_response_received(None, request, None)
     assert isinstance(result, Deferred)
     errors = _errors(result)
-    assert errors and isinstance(errors[0], KeyboardInterrupt)
+    assert errors
+    assert isinstance(errors[0], KeyboardInterrupt)
     assert request.meta[scheduler_module.BACKEND_ACK_TOKEN_META_KEY] is token
     assert not queue.ack.called
 

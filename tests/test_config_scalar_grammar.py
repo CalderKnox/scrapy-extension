@@ -85,7 +85,7 @@ def _required_kwargs(settings_type: type[Any]) -> dict[str, object]:
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,_env_name",
+    ("settings_type", "field_name", "_env_name"),
     _BUNDLED_BOOL_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -108,7 +108,7 @@ def test_bundled_boolean_direct_matrix_accepts_only_exact_values(
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,_env_name",
+    ("settings_type", "field_name", "_env_name"),
     _BUNDLED_BOOL_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -127,7 +127,7 @@ def test_bundled_boolean_direct_matrix_rejects_ambiguous_values(
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,env_name",
+    ("settings_type", "field_name", "env_name"),
     _BUNDLED_BOOL_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -152,7 +152,7 @@ def test_bundled_boolean_environment_matrix_remains_usable(
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,_env_name,_expected",
+    ("settings_type", "field_name", "_env_name", "_expected"),
     _BUNDLED_INTEGER_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -181,7 +181,7 @@ def test_bundled_integer_direct_matrix_rejects_coercion(
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,env_name,expected",
+    ("settings_type", "field_name", "env_name", "expected"),
     _BUNDLED_INTEGER_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -204,7 +204,7 @@ def test_bundled_integer_direct_and_environment_matrix_accepts_exact_and_decimal
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name",
+    ("settings_type", "field_name"),
     [
         (Settings, "retry_delay"),
         (RedisSettings, "socket_timeout"),
@@ -255,7 +255,7 @@ def test_memcached_timeout_environment_text_is_canonical(
 
 
 @pytest.mark.parametrize(
-    "raw_value,expected", [("1", 1.0), ("1.25", 1.25), ("0.5", 0.5)]
+    ("raw_value", "expected"), [("1", 1.0), ("1.25", 1.25), ("0.5", 0.5)]
 )
 def test_memcached_timeout_environment_accepts_canonical_decimal(
     monkeypatch: pytest.MonkeyPatch, raw_value: str, expected: float

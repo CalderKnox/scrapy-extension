@@ -113,13 +113,13 @@ def _failing_queue_operation(mocker: Any, method_name: str) -> Callable[[], obje
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("push", "push", "MongoDB queue push failed."),
         ("pop", "pop", "MongoDB queue pop failed."),
         ("pop_with_ack", "pop", "MongoDB queue pop failed."),
         ("queue_len", "queue_len", "MongoDB queue length read failed."),
         ("clear_queue", "clear_queue", "MongoDB queue clear failed."),
-    ),
+    ],
 )
 def test_direct_mongodb_queue_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -162,13 +162,13 @@ def _failing_set_operation(mocker: Any, method_name: str) -> Callable[[], object
 
 @pytest.mark.parametrize(
     ("method_name", "expected_message"),
-    (
+    [
         ("add", "MongoDB set add failed."),
         ("remove", "MongoDB set remove failed."),
         ("contains", "MongoDB set membership check failed."),
         ("set_len", "MongoDB set length read failed."),
         ("clear_set", "MongoDB set clear failed."),
-    ),
+    ],
 )
 def test_direct_mongodb_set_operation_rebuilds_private_error_graph(
     mocker: Any, method_name: str, expected_message: str
@@ -210,14 +210,14 @@ def _failing_storage_operation(mocker: Any, method_name: str) -> Callable[[], ob
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("store", "store", "MongoDB storage store failed."),
         ("retrieve", "retrieve", "MongoDB storage retrieve failed."),
         ("delete", "delete", "MongoDB storage delete failed."),
         ("exists", "exists", "MongoDB storage existence check failed."),
         ("ttl", "ttl", "MongoDB storage TTL read failed."),
         ("clear_storage", "clear_storage", "MongoDB storage clear failed."),
-    ),
+    ],
 )
 def test_direct_mongodb_storage_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -239,11 +239,11 @@ def test_direct_mongodb_storage_operation_rebuilds_private_error_graph(
 
 @pytest.mark.parametrize(
     ("operation_kind", "expected_type", "expected_operation"),
-    (
+    [
         ("queue", QueueError, "push"),
         ("set", BackendConnectionError, None),
         ("storage", BackendConnectionError, None),
-    ),
+    ],
 )
 def test_direct_mongodb_disconnected_operation_rebuilds_private_error_graph(
     operation_kind: str,
@@ -280,7 +280,7 @@ def test_direct_mongodb_set_duplicate_still_returns_false(mocker: Any) -> None:
     assert backend.add(_MARKER, _MARKER.encode()) is False
 
 
-@pytest.mark.parametrize("operation_kind", ("queue", "set", "storage"))
+@pytest.mark.parametrize("operation_kind", ["queue", "set", "storage"])
 def test_mongodb_terminal_boundaries_preserve_control_flow(
     mocker: Any, operation_kind: str
 ) -> None:
@@ -302,7 +302,7 @@ def test_mongodb_terminal_boundaries_preserve_control_flow(
     assert exc_info.value is interruption
 
 
-@pytest.mark.parametrize("operation_kind", ("queue", "set", "storage"))
+@pytest.mark.parametrize("operation_kind", ["queue", "set", "storage"])
 def test_mongodb_terminal_boundaries_preserve_unknown_exception_contract(
     mocker: Any, operation_kind: str
 ) -> None:
@@ -324,7 +324,7 @@ def test_mongodb_terminal_boundaries_preserve_unknown_exception_contract(
     assert exc_info.value is unknown
 
 
-@pytest.mark.parametrize("operation_kind", ("set", "storage"))
+@pytest.mark.parametrize("operation_kind", ["set", "storage"])
 def test_mongodb_terminal_boundaries_preserve_plugin_connection_subclass(
     mocker: Any, operation_kind: str
 ) -> None:

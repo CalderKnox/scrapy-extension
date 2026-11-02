@@ -179,11 +179,11 @@ def test_mutation_view_attempts_push_once_but_safe_read_retains_retry() -> None:
 
 @pytest.mark.parametrize(
     ("operation", "expected_error"),
-    (
+    [
         ("set", SetOutcomeIndeterminateError),
         ("storage", StorageOutcomeIndeterminateError),
         ("clear", StorageOutcomeIndeterminateError),
-    ),
+    ],
 )
 def test_all_mutation_families_surface_indeterminate_transport_outcomes(
     operation: str, expected_error: type[Exception]
@@ -337,7 +337,7 @@ def _mock_backend(mocker: Any) -> tuple[ElasticSearchBackend, Any]:
 
 @pytest.mark.parametrize(
     "response",
-    (
+    [
         {},
         {
             "timed_out": True,
@@ -359,7 +359,7 @@ def _mock_backend(mocker: Any) -> tuple[ElasticSearchBackend, Any]:
             "_shards": _READ_SHARDS,
             "hits": {"total": {"value": 1, "relation": "eq"}, "hits": []},
         },
-    ),
+    ],
 )
 def test_search_partial_or_malformed_response_fails_closed(
     mocker: Any, response: object
@@ -424,10 +424,10 @@ def test_pop_rejects_partial_or_malformed_refresh_before_search(
 
 @pytest.mark.parametrize(
     ("operation", "expected_error", "expected_message"),
-    (
+    [
         ("queue", QueueError, "ElasticSearch queue length read failed."),
         ("set", BackendConnectionError, "ElasticSearch set length read failed."),
-    ),
+    ],
 )
 @pytest.mark.parametrize("response", _INVALID_REFRESH_RESPONSES)
 def test_count_rejects_partial_or_malformed_refresh_before_count(
@@ -452,7 +452,7 @@ def test_count_rejects_partial_or_malformed_refresh_before_count(
     client.count.assert_not_called()
 
 
-@pytest.mark.parametrize("count", (None, -1, True, 1.5))
+@pytest.mark.parametrize("count", [None, -1, True, 1.5])
 def test_count_requires_exact_nonnegative_integer(mocker: Any, count: object) -> None:
     backend, client = _mock_backend(mocker)
     client.count.return_value = {"count": count, "_shards": _READ_SHARDS}
@@ -463,12 +463,12 @@ def test_count_requires_exact_nonnegative_integer(mocker: Any, count: object) ->
 
 @pytest.mark.parametrize(
     "shards",
-    (
+    [
         None,
         {"total": 1, "successful": 0, "failed": 1},
         {"total": 2, "successful": 1, "failed": 0},
         {"total": 1, "successful": 1, "failed": 0, "failures": [{}]},
-    ),
+    ],
 )
 def test_count_rejects_missing_failed_or_partial_shards(
     mocker: Any, shards: object
@@ -539,7 +539,7 @@ def test_clear_families_accept_documented_response_without_shards(
 @pytest.mark.parametrize(("operation", "error_type", "message"), _CLEAR_FAMILIES)
 @pytest.mark.parametrize(
     "response",
-    (
+    [
         pytest.param(
             {
                 "timed_out": True,
@@ -637,7 +637,7 @@ def test_clear_families_accept_documented_response_without_shards(
             )
             for rate in (0, True, float("nan"), float("inf"), -2)
         ),
-    ),
+    ],
 )
 def test_clear_families_reject_indeterminate_documented_responses(
     mocker: Any,
@@ -681,7 +681,7 @@ def test_clear_refreshes_before_and_after_delete_by_query(mocker: Any) -> None:
 
 @pytest.mark.parametrize(
     "failure_at",
-    ("before", "after"),
+    ["before", "after"],
 )
 def test_clear_refresh_barrier_failure_is_indeterminate(
     mocker: Any, failure_at: str
@@ -758,7 +758,7 @@ def test_pop_response_loss_after_delete_is_indeterminate_and_not_retried(
 
 @pytest.mark.parametrize(
     ("operation", "response", "expected_error"),
-    (
+    [
         (
             "push",
             {"result": "updated", "_shards": _MUTATION_SHARDS},
@@ -782,7 +782,7 @@ def test_pop_response_loss_after_delete_is_indeterminate_and_not_retried(
             },
             StorageOutcomeIndeterminateError,
         ),
-    ),
+    ],
 )
 def test_mutation_requires_complete_acknowledgement(
     mocker: Any,
@@ -815,12 +815,12 @@ def test_mutation_requires_complete_acknowledgement(
 
 @pytest.mark.parametrize(
     ("operation", "expected_error"),
-    (
+    [
         ("push", QueueOutcomeIndeterminateError),
         ("set", SetOutcomeIndeterminateError),
         ("store", StorageOutcomeIndeterminateError),
         ("delete", StorageOutcomeIndeterminateError),
-    ),
+    ],
 )
 def test_mutation_rejects_acknowledgement_for_another_document(
     mocker: Any, operation: str, expected_error: type[Exception]
@@ -899,13 +899,13 @@ def test_index_setup_rejects_resource_exists_text_without_structured_type(
 
 @pytest.mark.parametrize(
     "response",
-    (
+    [
         None,
         {},
         {"acknowledged": False, "shards_acknowledged": True, "index": "scrapy_queue"},
         {"acknowledged": True, "shards_acknowledged": False, "index": "scrapy_queue"},
         {"acknowledged": True, "shards_acknowledged": True, "index": "other-index"},
-    ),
+    ],
 )
 def test_index_setup_rejects_unproven_create_acknowledgement(
     mocker: Any, response: object

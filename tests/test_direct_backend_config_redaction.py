@@ -220,9 +220,9 @@ def test_direct_connect_rebuilds_connection_errors_without_config_frames(
 
 @pytest.mark.parametrize(
     ("backend_name", "factory"),
-    (("dynamodb", _dynamodb_backend), ("sqs", _sqs_backend)),
+    [("dynamodb", _dynamodb_backend), ("sqs", _sqs_backend)],
 )
-@pytest.mark.parametrize("entrypoint", ("connect", "snapshot"))
+@pytest.mark.parametrize("entrypoint", ["connect", "snapshot"])
 def test_aws_credential_validation_preserves_safe_text_without_secret_traceback(
     backend_name: str,
     factory: Callable[[], Any],
@@ -326,7 +326,7 @@ def test_kafka_constructor_error_drops_config_from_traceback() -> None:
 
 @pytest.mark.parametrize(
     "guard_name",
-    ("RocketMQSetBackend", "RocketMQStorageBackend"),
+    ["RocketMQSetBackend", "RocketMQStorageBackend"],
 )
 def test_rocketmq_guard_constructor_drops_config_from_traceback(
     guard_name: str,

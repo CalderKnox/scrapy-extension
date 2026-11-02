@@ -552,7 +552,8 @@ def test_scheduler_open_failure_preserves_failure_after_deferred_cleanup(
     assert isinstance(result, Deferred)
     result.addErrback(lambda failure: failures.append(failure))
 
-    assert failures and failures[0].value is original.value
+    assert failures
+    assert failures[0].value is original.value
 
 
 def test_scheduler_open_failure_returns_original_without_cleanup(mocker) -> None:
@@ -688,7 +689,8 @@ def test_scheduler_close_queue_timeout_keeps_ownership_until_late_success(
     assert isinstance(closing, Deferred)
     closing.addErrback(lambda failure: failures.append(failure.value))
     fake_reactor.calls[-1].fire()
-    assert failures and failures[0].operation == "scheduler queue close"
+    assert failures
+    assert failures[0].operation == "scheduler queue close"
     assert queue.close.call_count == 0
     assert manager.close.call_count == 0
     assert (
@@ -798,7 +800,8 @@ def test_scheduler_close_timeout_retains_authoritative_ownership(monkeypatch) ->
     closing.addErrback(lambda failure: failures.append(failure.value))
     fake_reactor.calls[-1].fire()
 
-    assert failures and failures[0].operation == "scheduler connection close"
+    assert failures
+    assert failures[0].operation == "scheduler connection close"
     assert scheduler._lifecycle_state == "closing"
     assert scheduler.close("duplicate-close") is None
     manager.close.assert_not_called()
@@ -837,7 +840,8 @@ def test_scheduler_open_timeout_keeps_late_worker_authoritative(monkeypatch) -> 
     opened.addErrback(lambda failure: failures.append(failure.value))
     fake_reactor.calls[-1].fire()
 
-    assert failures and failures[0].operation == "scheduler connection warm-up"
+    assert failures
+    assert failures[0].operation == "scheduler connection warm-up"
     assert scheduler._lifecycle_state == "opening"
     assert operations
     operations[0]()
@@ -915,7 +919,8 @@ def test_scheduler_open_worker_failure_runs_authoritative_cleanup(monkeypatch) -
     operations[0]()
     worker.errback(RuntimeError("warm-up failed"))
 
-    assert failures and str(failures[0]) == "warm-up failed"
+    assert failures
+    assert str(failures[0]) == "warm-up failed"
     scheduler._cleanup_after_open_failure.assert_called_once_with("open-failed")
 
 
@@ -942,7 +947,8 @@ def test_scheduler_open_publication_failure_preserves_worker_error(monkeypatch) 
     operations[0]()
     worker.callback(None)
 
-    assert failures and str(failures[0]) == "publish failed"
+    assert failures
+    assert str(failures[0]) == "publish failed"
     scheduler._cleanup_after_open_failure.assert_called_once_with("open-failed")
 
 
@@ -979,7 +985,8 @@ def test_pipeline_close_thread_submission_failure_is_retryable(monkeypatch) -> N
     second = pipeline.close_spider()
     assert isinstance(second, Deferred)
     # The second worker owns the real close and can be driven without sleeping.
-    assert workers and calls
+    assert workers
+    assert calls
     function, args, kwargs = calls[0]
     function(*args, **kwargs)
     workers[0].callback(None)

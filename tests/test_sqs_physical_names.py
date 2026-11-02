@@ -96,7 +96,9 @@ def test_v2_mapping_is_deterministic(prefix: str, logical_name: str) -> None:
     )
 
 
-@pytest.mark.parametrize("prefix, logical_name", [(None, "q"), ("p", None), (1, "q")])
+@pytest.mark.parametrize(
+    ("prefix", "logical_name"), [(None, "q"), ("p", None), (1, "q")]
+)
 def test_physical_name_rejects_non_string_identity_parts(
     prefix: object, logical_name: object
 ) -> None:

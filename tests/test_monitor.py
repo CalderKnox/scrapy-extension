@@ -58,7 +58,7 @@ class TestNullMonitor:
     """NullMonitor is the safe default — every hook is a no-op."""
 
     @pytest.mark.parametrize(
-        "hook,kwargs",
+        ("hook", "kwargs"),
         [
             ("on_push", {"queue_name": "q", "priority": 1.0}),
             ("on_pop", {"queue_name": "q"}),

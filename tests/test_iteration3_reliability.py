@@ -230,7 +230,8 @@ def test_replacement_group_concurrent_children_settles_source_exactly_once(
     group = scheduler_module._DeferredReplacementAckGroup(scheduler, "source")
     first = group.new_child()
     second = group.new_child()
-    assert first is not None and second is not None
+    assert first is not None
+    assert second is not None
     group.seal()
 
     first.ack()

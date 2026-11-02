@@ -187,7 +187,7 @@ class _NullConnectionManager:
     """
 
 
-@pytest.fixture()
+@pytest.fixture
 def queue() -> BackendQueue:
     """A BackendQueue with passthrough strategy — never actually pushes/pops."""
     return BackendQueue(_NullConnectionManager(), "test-queue")

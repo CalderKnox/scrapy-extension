@@ -390,7 +390,7 @@ def test_rabbitmq_push_confirm_failure_raises_queue_error(mocker, publish_error)
 
 @pytest.mark.parametrize(
     ("method", "expected_operation"),
-    (
+    [
         ("push", "push"),
         ("pop", "pop"),
         ("pop_with_ack", "pop"),
@@ -398,7 +398,7 @@ def test_rabbitmq_push_confirm_failure_raises_queue_error(mocker, publish_error)
         ("nack", "nack"),
         ("queue_len", "queue_len"),
         ("clear_queue", "clear_queue"),
-    ),
+    ],
 )
 def test_rabbitmq_direct_queue_errors_are_terminally_redacted(
     mocker,
@@ -1714,7 +1714,7 @@ def test_rabbitmq_password_redacted_in_credentials_repr(mocker):
     # so we can capture the password before pika's type-check rejects the fake.
     mocker.patch("scrapy_extension.backends.rabbitmq.pika.ConnectionParameters", dict)
     # Avoid touching real SSL / connection paths.
-    mocker.patch.object(RabbitMQBackend, "_connect_standalone", lambda self: None)
+    mocker.patch.object(RabbitMQBackend, "_connect_standalone", return_value=None)
 
     backend._build_common_parameters()
 

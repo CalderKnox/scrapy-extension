@@ -115,13 +115,13 @@ def _failing_storage_operation(mocker: Any, method_name: str) -> Callable[[], ob
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("store", "store", "Memcached storage store failed."),
         ("retrieve", "retrieve", "Memcached storage retrieve failed."),
         ("delete", "delete", "Memcached storage delete failed."),
         ("exists", "exists", "Memcached storage existence check failed."),
         ("clear_storage", "clear_storage", "Memcached storage clear failed."),
-    ),
+    ],
 )
 def test_direct_memcached_storage_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -143,7 +143,7 @@ def test_direct_memcached_storage_operation_rebuilds_private_error_graph(
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation"),
-    (("retrieve", "retrieve"), ("delete", "delete"), ("exists", "exists")),
+    [("retrieve", "retrieve"), ("delete", "delete"), ("exists", "exists")],
 )
 def test_malformed_memcached_response_is_redacted(
     mocker: Any, method_name: str, expected_operation: str
@@ -208,7 +208,7 @@ def test_memcached_storage_boundary_accepts_public_keyword_data(mocker: Any) -> 
 
 @pytest.mark.parametrize(
     ("allow_flush_all", "prefix", "expected_message"),
-    (
+    [
         (
             False,
             None,
@@ -222,7 +222,7 @@ def test_memcached_storage_boundary_accepts_public_keyword_data(mocker: Any) -> 
             "Memcached flush_all does not support prefix scoping; pass "
             "prefix=None only when a server-wide flush is explicitly acceptable.",
         ),
-    ),
+    ],
 )
 def test_memcached_clear_capability_error_rebuilds_private_error_graph(
     mocker: Any,

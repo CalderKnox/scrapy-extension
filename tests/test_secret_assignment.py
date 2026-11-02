@@ -54,7 +54,7 @@ def _settings_instance(settings_type: type[Any]) -> Any:
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,wrapper_type",
+    ("settings_type", "field_name", "wrapper_type"),
     _BUNDLED_SECRET_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )
@@ -80,7 +80,7 @@ def test_every_bundled_secret_field_wraps_plaintext_before_publication(
 
 
 @pytest.mark.parametrize(
-    "settings_type,field_name,_wrapper_type",
+    ("settings_type", "field_name", "_wrapper_type"),
     _BUNDLED_SECRET_FIELDS,
     ids=lambda value: value.__name__ if isinstance(value, type) else None,
 )

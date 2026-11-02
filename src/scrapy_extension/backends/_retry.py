@@ -62,4 +62,4 @@ def compute_full_jitter_backoff(attempt: int, base_delay: float) -> float:
     # random.uniform is intentional full-jitter backoff, not a
     # cryptographic primitive. Switching to secrets would remove the bounded-
     # range API we rely on without improving security.
-    return random.uniform(0, delay)  # nosec B311
+    return random.uniform(0, delay)  # noqa: S311  # nosec B311

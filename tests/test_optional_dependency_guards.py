@@ -41,7 +41,7 @@ def _with_blocked_import(
     monkeypatch.setattr(builtins, "__import__", guarded_import)
 
 
-@pytest.mark.parametrize("module_path,dependency,extra", _MODULE_GUARDS)
+@pytest.mark.parametrize(("module_path", "dependency", "extra"), _MODULE_GUARDS)
 def test_module_guard_hints_only_when_dependency_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     module_path: str,
@@ -64,7 +64,7 @@ def test_module_guard_hints_only_when_dependency_is_missing(
             sys.modules[module_path] = cached
 
 
-@pytest.mark.parametrize("module_path,dependency,extra", _MODULE_GUARDS)
+@pytest.mark.parametrize(("module_path", "dependency", "extra"), _MODULE_GUARDS)
 def test_module_guard_preserves_dependency_internal_import_error(
     monkeypatch: pytest.MonkeyPatch,
     module_path: str,

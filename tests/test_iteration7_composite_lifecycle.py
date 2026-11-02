@@ -449,7 +449,8 @@ def test_mixin_async_close_keeps_first_baseexception_precedence(mocker, monkeypa
     dupefilter_operation.errback(KeyboardInterrupt("dupefilter secondary"))
 
     assert result.called
-    assert failures and isinstance(failures[0], RuntimeError)
+    assert failures
+    assert isinstance(failures[0], RuntimeError)
     assert str(failures[0]) == "scheduler primary"
     # The failed dupefilter remains owned for a retry, so the shared manager is
     # deliberately fenced rather than released under an uncertain cleanup.
@@ -475,7 +476,8 @@ def test_mixin_async_close_surfaces_sibling_failure(mocker, monkeypatch):
     failures: list[BaseException] = []
     result.addErrback(lambda failure: failures.append(failure.value))
     scheduler_close.callback(None)
-    assert failures and str(failures[0]) == "queue sibling"
+    assert failures
+    assert str(failures[0]) == "queue sibling"
     spider._connection_manager.close.assert_not_called()
 
 

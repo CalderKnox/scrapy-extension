@@ -871,7 +871,8 @@ def test_receive_worker_name_does_not_expose_private_topic(mocker: Any) -> None:
         assert backend.pop(private_marker, timeout=0) is None
         pump = backend._receive_pumps[f"scrapy-{private_marker}"]
         assert consumer.receive_started.wait(timeout=0.5)
-        assert pump.worker is not None and pump.worker.is_alive()
+        assert pump.worker is not None
+        assert pump.worker.is_alive()
         assert all(private_marker not in thread.name for thread in enumerate_threads())
     finally:
         backend.disconnect()
@@ -941,8 +942,10 @@ def test_delivery_keeps_topic_consumer_and_message_id_for_reverse_settlement(
         assert value_b == b"b"
         assert isinstance(token_a, _PulsarAckToken)
         assert isinstance(token_b, _PulsarAckToken)
-        assert token_a.consumer is consumer_a and token_a.message_id is id_a
-        assert token_b.consumer is consumer_b and token_b.message_id is id_b
+        assert token_a.consumer is consumer_a
+        assert token_a.message_id is id_a
+        assert token_b.consumer is consumer_b
+        assert token_b.message_id is id_b
 
         backend.nack("b", token=token_b)
         backend.ack("a", token=token_a)

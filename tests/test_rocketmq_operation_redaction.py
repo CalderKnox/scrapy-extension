@@ -133,7 +133,7 @@ def _failing_operation(mocker: Any, method_name: str) -> Callable[[], object]:
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("push", "push", "Failed to push RocketMQ message."),
         ("pop", "pop", "Failed to pop RocketMQ message."),
         ("pop_with_ack", "pop", "Failed to pop RocketMQ message."),
@@ -144,7 +144,7 @@ def _failing_operation(mocker: Any, method_name: str) -> Callable[[], object]:
             "clear_queue",
             _ROCKETMQ_CLEAR_QUEUE_UNSUPPORTED_MESSAGE,
         ),
-    ),
+    ],
 )
 def test_direct_rocketmq_queue_operation_rebuilds_private_error_graph(
     mocker: Any,

@@ -537,7 +537,7 @@ def test_restore_log_has_no_strategy_exception_context() -> None:
 
 
 @pytest.mark.parametrize(
-    "failing_key, expected_message",
+    ("failing_key", "expected_message"),
     [
         (
             "queue:snapshot-tombstone:v3:0::1:q",

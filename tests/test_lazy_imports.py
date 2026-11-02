@@ -174,7 +174,7 @@ class TestAllSettingsClassesLazy:
         ("RocketMQSettings", "RocketMQMode"),
     ]
 
-    @pytest.mark.parametrize("settings_cls,mode_cls", SETTINGS_PAIRS)
+    @pytest.mark.parametrize(("settings_cls", "mode_cls"), SETTINGS_PAIRS)
     def test_settings_pair_importable(self, settings_cls: str, mode_cls: str) -> None:
         """Each (Settings, Mode) pair should be importable."""
         s_cls = getattr(scrapy_extension, settings_cls)
@@ -465,7 +465,9 @@ class TestBackendImportErrorMessage:
         # test_rocketmq_backend.py::test_connect_*_error.
     ]
 
-    @pytest.mark.parametrize("module_path,dep_name,install_hint", BACKEND_MODULES)
+    @pytest.mark.parametrize(
+        ("module_path", "dep_name", "install_hint"), BACKEND_MODULES
+    )
     def test_missing_dep_raises_with_install_hint(
         self,
         mocker,
@@ -683,7 +685,7 @@ class TestLazyImportRealBugSurfacesChain:
         return real_bug
 
     @pytest.mark.parametrize(
-        "attr_name,module_path",
+        ("attr_name", "module_path"),
         [
             # Top-level package __getattr__ path
             ("RedisBackend", "scrapy_extension.backends.redis"),
@@ -734,7 +736,7 @@ class TestLazyImportRealBugSurfacesChain:
                 sys.modules[module_path] = cached
 
     @pytest.mark.parametrize(
-        "attr_name,module_path",
+        ("attr_name", "module_path"),
         [
             ("RedisBackend", "scrapy_extension.backends.redis"),
             ("MongoDBBackend", "scrapy_extension.backends.mongodb"),

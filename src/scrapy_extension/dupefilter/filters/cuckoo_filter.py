@@ -101,7 +101,7 @@ class CuckooMembershipFilter(MembershipFilter):
         # change the distribution and subtly alter the filter's false-positive
         # behavior without any security benefit — fingerprints are keyed by
         # SHA-256, not by this RNG.
-        self._rng = random.Random()  # nosec B311
+        self._rng = random.Random()  # noqa: S311  # nosec B311
 
     @property
     def num_buckets(self) -> int:

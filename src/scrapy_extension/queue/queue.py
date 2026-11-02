@@ -110,7 +110,7 @@ _EMPTY_SNAPSHOT_TOMBSTONE_MARKER = b"1"
 #: set it to an opaque token bound to the issuing backend incarnation and
 #: physical queue so the scheduler can ack the *specific* message that produced
 #: this request — correct across concurrency and manager replacement.
-BACKEND_ACK_TOKEN_META_KEY = "_backend_ack_token"  # nosec B105
+BACKEND_ACK_TOKEN_META_KEY = "_backend_ack_token"  # noqa: S105  # nosec B105
 
 #: Version marker separating current base64 bodies from legacy raw UTF-8 bodies.
 _BODY_CODEC_FIELD = "_scrapy_extension_body_codec"

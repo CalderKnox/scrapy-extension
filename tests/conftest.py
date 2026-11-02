@@ -115,7 +115,7 @@ def _isolate_connection_manager_registry():
     from scrapy_extension.backends.connectors import ConnectionManager
 
     ConnectionManager.clear_registry()
-    yield
+    return
 
 
 @pytest.fixture(autouse=True)

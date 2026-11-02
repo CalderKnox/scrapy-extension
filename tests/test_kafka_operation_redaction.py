@@ -134,7 +134,7 @@ def _failing_operation(mocker: Any, method_name: str) -> Callable[[], object]:
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("push", "push", "Failed to push Kafka message."),
         ("pop", "pop", "Failed to pop Kafka message."),
         ("pop_with_ack", "pop", "Failed to pop Kafka message."),
@@ -146,7 +146,7 @@ def _failing_operation(mocker: Any, method_name: str) -> Callable[[], object]:
             "clear_queue",
             _KAFKA_CLEAR_QUEUE_UNSUPPORTED_MESSAGE,
         ),
-    ),
+    ],
 )
 def test_direct_kafka_queue_operation_rebuilds_private_error_graph(
     mocker: Any,

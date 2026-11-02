@@ -142,13 +142,13 @@ def _failing_queue_operation(mocker: Any, method_name: str) -> Callable[[], obje
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("push", "push", "ElasticSearch queue push failed."),
         ("pop", "pop", "ElasticSearch queue pop failed."),
         ("pop_with_ack", "pop", "ElasticSearch queue pop failed."),
         ("queue_len", "queue_len", "ElasticSearch queue length read failed."),
         ("clear_queue", "clear_queue", "ElasticSearch queue clear failed."),
-    ),
+    ],
 )
 def test_direct_elasticsearch_queue_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -219,13 +219,13 @@ def _failing_set_operation(mocker: Any, method_name: str) -> Callable[[], object
 
 @pytest.mark.parametrize(
     ("method_name", "expected_message"),
-    (
+    [
         ("add", "ElasticSearch set add failed."),
         ("remove", "ElasticSearch set remove failed."),
         ("contains", "ElasticSearch set membership check failed."),
         ("set_len", "ElasticSearch set length read failed."),
         ("clear_set", "ElasticSearch set clear failed."),
-    ),
+    ],
 )
 def test_direct_elasticsearch_set_operation_rebuilds_private_error_graph(
     mocker: Any, method_name: str, expected_message: str
@@ -267,14 +267,14 @@ def _failing_storage_operation(mocker: Any, method_name: str) -> Callable[[], ob
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("store", "store", "ElasticSearch storage store failed."),
         ("retrieve", "retrieve", "ElasticSearch storage retrieve failed."),
         ("delete", "delete", "ElasticSearch storage delete failed."),
         ("exists", "exists", "ElasticSearch storage existence check failed."),
         ("ttl", "ttl", "ElasticSearch storage TTL read failed."),
         ("clear_storage", "clear_storage", "ElasticSearch storage clear failed."),
-    ),
+    ],
 )
 def test_direct_elasticsearch_storage_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -316,7 +316,7 @@ def _failing_set_api_operation(mocker: Any, method_name: str) -> Callable[[], ob
 
 
 @pytest.mark.parametrize(
-    "method_name", ("add", "remove", "contains", "set_len", "clear_set")
+    "method_name", ["add", "remove", "contains", "set_len", "clear_set"]
 )
 def test_elasticsearch_set_api_rejection_is_non_transient_and_redacted(
     mocker: Any, method_name: str
@@ -349,7 +349,7 @@ def test_elasticsearch_set_non_conflict_request_error_is_non_transient_and_redac
     _assert_terminal_error_is_redacted(error, _MARKER)
 
 
-@pytest.mark.parametrize("error_type", (ConflictError, RequestError))
+@pytest.mark.parametrize("error_type", [ConflictError, RequestError])
 def test_elasticsearch_set_duplicate_conflict_still_returns_false(
     mocker: Any, error_type: type[ApiError]
 ) -> None:
@@ -369,11 +369,11 @@ def test_elasticsearch_set_duplicate_conflict_still_returns_false(
 
 @pytest.mark.parametrize(
     ("operation_kind", "expected_type", "expected_operation"),
-    (
+    [
         ("queue", QueueError, "push"),
         ("set", BackendConnectionError, None),
         ("storage", BackendConnectionError, None),
-    ),
+    ],
 )
 def test_elasticsearch_disconnected_operation_rebuilds_private_error_graph(
     mocker: Any,
@@ -410,7 +410,7 @@ def test_elasticsearch_disconnected_operation_rebuilds_private_error_graph(
     _assert_terminal_error_is_redacted(error, _MARKER)
 
 
-@pytest.mark.parametrize("operation_kind", ("queue", "set", "storage"))
+@pytest.mark.parametrize("operation_kind", ["queue", "set", "storage"])
 def test_elasticsearch_terminal_boundaries_preserve_control_flow(
     mocker: Any, operation_kind: str
 ) -> None:
@@ -432,7 +432,7 @@ def test_elasticsearch_terminal_boundaries_preserve_control_flow(
     assert exc_info.value is interruption
 
 
-@pytest.mark.parametrize("operation_kind", ("queue", "set", "storage"))
+@pytest.mark.parametrize("operation_kind", ["queue", "set", "storage"])
 def test_elasticsearch_terminal_boundaries_preserve_unknown_exception_contract(
     mocker: Any, operation_kind: str
 ) -> None:

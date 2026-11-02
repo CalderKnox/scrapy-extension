@@ -268,7 +268,8 @@ def test_push_driver_failure_is_indeterminate_without_generation_leak(mocker) ->
     producer.send.assert_called_once()
     future.get.assert_called_once()
     generation = backend._generation_gate.current
-    assert generation is not None and generation.accepting
+    assert generation is not None
+    assert generation.accepting
     backend.disconnect()
     producer.close.assert_called_once_with()
     admin.close.assert_called_once_with()

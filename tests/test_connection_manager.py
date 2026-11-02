@@ -2695,7 +2695,7 @@ def test_durable_backend_queue_error_preserves_breaker_open_semantics() -> None:
 
 @pytest.mark.parametrize(
     ("raised_error", "expected_type", "preserves_identity"),
-    (
+    [
         (
             BackendConnectionError("private", backend_type="private"),
             BackendConnectionError,
@@ -2710,7 +2710,7 @@ def test_durable_backend_queue_error_preserves_breaker_open_semantics() -> None:
         (ValueError("input contract"), ValueError, True),
         (NotImplementedError("unsupported"), NotImplementedError, False),
         (KeyboardInterrupt("control flow"), KeyboardInterrupt, True),
-    ),
+    ],
 )
 def test_durable_push_preserves_non_queue_exception_contracts(
     mocker,
@@ -2863,7 +2863,7 @@ def test_apply_scrapy_breaker_policy_warns_on_dropped_differing_policy(
 
 @pytest.mark.parametrize(
     "target_state",
-    (BreakerState.CLOSED, BreakerState.OPEN, BreakerState.HALF_OPEN),
+    [BreakerState.CLOSED, BreakerState.OPEN, BreakerState.HALF_OPEN],
 )
 def test_apply_matching_scrapy_policy_preserves_env_breaker(monkeypatch, target_state):
     """A matching explicit policy must not replace an env-fallback breaker."""

@@ -76,7 +76,7 @@ class _BenchConnectionManager:
         )
 
 
-@pytest.fixture()
+@pytest.fixture
 def bench_queue() -> tuple[BackendQueue, _InMemoryQueueBackend]:
     """Return a fresh queue and its in-memory backend."""
     backend = _InMemoryQueueBackend()

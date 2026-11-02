@@ -52,7 +52,7 @@ def test_pop_rejects_non_expiring_timeout(_name: str, factory, timeout: float) -
 @pytest.mark.parametrize(
     ("_name", "factory"), _BACKENDS, ids=[name for name, _factory in _BACKENDS]
 )
-@pytest.mark.parametrize("timeout", (True, -1.0, float("nan"), float("inf")))
+@pytest.mark.parametrize("timeout", [True, -1.0, float("nan"), float("inf")])
 def test_pop_with_ack_rejects_non_expiring_timeout(
     _name: str, factory, timeout: float
 ) -> None:

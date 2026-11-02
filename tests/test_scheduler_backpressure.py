@@ -698,7 +698,7 @@ def test_has_pending_requests_stays_conservative_during_transient_outage(
 
 
 @pytest.mark.parametrize(
-    "queue_error, diagnostic_error",
+    ("queue_error", "diagnostic_error"),
     [
         (SerializationError("invalid queued payload"), RuntimeError("logger failed")),
         (QueueError("queue unavailable"), KeyboardInterrupt("logger interrupted")),
@@ -836,7 +836,7 @@ def test_deserialization_fallback_survives_stats_failure(
 
 
 @pytest.mark.parametrize(
-    "transient_error, diagnostic_error",
+    ("transient_error", "diagnostic_error"),
     [
         (NotImplementedError("length unavailable"), RuntimeError("logger failed")),
         (QueueError("queue unavailable"), KeyboardInterrupt("logger interrupted")),
