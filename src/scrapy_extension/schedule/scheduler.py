@@ -1917,7 +1917,8 @@ class BackendScheduler:
             def fail_open(_ignored: Any, original: BaseException) -> Deferred[None]:
                 return fail(original)
 
-            return cleanup.addBoth(fail_open, error)
+            settled: Deferred[None] = cleanup.addBoth(fail_open, error)
+            return settled
         raise error
 
     def _finish_open(self, spider: Spider) -> Deferred[Any] | None:

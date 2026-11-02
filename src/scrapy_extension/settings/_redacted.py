@@ -472,8 +472,10 @@ def _secret_annotation_kind(
     """Identify exact secret and optional-secret annotations, including Annotated."""
     while get_origin(annotation) is Annotated:
         annotation = get_args(annotation)[0]
-    if annotation in (SecretStr, SecretBytes):
-        return annotation, False
+    if annotation is SecretStr:
+        return SecretStr, False
+    if annotation is SecretBytes:
+        return SecretBytes, False
     args = get_args(annotation)
     if len(args) != 2 or type(None) not in args:
         return None
@@ -760,7 +762,7 @@ class RedactedBaseSettings(BaseSettings):
         configuration_error: ConfigurationError | None = None
         unexpected_failure = False
         try:
-            return super().model_validate(
+            validated: Self = super().model_validate(
                 obj,
                 strict=strict,
                 extra=extra,
@@ -769,6 +771,7 @@ class RedactedBaseSettings(BaseSettings):
                 by_alias=by_alias,
                 by_name=by_name,
             )
+            return validated
         except ValidationError as error:
             validation_error = error
         except SettingsError as error:
