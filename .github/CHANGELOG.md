@@ -46,7 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `# type: ignore[...]` comments effective. Four return-type violations
   that mypy accepted are now explicit (three implicit-`Any` returns and one
   mis-typed annotation tuple), and the 14 suppressions pyrefly proved
-  unnecessary were removed.
+  unnecessary were removed. `_secret_annotation_kind` now uses exact
+  identity checks for `SecretStr`/`SecretBytes` and returns the concrete
+  classes, removing a redundant cast warning.
 
 - **The JSON wire codec lives in its own module.** The escaped recursive
   codec (round-trip markers, escaped-dict collision guards, SecretStr
