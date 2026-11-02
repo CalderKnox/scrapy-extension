@@ -634,7 +634,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
                     sentinel_kwargs["password"] = sentinel_password
                 if snapshot.sentinel_username is not None:
                     sentinel_kwargs["username"] = snapshot.sentinel_username
-                sentinel = Sentinel(  # type: ignore[no-untyped-call]
+                sentinel = Sentinel(
                     list(snapshot.sentinel_nodes),
                     socket_timeout=snapshot.socket_timeout,
                     socket_connect_timeout=snapshot.socket_connect_timeout,
@@ -644,7 +644,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
                     sentinel_kwargs=sentinel_kwargs,
                 )
                 self._raise_if_connect_cancelled(request_epoch)
-                master_client = sentinel.master_for(  # type: ignore[no-untyped-call]
+                master_client = sentinel.master_for(
                     snapshot.sentinel_master_name,
                     db=snapshot.db,
                     password=password,
@@ -661,7 +661,7 @@ class RedisBackend(Backend, QueueBackend, SetBackend, StorageBackend):
                 self._raise_if_connect_cancelled(request_epoch)
             elif snapshot.mode == RedisMode.CLUSTER:
                 nodes = [
-                    ClusterNode(host=host, port=port)  # type: ignore[no-untyped-call]
+                    ClusterNode(host=host, port=port)
                     for host, port in snapshot.cluster_nodes
                 ]
                 cluster_kwargs: dict[str, Any] = {

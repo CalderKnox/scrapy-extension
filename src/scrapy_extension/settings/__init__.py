@@ -7,7 +7,7 @@ for all backend types.
 settings class loads on first attribute access (PEP 562) so importing
 this package — and every ``settings.<submodule>`` import that lands here
 first — no longer pays for all sixteen submodules up front. The
-TYPE_CHECKING block below keeps the static exports visible to mypy;
+TYPE_CHECKING block below keeps the static exports visible to pyrefly;
 ``from scrapy_extension.settings import RedisSettings`` and friends
 resolve through ``__getattr__`` at runtime.
 """

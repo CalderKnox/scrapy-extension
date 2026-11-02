@@ -1594,9 +1594,7 @@ class BackendScheduler:
                     open_failure = exc
                     with self._lifecycle_lock:
                         self._opening_settled = True
-                        self._opening_failure = TwistedFailure(  # type: ignore[no-untyped-call]
-                            open_failure
-                        )
+                        self._opening_failure = TwistedFailure(open_failure)
                     if opening_authority is None:
                         # The synchronous non-generic path lets the outer open()
                         # boundary perform exactly one rollback attempt.
@@ -1669,9 +1667,7 @@ class BackendScheduler:
                 try:
                     finish_result = self._finish_open(spider)
                 except BaseException as exc:
-                    self._opening_failure = TwistedFailure(  # type: ignore[no-untyped-call]
-                        exc
-                    )
+                    self._opening_failure = TwistedFailure(exc)
                     with self._lifecycle_lock:
                         self._opening_settled = True
                     cleanup = self._cleanup_after_open_failure("open-failed")
@@ -2236,7 +2232,7 @@ class BackendScheduler:
 
         def failure(failure_value: Any) -> bool:
             bounded._scheduler_public_failed = True  # type: ignore[attr-defined]
-            if isinstance(failure_value, TwistedFailure) and failure_value.check(  # type: ignore[no-untyped-call]
+            if isinstance(failure_value, TwistedFailure) and failure_value.check(
                 BackendOperationTimeout
             ):
                 bounded._scheduler_timed_out = True  # type: ignore[attr-defined]

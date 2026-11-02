@@ -374,9 +374,7 @@ class _KafkaAckToken:
         )
 
 
-class _KafkaRebalanceListener(
-    ConsumerRebalanceListener  # type: ignore[misc]
-):
+class _KafkaRebalanceListener(ConsumerRebalanceListener):
     """Fence tokens only for the generation/consumer that registered us."""
 
     __slots__ = ("_backend", "_consumer", "_generation")

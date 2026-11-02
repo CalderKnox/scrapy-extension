@@ -91,11 +91,16 @@ all = [
 ]
 
 [dependency-groups]
+# dev is the full local environment: lint + test tooling + the task runner.
+# Keep explicit version ranges here so `uv lock --upgrade` cannot cross major
+# boundaries without review.
 dev = [
-    "packaging>=26.0,<27",
+    { include-group = "lint" },
+    { include-group = "test" },
     "poethepoet",
-    "ruff>=0.16,<0.18",
 ]
+lint = ["ruff>=0.16,<0.18", "pyrefly>=1.4,<2"]
+
 test = [
     "packaging>=26.0,<27",
     "pytest",
@@ -111,7 +116,7 @@ test = [
     "pytest-sugar",
     "pytest-instafail",
     "pytest-socket",
-    "mypy",
+    "pyrefly>=1.4,<2",
     "bandit[toml]",
     "hypothesis>=6.165.9,<7",
     # Backend deps — tests import backend modules directly, which triggers
@@ -195,7 +200,6 @@ source-exclude = [
     # own ~/.cache path, so **/.cache/** would exclude the wheel payload itself.
     "./.cache/**",
     "**/.hypothesis/**",
-    "**/.mypy_cache/**",
     "**/.pytest_cache/**",
     "**/.ruff_cache/**",
     "**/__pycache__/**",
@@ -239,7 +243,7 @@ tasks.format-check = "ruff format --check src tests conftest.py"
 tasks.format-fix = "ruff format src tests conftest.py"
 tasks.lint-check = "ruff check"
 tasks.lint-fix = "ruff check --fix --unsafe-fixes"
-tasks.type-check = "mypy --strict src"
+tasks.type-check = "pyrefly check src"
 tasks.security-check = "bandit -r src -c pyproject.toml"
 
 # Keep the existing entry points, but make them safe read-only aliases.
@@ -372,35 +376,34 @@ title = "Coverage Report"
 exclude_dirs = ["tests"]
 skips = ["B101"]  # 跳过assert检查（pytest使用大量assert）
 
-[tool.mypy]
-# U8 — mypy --strict clean (py.typed public promise).
-# Strict mode is on; per-module overrides below relax only the genuinely
-# untyped third-party surfaces (redis-py's Sentinel/ClusterNode factories,
-# the kafka-python / pika / pymemcache clients which ship no inline stubs).
-strict = true
-warn_unused_configs = true
-warn_redundant_casts = true
-follow_imports = "normal"
-ignore_missing_imports = true
-pretty = true
-
-# Third-party libs that ship no py.typed marker / no inline annotations.
-# Calls into these would otherwise force `# type: ignore` sprinkles across
-# every backend; the override keeps the call-sites strict-clean while we
-# still type everything we own. Stubs-only — does NOT weaken first-party code.
-[[tool.mypy.overrides]]
-module = [
-  "redis",
-  "redis.*",
-  "kafka.*",
-  "pika.*",
-  "pymemcache.*",
-  "rocketmq.*",
-  "pulsar.*",
-]
-disallow_untyped_calls = false
-
 [tool.pytest-watcher]
 now = true
 patterns = ["*.py", "*.toml"]
 ignore_patterns = ["*.pyc", "__pycache__/*", "reports/*"]
+
+[tool.pyrefly]
+# Migrated from mypy --strict (U8, the py.typed public promise).
+# `legacy` mirrors mypy's handling of untyped third-party imports
+# (replace-untyped-imports-with-any = ["*"]) and keeps existing
+# `# type: ignore[...]` comments effective while call sites migrate.
+# check-unannotated-defs restores mypy's check_untyped_defs, which the
+# legacy preset disables; infer-return-types = "never" mirrors mypy's
+# refusal to infer unannotated return types.
+preset = "legacy"
+python-version = "3.11"
+project-includes = ["src"]
+check-unannotated-defs = true
+infer-return-types = "never"
+ignore-missing-imports = ["*"]
+
+[tool.pyrefly.errors]
+# Equivalent of the mypy strict flags this migration preserves:
+# disallow_untyped_defs / disallow_incomplete_defs (parameter side),
+# disallow_any_generics, warn_return_any, warn_unused_ignores, and
+# warn_redundant_casts.
+implicit-any-parameter = "error"
+implicit-any-type-argument = "error"
+unannotated-return = "error"
+no-any-return = "error"
+redundant-cast = "warn"
+unused-type-ignore = "error"
