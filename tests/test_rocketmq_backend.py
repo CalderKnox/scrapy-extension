@@ -511,12 +511,12 @@ def test_connect_standalone_without_credentials(mocker) -> None:
 
 @pytest.mark.parametrize(
     ("access_key", "secret_key", "setting_name"),
-    (
+    [
         (SecretStr(""), SecretStr("secret"), "access_key"),
         (SecretStr("key"), SecretStr(" "), "secret_key"),
         (SecretStr("do-not-leak"), None, "secret_key"),
         (None, SecretStr("do-not-leak"), "access_key"),
-    ),
+    ],
 )
 def test_settings_reject_empty_or_partial_credentials_without_leaking(
     access_key,
@@ -550,7 +550,7 @@ def test_cloud_mode_requires_tls() -> None:
     assert exc_info.value.setting_name == "tls_enabled"
 
 
-@pytest.mark.parametrize("mode", (RocketMQMode.STANDALONE, RocketMQMode.CLUSTER))
+@pytest.mark.parametrize("mode", [RocketMQMode.STANDALONE, RocketMQMode.CLUSTER])
 def test_credentials_require_tls_in_every_mode(mode: RocketMQMode) -> None:
     with pytest.raises(ConfigurationError) as exc_info:
         RocketMQSettings(
@@ -982,7 +982,7 @@ def test_disconnect_reports_typed_shutdown_failure_after_closing_peers(mocker) -
     assert backend._producer is None
 
 
-@pytest.mark.parametrize("private_location", ("producer", "consumer", "config"))
+@pytest.mark.parametrize("private_location", ["producer", "consumer", "config"])
 def test_disconnect_failure_traceback_recursively_redacts_teardown_state(
     private_location: str,
 ) -> None:
@@ -1068,14 +1068,14 @@ def test_disconnect_closes_all_clients_after_baseexception(mocker) -> None:
     assert backend._consumer is None
 
 
-@pytest.mark.parametrize("private_location", ("producer", "consumer", "config"))
+@pytest.mark.parametrize("private_location", ["producer", "consumer", "config"])
 @pytest.mark.parametrize(
     ("control_error_type", "control_args"),
-    (
+    [
         (KeyboardInterrupt, ()),
         (SystemExit, (17,)),
         (_ShutdownControlSignal, ("stop",)),
-    ),
+    ],
     ids=("keyboard-interrupt", "system-exit", "custom-baseexception"),
 )
 def test_disconnect_control_exception_recursively_redacts_teardown_state(

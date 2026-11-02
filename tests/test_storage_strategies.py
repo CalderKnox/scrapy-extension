@@ -185,7 +185,8 @@ class TestBatchedStorageStrategy:
         strat = BatchedStorageStrategy(threshold=100, max_buffer_age_s=0.01)
         strat.store(backend, "k1", b"v1")  # triggers _ensure_flusher
         flusher = strat._flusher
-        assert flusher is not None and flusher.is_alive()
+        assert flusher is not None
+        assert flusher.is_alive()
         strat.close()
         assert not flusher.is_alive()
 
@@ -1787,7 +1788,8 @@ class TestBatchedStorageFlusherTOCTOU:
 
         assert strat._flusher is None
         strat._ensure_flusher()
-        assert strat._flusher is not None and strat._flusher.is_alive()
+        assert strat._flusher is not None
+        assert strat._flusher.is_alive()
         strat.close()
 
     def test_close_does_not_hang_when_age_flusher_wedges_on_flush_lock(
@@ -1860,7 +1862,8 @@ class TestBatchedStorageFlusherTOCTOU:
 
         strat.close()
         assert strat.pending == 0
-        assert strat._flusher is not None and not strat._flusher.is_alive()
+        assert strat._flusher is not None
+        assert not strat._flusher.is_alive()
 
 
 class TestBatchedAgeFlushDeadlineCadence:

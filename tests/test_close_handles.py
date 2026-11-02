@@ -35,7 +35,8 @@ class TestCloseHandles:
 
         assert failed is False
         assert control_error is None
-        assert first.closed and second.closed
+        assert first.closed
+        assert second.closed
 
     def test_ordinary_failure_is_reported_and_remaining_handles_close(self) -> None:
         failing = _Handle(RuntimeError("socket already closed"))
@@ -45,7 +46,8 @@ class TestCloseHandles:
 
         assert failed is True
         assert control_error is None
-        assert failing.closed and survivor.closed
+        assert failing.closed
+        assert survivor.closed
 
     def test_control_exception_is_returned_and_remaining_handles_close(self) -> None:
         signal = KeyboardInterrupt("operator interrupt")
@@ -56,7 +58,8 @@ class TestCloseHandles:
 
         assert failed is False
         assert control_error is signal
-        assert interrupted.closed and survivor.closed
+        assert interrupted.closed
+        assert survivor.closed
 
     def test_swallow_close_failures_never_traps_control_exceptions(self) -> None:
         cleanup = swallow_close_failures()
@@ -80,7 +83,8 @@ class TestRedisCloseHandlesAlignment:
 
         RedisBackend._close_handles(failing, survivor, None)  # must not raise
 
-        assert failing.closed and survivor.closed
+        assert failing.closed
+        assert survivor.closed
         debug_spy.assert_called_once_with("Suppressed redis cleanup error")
 
     def test_control_exception_is_reraised_after_all_handles_attempted(self) -> None:
@@ -92,4 +96,5 @@ class TestRedisCloseHandlesAlignment:
             RedisBackend._close_handles(interrupted, survivor, None)
 
         assert excinfo.value is signal
-        assert interrupted.closed and survivor.closed
+        assert interrupted.closed
+        assert survivor.closed

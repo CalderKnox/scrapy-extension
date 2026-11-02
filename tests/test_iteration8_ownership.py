@@ -452,7 +452,8 @@ def test_composite_close_consumes_late_authoritative_failure_after_timeout(
     bounded.errback(RuntimeError("public timeout"))
     authoritative.errback(RuntimeError("late authoritative"))
 
-    assert failures and str(failures[0]) == "public timeout"
+    assert failures
+    assert str(failures[0]) == "public timeout"
     assert spider._scheduler is scheduler
     assert spider._connection_manager.close.call_count == 0
     del public, authoritative, bounded

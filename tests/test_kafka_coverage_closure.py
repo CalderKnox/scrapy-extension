@@ -622,7 +622,9 @@ def test_redelivery_replaces_attempt_identity_and_preserves_legacy_cohort(
     assert backend.pop("q") == b"legacy"
     _, first = backend.pop_with_ack("q")
     _, second = backend.pop_with_ack("q")
-    assert first is not None and second is not None and first != second
+    assert first is not None
+    assert second is not None
+    assert first != second
     assert backend._generation_gate.current is not None
     assert backend._generation_gate.current.value.legacy_record is not None
     backend.ack("q", token=first)

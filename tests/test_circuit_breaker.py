@@ -493,7 +493,8 @@ class TestStaleFailureRace:
             old_thread.join(timeout=1.0)
             new_thread.join(timeout=1.0)
 
-        assert old_errors and new_results == ["recovered"]
+        assert old_errors
+        assert new_results == ["recovered"]
         assert breaker.state is BreakerState.CLOSED
 
 

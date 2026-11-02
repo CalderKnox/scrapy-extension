@@ -1197,7 +1197,7 @@ def test_concurrently_mutable_manifest_is_rejected_without_a_secret_graph() -> N
 
 
 @pytest.mark.parametrize(
-    "backend_value, message",
+    ("backend_value", "message"),
     [
         (memoryview(b"noncontiguous")[::2], "not contiguous"),
         (memoryview(b"released"), "conversion failed"),

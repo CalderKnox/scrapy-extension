@@ -1350,12 +1350,12 @@ class TestBackendQueuePush:
 
     @pytest.mark.parametrize(
         "strategy_factory",
-        (
+        [
             lambda manager: DelayQueueStrategy(manager, default_delay=1.0),
             lambda manager: TimeWheelQueueStrategy(manager, default_delay=1.0),
             lambda manager: RoundRobinQueueStrategy(manager),
             lambda manager: RingBufferQueueStrategy(manager),
-        ),
+        ],
     )
     def test_volatile_strategy_rejects_source_token_before_local_acceptance(
         self,
@@ -1383,10 +1383,10 @@ class TestBackendQueuePush:
 
     @pytest.mark.parametrize(
         "strategy_factory",
-        (
+        [
             lambda manager: DelayQueueStrategy(manager, default_delay=0.0),
             lambda manager: TimeWheelQueueStrategy(manager, default_delay=0.0),
-        ),
+        ],
     )
     def test_zero_delay_replacement_still_commits_through_backend(
         self,

@@ -90,12 +90,12 @@ def test_backend_queue_normalizes_invalid_timeout_to_queue_error() -> None:
 
 @pytest.mark.parametrize(
     "factory",
-    (
+    [
         lambda manager: DelayQueueStrategy(manager, default_delay=10.0),
         lambda manager: TimeWheelQueueStrategy(manager, default_delay=10.0),
         RoundRobinQueueStrategy,
         RingBufferQueueStrategy,
-    ),
+    ],
     ids=("delay", "time_wheel", "round_robin", "ring_buffer"),
 )
 def test_in_process_strategy_rejects_cross_queue_delivery(

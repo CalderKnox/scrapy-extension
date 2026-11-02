@@ -473,7 +473,7 @@ class _SensitiveForwardedQueueBackend(_SensitiveQueueBackend):
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation"),
-    (("queue_len", "queue_len"), ("clear_queue", "clear_queue")),
+    [("queue_len", "queue_len"), ("clear_queue", "clear_queue")],
 )
 def test_breaker_proxy_redacts_non_counting_queue_admin_errors(
     method_name: str,
@@ -530,7 +530,7 @@ class _SensitiveForwardedSetBackend(SetBackend):
             raise BackendError(self.marker) from error
 
 
-@pytest.mark.parametrize("method_name", ("set_len", "clear_set"))
+@pytest.mark.parametrize("method_name", ["set_len", "clear_set"])
 def test_breaker_proxy_redacts_non_counting_set_admin_errors(method_name: str) -> None:
     backend = _SensitiveForwardedSetBackend(_FORWARDED_MARKER)
     breaker = CircuitBreaker(f"breaker-{_FORWARDED_MARKER}", failure_threshold=1)
@@ -571,7 +571,7 @@ class _SensitiveForwardedStorageBackend(_SensitiveStorageBackend):
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation"),
-    (("exists", "exists"), ("ttl", "ttl"), ("clear_storage", "clear_storage")),
+    [("exists", "exists"), ("ttl", "ttl"), ("clear_storage", "clear_storage")],
 )
 def test_breaker_proxy_redacts_non_counting_storage_admin_errors(
     method_name: str,

@@ -252,7 +252,8 @@ def test_monitor_reentry_does_not_create_a_receipt_or_raw_error_context() -> Non
     decision = dupefilter.request_seen_with_reservation(request)
     assert decision.reservation is not None
     dupefilter.commit_reservation(decision.reservation)
-    assert monitor.events and monitor.events[0][0] == "miss"
+    assert monitor.events
+    assert monitor.events[0][0] == "miss"
     assert dupefilter._monitor_drain_token is None
     assert dupefilter._active_monitor_requests == {}
 

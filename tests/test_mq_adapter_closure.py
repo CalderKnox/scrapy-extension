@@ -465,7 +465,8 @@ def test_rocketmq_receive_pump_failure_observer_is_fenced() -> None:
     )
 
     backend._receive_pump(consumer, 1, "scrapy-jobs", stop, backend._receive_snapshot)
-    assert observed and isinstance(observed[0], RuntimeError)
+    assert observed
+    assert isinstance(observed[0], RuntimeError)
     assert backend._receive_failed
 
 

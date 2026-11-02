@@ -239,7 +239,8 @@ def test_disconnect_interrupts_and_joins_receive_worker() -> None:
     assert backend.pop("jobs", timeout=0) is None
     assert receive_entered.wait(timeout=1)
     worker = backend._receive_worker
-    assert worker is not None and worker.is_alive()
+    assert worker is not None
+    assert worker.is_alive()
 
     backend.disconnect()
 

@@ -151,7 +151,7 @@ def _failing_storage_operation(
 
 @pytest.mark.parametrize(
     "method_name",
-    ("store", "retrieve", "delete", "exists", "ttl", "clear_storage"),
+    ["store", "retrieve", "delete", "exists", "ttl", "clear_storage"],
 )
 def test_direct_dynamodb_storage_operation_rebuilds_private_error_graph(
     mocker: Any, method_name: str
@@ -239,7 +239,7 @@ def test_dynamodb_storage_boundary_preserves_plugin_storage_subclass(
     assert exc_info.value is plugin_error
 
 
-@pytest.mark.parametrize("method_name", ("store", "clear_storage"))
+@pytest.mark.parametrize("method_name", ["store", "clear_storage"])
 def test_dynamodb_terminal_boundary_preserves_control_flow(
     mocker: Any, method_name: str
 ) -> None:

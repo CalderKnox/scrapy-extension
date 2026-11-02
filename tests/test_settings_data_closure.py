@@ -93,7 +93,7 @@ def test_aws_credentials_accept_secretstr_and_plaintext_pair(value: object) -> N
 
 
 @pytest.mark.parametrize(
-    "access, secret, missing",
+    ("access", "secret", "missing"),
     [(None, "s", "aws_access_key_id"), ("a", None, "aws_secret_access_key")],
 )
 def test_aws_credentials_reject_partial_pairs(
@@ -904,7 +904,8 @@ def test_sqs_token_settlement_is_exactly_once_and_stale_tokens_do_not_retry(
         ]
     }
     body, token = backend.pop_with_ack("jobs")
-    assert body == b"x" and token is not None
+    assert body == b"x"
+    assert token is not None
     backend.ack("jobs", token=token)
     backend.ack("jobs", token=token)
     assert client.delete_message.call_count == 1
@@ -922,7 +923,7 @@ def test_sqs_queue_length_validates_all_depth_attributes(mocker) -> None:
         }
     }
     client.get_queue_attributes.return_value = {
-        "Attributes": {name: "1" for name in sqs_mod._QUEUE_DEPTH_ATTRIBUTES}
+        "Attributes": dict.fromkeys(sqs_mod._QUEUE_DEPTH_ATTRIBUTES, "1")
     }
     assert backend.queue_len("jobs") == 3
     client.get_queue_attributes.return_value = {"Attributes": {}}

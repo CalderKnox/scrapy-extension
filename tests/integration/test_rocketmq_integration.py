@@ -276,10 +276,13 @@ def unique_prefix() -> str:
     return f"inttest-{uuid.uuid4().hex}"
 
 
+@pytest.mark.usefixtures("_rocketmq_sdk_loopback_identity")
 def test_sdk_loopback_identity_avoids_public_route_probe(
-    _rocketmq_sdk_loopback_identity, mocker
+    mocker,
 ):  # type: ignore[no-untyped-def]
     """The fixture must use the SDK cache without constructing a probe socket."""
+    from rocketmq.v5.util.misc import Misc
+
     probe_socket = mocker.Mock(
         side_effect=AssertionError("RocketMQ metadata attempted a public route probe")
     )
@@ -292,9 +295,7 @@ def test_sdk_loopback_identity_avoids_public_route_probe(
         ),
     )
 
-    assert (
-        _rocketmq_sdk_loopback_identity.get_local_ip() == _ROCKETMQ_SDK_LOOPBACK_ADDRESS
-    )
+    assert Misc.get_local_ip() == _ROCKETMQ_SDK_LOOPBACK_ADDRESS
     probe_socket.assert_not_called()
 
 

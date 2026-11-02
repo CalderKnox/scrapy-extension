@@ -72,7 +72,8 @@ def test_spider_queue_close_submission_failure_is_retryable(monkeypatch) -> None
 
     second = spider.close_backend()
     assert isinstance(second, Deferred)
-    assert jobs and workers
+    assert jobs
+    assert workers
     jobs[0]()
     workers[0].callback(None)
     assert second.called
@@ -104,7 +105,8 @@ def test_spider_closed_signal_preserves_async_control_failure(mocker) -> None:
     returned.addErrback(lambda failure: failures.append(failure.value))
     close_result.errback(KeyboardInterrupt("close interrupted"))
 
-    assert failures and isinstance(failures[0], KeyboardInterrupt)
+    assert failures
+    assert isinstance(failures[0], KeyboardInterrupt)
 
 
 def test_spider_closed_signal_swallows_async_close_failure(mocker) -> None:
@@ -143,7 +145,8 @@ def test_close_backend_async_scheduler_control_failure_is_preserved(mocker) -> N
     returned.addErrback(lambda failure: failures.append(failure.value))
     scheduler_close.errback(KeyboardInterrupt("scheduler interrupted"))
 
-    assert failures and isinstance(failures[0], KeyboardInterrupt)
+    assert failures
+    assert isinstance(failures[0], KeyboardInterrupt)
     assert spider._scheduler is scheduler
     assert spider._connection_manager is not None
 
@@ -188,7 +191,8 @@ def test_close_backend_async_success_preserves_existing_signal_error(mocker) -> 
     returned.addErrback(lambda failure: failures.append(failure.value))
     scheduler_close.callback(None)
 
-    assert failures and str(failures[0]) == "signal failed"
+    assert failures
+    assert str(failures[0]) == "signal failed"
     assert spider._scheduler is None
     assert spider._connection_manager is not None
 
@@ -210,7 +214,8 @@ def test_close_backend_async_failure_preserves_existing_signal_error(mocker) -> 
     returned.addErrback(lambda failure: failures.append(failure.value))
     scheduler_close.errback(RuntimeError("scheduler failed"))
 
-    assert failures and str(failures[0]) == "signal failed"
+    assert failures
+    assert str(failures[0]) == "signal failed"
     assert spider._scheduler is scheduler
     assert spider._connection_manager is not None
 
@@ -263,7 +268,8 @@ def test_close_backend_async_scheduler_failure_retains_retry_ownership(mocker) -
     result.addErrback(lambda failure: failures.append(failure.value))
     first.errback(RuntimeError("scheduler close failed"))
 
-    assert failures and str(failures[0]) == "scheduler close failed"
+    assert failures
+    assert str(failures[0]) == "scheduler close failed"
     assert spider._scheduler is scheduler
     assert manager is not None
     manager.close.assert_not_called()

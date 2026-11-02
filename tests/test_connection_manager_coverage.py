@@ -277,7 +277,7 @@ def test_T2b_connect_deadline_truncation_reports_attempts_made(mocker):
 
     fake = FakeBackend(connect_failures=99)
     m = _manager_with_backend(fake)
-    mocker.patch.object(m, "_reactor_io_timeout", lambda: 0.0)
+    mocker.patch.object(m, "_reactor_io_timeout", return_value=0.0)
 
     with pytest.raises(
         BackendConnectionError, match="Failed to connect after 1 attempt"
@@ -331,7 +331,7 @@ def test_T15_backoff_budget_warning_fires_once_under_typical_truncation(mocker, 
 
     fake = FakeBackend(connect_failures=99)
     m = _manager_with_backend(fake)  # retry_attempts=3, retry_delay=1.0
-    mocker.patch.object(m, "_reactor_io_timeout", lambda: 1.0)
+    mocker.patch.object(m, "_reactor_io_timeout", return_value=1.0)
 
     with caplog.at_level("WARNING", logger="scrapy_extension.backends.connectors"):
         with pytest.raises(BackendConnectionError):
@@ -674,8 +674,10 @@ def test_clear_registry_continues_after_backend_baseexceptions():
 
     first_backend.disconnect.assert_called_once_with()
     second_backend.disconnect.assert_called_once_with()
-    assert first._retired is True and first._backend is None
-    assert second._retired is True and second._backend is None
+    assert first._retired is True
+    assert first._backend is None
+    assert second._retired is True
+    assert second._backend is None
     assert ConnectionManager._managers == {}
 
 
@@ -692,7 +694,8 @@ def test_lru_eviction_survives_backend_baseexception(monkeypatch):
     replacement = ConnectionManager.get_manager("redis", {"k": "replacement"})
 
     backend.disconnect.assert_called_once_with()
-    assert victim._retired is True and victim._backend is None
+    assert victim._retired is True
+    assert victim._backend is None
     assert replacement in ConnectionManager._managers.values()
 
 

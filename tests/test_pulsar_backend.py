@@ -1240,7 +1240,7 @@ class TestPulsarRealAck:
         assert consumer.acknowledge.call_count == 3
         actual_ids = [call.args[0] for call in consumer.acknowledge.call_args_list]
         assert actual_ids == [t.message_id for t in tokens]
-        assert len(set(id(x) for x in actual_ids)) == 3  # 3 distinct objects
+        assert len({id(x) for x in actual_ids}) == 3  # 3 distinct objects
         assert b._in_flight == set()
 
     def test_cross_topic_ack_uses_consumer_that_popped_message(self, mocker) -> None:
@@ -1635,10 +1635,10 @@ class TestPulsarLenClear:
 
     @pytest.mark.parametrize(
         "error",
-        (
+        [
             RuntimeError("unknown capability marker"),
             KeyboardInterrupt("control-flow capability marker"),
-        ),
+        ],
     )
     def test_capability_boundary_preserves_unknown_and_control_flow_errors(
         self, error: BaseException

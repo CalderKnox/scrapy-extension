@@ -346,7 +346,8 @@ def test_async_dupefilter_failure_bridges_authoritative_cleanup(monkeypatch) -> 
     dupefilter_open.errback(RuntimeError("dupefilter failed"))
     _settle_workers(workers)
 
-    assert failures and str(failures[0]) == "dupefilter failed"
+    assert failures
+    assert str(failures[0]) == "dupefilter failed"
     assert scheduler._lifecycle_state == "closed"
     manager.close.assert_called_once_with()
 
@@ -451,9 +452,8 @@ def test_close_before_late_open_success_suppresses_open_publication(
     _settle_workers(workers)
 
     assert closing.called
-    assert (
-        open_failures and str(open_failures[0]) == "Scheduler open cancelled by close"
-    )
+    assert open_failures
+    assert str(open_failures[0]) == "Scheduler open cancelled by close"
     assert scheduler._lifecycle_state == "closed"
     assert scheduler._queue is None
     assert not queue.close.called
@@ -473,7 +473,8 @@ def test_open_publication_failure_restores_after_async_cleanup(monkeypatch) -> N
     function(*args, **kwargs)
     worker.callback(None)
 
-    assert failures and str(failures[0]) == "publication failed"
+    assert failures
+    assert str(failures[0]) == "publication failed"
     scheduler._cleanup_after_open_failure.assert_called_once_with("open-failed")
 
 
@@ -491,7 +492,8 @@ def test_open_late_failure_remains_close_failure_precedence(monkeypatch) -> None
     _settle_workers(workers, start=1)
 
     assert scheduler._lifecycle_state == "closed"
-    assert close_failures and str(close_failures[0]) == "warm-up failed late"
+    assert close_failures
+    assert str(close_failures[0]) == "warm-up failed late"
     manager.close.assert_called_once_with()
 
 

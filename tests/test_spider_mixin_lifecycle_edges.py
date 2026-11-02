@@ -96,7 +96,8 @@ def test_lifecycle_helpers_settle_submission_failure(monkeypatch):
     result = spider_module._submit_thread(lambda: None)
     failures: list[BaseException] = []
     result.addErrback(lambda failure: failures.append(failure.value))
-    assert failures and isinstance(failures[0], KeyboardInterrupt)
+    assert failures
+    assert isinstance(failures[0], KeyboardInterrupt)
     spider_module._emit_diagnostic(
         lambda *_args: (_ for _ in ()).throw(KeyboardInterrupt("log")), "ignored"
     )
@@ -115,7 +116,9 @@ def test_start_component_close_selects_authoritative_deferred(monkeypatch):
     operation, error, succeeded = _Spider()._start_component_close(
         "queue", QueueBackend(), ""
     )
-    assert operation is worker and error is None and not succeeded
+    assert operation is worker
+    assert error is None
+    assert not succeeded
     worker.callback((True, authoritative))
     assert operation.result is authoritative
     authoritative.callback(None)
@@ -142,7 +145,9 @@ def test_start_component_close_retains_worker_when_callback_adapter_rejects(
     operation, error, succeeded = _Spider()._start_component_close(
         "queue", QueueBackend(), ""
     )
-    assert operation is worker and error is None and not succeeded
+    assert operation is worker
+    assert error is None
+    assert not succeeded
 
 
 def test_start_owner_operation_direct_and_offloaded_paths(mocker, monkeypatch):
@@ -151,7 +156,9 @@ def test_start_owner_operation_direct_and_offloaded_paths(mocker, monkeypatch):
     owner.close.side_effect = KeyboardInterrupt("owner")
     monkeypatch.setattr(spider_module, "reactor_is_running", lambda: False)
     operation, error, succeeded = spider._start_owner_operation(owner, "close")
-    assert operation is None and isinstance(error, KeyboardInterrupt) and not succeeded
+    assert operation is None
+    assert isinstance(error, KeyboardInterrupt)
+    assert not succeeded
 
     worker: Deferred[object] = Deferred()
     manager = ConnectionManager(BackendType.REDIS, {})
@@ -159,7 +166,9 @@ def test_start_owner_operation_direct_and_offloaded_paths(mocker, monkeypatch):
     monkeypatch.setattr(spider_module, "reactor_is_running", lambda: True)
     monkeypatch.setattr(spider_module, "deferToThread", lambda *_a, **_k: worker)
     operation, error, succeeded = spider._start_owner_operation(manager, "close")
-    assert operation is worker and error is None and not succeeded
+    assert operation is worker
+    assert error is None
+    assert not succeeded
     worker.callback("normal")
     assert worker.result == "normal"
 
@@ -177,7 +186,9 @@ def test_start_owner_operation_selector_rejection_is_retryable(mocker, monkeypat
     monkeypatch.setattr(spider_module, "reactor_is_running", lambda: True)
     monkeypatch.setattr(spider_module, "deferToThread", lambda *_a, **_k: worker)
     operation, error, succeeded = _Spider()._start_owner_operation(manager, "close")
-    assert operation is worker and error is None and not succeeded
+    assert operation is worker
+    assert error is None
+    assert not succeeded
 
 
 def test_orphan_candidate_failure_and_prior_failure_are_retained(mocker):
@@ -262,7 +273,8 @@ def test_orphan_cleanup_attachment_failure_becomes_retry_error(mocker):
     spider._orphan_candidates = [("scheduler", candidate)]
     spider._orphan_candidate_operations[id(candidate)] = Rejecting()  # type: ignore[assignment]
     error = spider._cleanup_orphan_candidates("retry")
-    assert isinstance(error, RuntimeError) and str(error) == "attach"
+    assert isinstance(error, RuntimeError)
+    assert str(error) == "attach"
     assert spider._orphan_candidates == [("scheduler", candidate)]
 
 
@@ -281,4 +293,5 @@ def test_orphan_cleanup_waits_for_async_lease_and_manager(mocker):
     lease_done.callback(None)
     manager_done.callback(None)
     assert cleanup.called
-    assert not spider._orphan_leases and not spider._orphan_managers
+    assert not spider._orphan_leases
+    assert not spider._orphan_managers

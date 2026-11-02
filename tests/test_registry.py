@@ -967,10 +967,10 @@ class TestDescriptorBoundary:
 
     @pytest.mark.parametrize(
         ("name", "registration"),
-        (
+        [
             ("badbackendpath", "_register_invalid_backend_path"),
             ("badsettingspath", "_register_invalid_settings_path"),
-        ),
+        ],
     )
     def test_class_paths_must_be_dotted_identifiers(
         self, monkeypatch, name, registration

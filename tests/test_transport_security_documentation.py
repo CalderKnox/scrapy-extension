@@ -38,7 +38,7 @@ def test_public_transport_docs_qualify_authenticated_plaintext(
 
 
 @pytest.mark.parametrize(
-    "settings_type, local_kwargs",
+    ("settings_type", "local_kwargs"),
     [
         (RedisSettings, {"host": "127.0.0.1", "password": "local-secret"}),
         (
@@ -66,7 +66,7 @@ def test_direct_loopback_authenticated_plaintext_contract_is_preserved(
 
 
 @pytest.mark.parametrize(
-    "settings_type, remote_kwargs, expected_setting",
+    ("settings_type", "remote_kwargs", "expected_setting"),
     [
         (
             RedisSettings,

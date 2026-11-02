@@ -807,7 +807,7 @@ class TestSetCore:
 
     @pytest.mark.parametrize(
         ("error_type", "expected_type"),
-        ((ApiError, ConfigurationError), (TransportError, BackendConnectionError)),
+        [(ApiError, ConfigurationError), (TransportError, BackendConnectionError)],
     )
     def test_remove_normalizes_backend_error(self, mocker, error_type, expected_type):
 

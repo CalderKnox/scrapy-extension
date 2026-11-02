@@ -85,13 +85,13 @@ def _assert_terminal_error_is_redacted(error: BaseException, marker: str) -> Non
 
 @pytest.mark.parametrize(
     ("method_name", "expected_message"),
-    (
+    [
         ("add", "Redis set add failed."),
         ("remove", "Redis set remove failed."),
         ("contains", "Redis set membership check failed."),
         ("set_len", "Redis set length read failed."),
         ("clear_set", "Redis set clear failed."),
-    ),
+    ],
 )
 def test_direct_redis_set_operations_rebuild_private_error_graphs(
     mocker: Any, method_name: str, expected_message: str
@@ -125,7 +125,7 @@ def test_direct_redis_set_operations_rebuild_private_error_graphs(
 
 @pytest.mark.parametrize(
     ("method_name", "expected_operation", "expected_message"),
-    (
+    [
         ("store", "store", "Redis storage write failed."),
         ("store_rejected", "store", "Redis rejected a storage write."),
         ("retrieve", "retrieve", "Redis storage read failed."),
@@ -142,7 +142,7 @@ def test_direct_redis_set_operations_rebuild_private_error_graphs(
             "clear_storage",
             "Redis storage clear failed and may be partially complete.",
         ),
-    ),
+    ],
 )
 def test_direct_redis_storage_operations_rebuild_private_error_graphs(
     mocker: Any,

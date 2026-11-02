@@ -343,7 +343,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
         failure = MagicMock(name="Failure")
         failure.request = request
 
@@ -368,7 +369,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
         failure = MagicMock(request=request)
 
         assert request.errback(failure) is deferred
@@ -393,7 +395,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
         failure = MagicMock(request=request)
         result = request.errback(failure)
         result.addErrback(lambda _failure: None)
@@ -418,7 +421,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
         failure = MagicMock(request=request)
 
         awaitable = request.errback(failure)
@@ -440,7 +444,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
 
         assert request.errback(MagicMock(request=request)) is replacement
 
@@ -467,7 +472,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
 
         output = list(request.errback(MagicMock(request=request)))
 
@@ -498,7 +504,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
 
         output = iter(request.errback(MagicMock(request=request)))
         assert next(output) is replacement
@@ -527,7 +534,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
 
         output = iter(request.errback(MagicMock(request=request)))
         assert next(output) is replacement
@@ -557,7 +565,8 @@ class TestEnqueueBranchClosure:
         queue.pop.return_value = queued_request
         scheduler._queue = queue
         request = scheduler.next_request()
-        assert request is not None and request.errback is not None
+        assert request is not None
+        assert request.errback is not None
 
         output = request.errback(MagicMock(request=request))
         observed = []

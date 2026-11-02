@@ -83,7 +83,7 @@ def _capture_monitor_errors(
     return monitor, events, active_errors
 
 
-@pytest.mark.parametrize("entrypoint", ("push", "_push_with_durability"))
+@pytest.mark.parametrize("entrypoint", ["push", "_push_with_durability"])
 def test_queue_push_serialization_terminals_redact_input_and_monitor_event(
     mocker: Any,
     mock_connection_manager: Any,
