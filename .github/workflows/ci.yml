@@ -726,7 +726,7 @@ jobs:
         env:
           RESULT: ${{ needs.lifecycle-test.result }}
         run: test "$RESULT" = success
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ci-lifecycle-evidence
           path: evidence
@@ -758,7 +758,7 @@ jobs:
           RESULT: ${{ needs.lifecycle-verify.result }}
         run: test "$RESULT" = success
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ci-lifecycle-evidence
           path: evidence
