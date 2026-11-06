@@ -156,6 +156,27 @@ sockets explicitly allowed. RocketMQ uses the pure-Python Apache gRPC client
 and requires the broker proxy endpoint (usually `localhost:8081`), not the
 legacy NameServer-only port.
 
+The documentation job runs first; the unit matrix, live integration job, and
+dependency security scan run in parallel after it. The security scan is skipped
+for fork PRs. The serial determinism job runs only on the nightly schedule.
+
+### CI lifecycle
+
+Five sequential gates evaluate the results of those checks:
+
+1. **测试 / Test** — collect the test results.
+2. **验证 / Verify** — check the retained wheel and sdist hashes.
+3. **评估 / Evaluate** — evaluate coverage and benchmark evidence.
+4. **确认 / Confirm** — confirm security and scheduled determinism results.
+5. **验收 / Accept** — automatically accept a successful run.
+
+Coverage JSON, benchmark JSON, packages, and build hashes are retained as an
+artifact between gates. A failed required check or gate prevents acceptance.
+The security-scan skip on fork PRs and the nightly job's absence on
+non-scheduled runs are reported as skips. Acceptance is automated; it does not
+require human approval or deploy anything. Benchmark evidence verifies that
+measurements ran; it does not impose a performance regression threshold.
+
 ## Current project documentation
 
 Use the maintained, tracked documentation rather than workstation notes or

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
   schedule:
     # Nightly determinism gate: the serial seeded suite (see the
     # nightly-serial-determinism job) runs off the per-PR critical path.
@@ -209,11 +210,12 @@ jobs:
               cd "$build_root"
               uv build --clear --python ${{ matrix.python-version }} --out-dir "$out"
             )
-            (cd "$out" && sha256sum * | sort -k2) > ".artifact-hashes-$pass"
+            (cd "$out" && sha256sum -- * | sort -k2) > ".artifact-hashes-$pass"
           done
           diff -u .artifact-hashes-1 .artifact-hashes-2
           mkdir dist
           cp .artifact-build-1/* dist/
+          cp .artifact-hashes-1 dist/SHA256SUMS
           cat .artifact-hashes-1
       - name: Verify wheel and source artifact manifests
         if: matrix.python-version == '3.11'
@@ -406,6 +408,17 @@ jobs:
         run: >-
           uv run --no-sync pytest -m "not integration" -n auto --tb=short -q
           --randomly-seed=1125147632
+      - name: Retain lifecycle evidence
+        if: matrix.python-version == '3.11'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-lifecycle-evidence
+          path: |
+            coverage.json
+            benchmark-smoke.json
+            dist/
+          if-no-files-found: error
+          retention-days: 14
 
   # Integration job — runs tests under tests/integration/ against
   # containerized backends. Runs in parallel with unit-tests so it never
@@ -684,3 +697,127 @@ jobs:
         with:
           name: audit-report
           path: audit-report.txt
+
+  lifecycle-test:
+    name: "1 / Test · test results"
+    needs: [docs, unit-tests, integration-tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require documentation, unit matrix and live integration tests
+        env:
+          DOCS: ${{ needs.docs.result }}
+          UNIT: ${{ needs.unit-tests.result }}
+          INTEGRATION: ${{ needs.integration-tests.result }}
+        run: |
+          printf '### Test\n\nDocumentation: %s; unit matrix: %s; integration: %s.\n' \
+            "$DOCS" "$UNIT" "$INTEGRATION" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$DOCS" == success && "$UNIT" == success && "$INTEGRATION" == success ]]
+
+  lifecycle-verify:
+    name: "2 / Verify · build evidence"
+    needs: [lifecycle-test]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require test gate
+        env:
+          RESULT: ${{ needs.lifecycle-test.result }}
+        run: test "$RESULT" = success
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-lifecycle-evidence
+          path: evidence
+      - name: Verify retained package hashes and evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s evidence/coverage.json
+          test -s evidence/benchmark-smoke.json
+          cd evidence/dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          printf '### Verify\n\nRetained wheel and sdist hashes match the reproducible build.\n' >> "$GITHUB_STEP_SUMMARY"
+
+  lifecycle-evaluate:
+    name: "3 / Evaluate · quality evidence"
+    needs: [lifecycle-verify]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require verification gate
+        env:
+          RESULT: ${{ needs.lifecycle-verify.result }}
+        run: test "$RESULT" = success
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: ci-lifecycle-evidence
+          path: evidence
+      - name: Evaluate coverage and benchmark evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '### Evaluate' >> "$GITHUB_STEP_SUMMARY"
+          python3 tools/evaluate_ci_evidence.py \
+            --coverage evidence/coverage.json --benchmark evidence/benchmark-smoke.json \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+  lifecycle-confirm:
+    name: "4 / Confirm · policy gates"
+    needs: [lifecycle-evaluate, security-scan, nightly-serial-determinism]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm required results and permitted skips
+        env:
+          EVALUATION: ${{ needs.lifecycle-evaluate.result }}
+          SECURITY: ${{ needs.security-scan.result }}
+          NIGHTLY: ${{ needs.nightly-serial-determinism.result }}
+          EVENT: ${{ github.event_name }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login != github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '### Confirm\n\nEvaluation: %s; security scan: %s; nightly determinism: %s.\n' \
+            "$EVALUATION" "$SECURITY" "$NIGHTLY" >> "$GITHUB_STEP_SUMMARY"
+          test "$EVALUATION" = success
+          if [[ "$FORK" == true ]]; then
+            test "$SECURITY" = skipped
+            echo 'Fork PR: separate security scan skipped; the unit lane still runs the dependency audit.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            test "$SECURITY" = success
+          fi
+          if [[ "$EVENT" == schedule ]]; then
+            test "$NIGHTLY" = success
+          else
+            test "$NIGHTLY" = skipped
+          fi
+
+  lifecycle-accept:
+    name: "5 / Accept · automated acceptance"
+    needs: [lifecycle-test, lifecycle-verify, lifecycle-evaluate, lifecycle-confirm]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report and enforce lifecycle acceptance
+        env:
+          TEST: ${{ needs.lifecycle-test.result }}
+          VERIFY: ${{ needs.lifecycle-verify.result }}
+          EVALUATE: ${{ needs.lifecycle-evaluate.result }}
+          CONFIRM: ${{ needs.lifecycle-confirm.result }}
+        shell: bash
+        run: |
+          printf '### Automated acceptance\n\n| Stage | Result |\n| --- | --- |\n| Test | %s |\n| Verify | %s |\n| Evaluate | %s |\n| Confirm | %s |\n' \
+            "$TEST" "$VERIFY" "$EVALUATE" "$CONFIRM" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$TEST" == success && "$VERIFY" == success && "$EVALUATE" == success && "$CONFIRM" == success ]]
