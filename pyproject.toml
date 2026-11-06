@@ -154,9 +154,8 @@ rocketmq-python-client = "rocketmq"
 # DEP003 (transitive dependency): scrapy/pydantic provide these imports; they
 # are intentionally not declared as direct dependencies.
 DEP003 = ["twisted", "pydispatch", "pydantic_core", "itemadapter"]
-# DEP002 (unused dependency): security floors for transitive dependencies that
-# `uv audit --locked` treats as fatal; they are intentionally not imported.
-DEP002 = ["pyasn1", "protego"]
+# Security floors are not imported, and the self-reference combines extras.
+DEP002 = ["pyasn1", "protego", "scrapy-extension"]
 # DEP004 (dev dependency imported by non-dev code): packaging is CI/test-only
 # tooling used by tools/check_audit_waiver.py, which runs against the lock.
 DEP004 = ["packaging"]
