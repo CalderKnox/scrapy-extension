@@ -44,11 +44,8 @@ dependencies = [
     # fixes for CVE-2026-119194..119197 (quadratic-time BER/DER decoding).
     "pyasn1>=0.6.5,<0.7",
     "pydantic>=2.13.4,<3",
-    # Pinned tightly: settings/_redacted.py's source-delegation façade
-    # (_sync_wrapped_source_state) calls two private pydantic-settings
-    # methods (_set_current_state/_set_settings_sources_data). Minor releases
-    # may rename private internals without notice; bump only together with
-    # that façade and its import-time surface smoke test.
+    # settings/_redacted.py uses private pydantic-settings methods. Review
+    # its delegation and surface smoke test when raising the upper bound.
     "pydantic-settings>=2.15.0,<2.17",
     # Scrapy currently permits Protego 0.6.0, which has a ReDoS vulnerability.
     # Keep the transitive dependency on the patched release line.
@@ -72,31 +69,21 @@ rabbitmq = ["pika>=1.4.4,<2"]
 elasticsearch = ["elasticsearch>=9.4.1,<10"]
 rocketmq = ["rocketmq-python-client>=5.1.1,<6"]
 pulsar = ["pulsar-client>=3.13.0,<4"]
-# Experimental — supply-chain caveat: pymemcache is unmaintained (last release
-# 2022-10-17, ~1300+ days stale). The `memcached` extra is storage-only (KV+TTL).
-# See .github/STABILITY.md "Memcached" row for status; tracked as U20.
+# Experimental, storage-only (KV+TTL); pymemcache is unmaintained.
+# See the Memcached entry in .github/STABILITY.md (U20).
 memcached = ["pymemcache>=4.0,<5"]
 sqs = ["boto3>=1.43.72,<2"]
 dynamodb = ["boto3>=1.43.72,<2"]
+# Reuse the individual extras so version constraints cannot drift.
 all = [
-    "redis>=8.1.0,<9",
-    "pymongo>=4.8.0,<5",
-    "kafka-python-ng>=2.2.2,<3",
-    "pika>=1.4.4,<2",
-    "elasticsearch>=9.4.1,<10",
-    "rocketmq-python-client>=5.1.1,<6",
-    "pulsar-client>=3.13.0,<4",
-    "pymemcache>=4.0,<5",
-    "boto3>=1.43.72,<2",
+    "scrapy-extension[redis,mongodb,kafka,rabbitmq,elasticsearch,rocketmq,pulsar,memcached,sqs,dynamodb]",
 ]
 
 [dependency-groups]
 # dev is the minimal local environment: lint/type-check tooling plus the task
-# runner. It intentionally does not include the test group or the audit group,
-# so a default sync stays free of backend SDKs, pytest, and deptry (deptry has
-# no free-threaded wheel). The test group remains self-contained for an
-# extracted sdist. Keep explicit version ranges here so `uv lock --upgrade`
-# cannot cross major boundaries without review.
+# runner. Test and audit are separate groups; the default sync includes test,
+# while audit remains opt-in (deptry has no free-threaded wheel). The test
+# group remains self-contained for an extracted sdist.
 dev = [
     { include-group = "lint" },
     "packaging>=26.0,<27",
@@ -122,26 +109,10 @@ test = [
     "pytest-instafail",
     "pytest-socket",
     "hypothesis>=6.165.9,<7",
-    # Tests import yaml directly. bandit used to provide PyYAML transitively,
-    # but bandit is dev-only now, so declare it to keep this group
-    # self-contained.
+    # Tests import yaml directly; keep the test group self-contained.
     "pyyaml>=6.0,<7",
-    # Backend deps — tests import backend modules directly, which triggers
-    # the module-level lazy-import guard. All backends must be installable
-    # for the test suite to collect.
-    "redis>=8.1.0,<9",
-    "pymongo>=4.8.0,<5",
-    "kafka-python-ng>=2.2.2,<3",
-    "pika>=1.4.4,<2",
-    "elasticsearch>=9.4.1,<10",
-    # apache rocketmq-python-client is pure-Python (gRPC + protobuf, no native
-    # lib) — installable in the test env without the librocketmq pain that
-    # blocked the old ctypes client. Required so the lazy-import guard in
-    # backends/rocketmq.py lets module collection succeed.
-    "rocketmq-python-client>=5.1.1,<6",
-    "pulsar-client>=3.13.0,<4",
-    "pymemcache>=4.0,<5",
-    "boto3>=1.43.72,<2",
+    # Collection imports backend modules directly, so install every extra.
+    "scrapy-extension[all]",
     { include-group = "typecheck" },
 ]
 
@@ -172,10 +143,7 @@ known_first_party = ["scrapy_extension", "examples"]
 extend_exclude = ["conftest\\.py"]
 
 [tool.deptry.package_module_name_map]
-# Distribution name -> importable module name(s) where they differ. boto3 ships
-# botocore, kafka-python-ng is imported as `kafka`, pymongo ships `bson`,
-# pulsar-client is imported as `pulsar`, and rocketmq-python-client as
-# `rocketmq`.
+# Map distributions to their importable module names.
 boto3 = ["boto3", "botocore"]
 kafka-python-ng = "kafka"
 pymongo = ["pymongo", "bson"]
@@ -283,7 +251,7 @@ tasks.type-check = "pyrefly check src"
 tasks.security-check = "bandit -r src -c pyproject.toml"
 # Dependency hygiene is a separate task because it is slower and currently not
 # part of the default `poe check` aggregate.
-tasks.audit = { shell = "uvx deptry==0.25.1 ." }
+tasks.audit = { shell = "uv run --isolated --only-group audit deptry ." }
 
 # Keep the existing entry points, but make them safe read-only aliases.
 tasks.format = ["format-check"]
@@ -293,10 +261,8 @@ tasks.test-py311 = { shell = "uv run --python 3.11 --group test pytest" }
 tasks.test-py312 = { shell = "uv run --python 3.12 --group test pytest" }
 tasks.test-py313 = { shell = "uv run --python 3.13 --group test pytest" }
 tasks.test-py314 = { shell = "uv run --python 3.14 --group test pytest" }
-# Free-threaded build. NOTE: lxml (pulled transitively by scrapy via parsel)
-# re-enables the GIL on import, so this verifies 3.14t interpreter-compat —
-# NOT GIL-free concurrency. True free-threading can't be exercised while
-# scrapy depends on lxml (R81).
+# lxml re-enables the GIL, so this checks 3.14t compatibility rather than
+# free-threaded concurrency (R81).
 tasks.test-py314t = { shell = "uv run --python 3.14t --group test pytest" }
 
 tasks.clean = { shell = """
