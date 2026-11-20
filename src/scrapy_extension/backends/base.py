@@ -25,10 +25,9 @@ from typing import Any, ClassVar
 # re-exported here (an __all__ member) for the existing backends.base
 # importers; the key-name grammar moved with it — consumers import
 # validate_key_name from the leaf directly.
-from scrapy_extension.backends._json_codec import (  # noqa: F401 - P3-2 seam re-export
+from scrapy_extension.backends._json_codec import (
     JSONSerializer,
     Serializer,
-    secret_value,
 )
 from scrapy_extension.core.types import BackendType
 from scrapy_extension.exceptions.base import VALIDATION_VALUE_FRAGMENTS
