@@ -1082,6 +1082,13 @@ build evidence — is rejected by the documented command. Pin the exact path whe
 you automate verification; omitting `--signer-workflow` widens the trust
 decision to "any workflow in the repository".
 
+One caveat belongs to PR runs rather than to releases: on a `pull_request` event
+the attested source digest is the pull-request merge commit (`refs/pull/N/merge`)
+— ephemeral, rebuilt whenever the PR changes, and never the PR head SHA — so a
+`--source-digest` binding names a durable commit only for tag releases, where it
+is the tagged commit; verify released artifacts rather than PR-minted ones, and
+do not read the PR-run digest as an identity for the PR's head commit.
+
 **Operational meaning of a failure: do not deploy.** A failed verification is
 not a checksum disagreement to retry against the same file. Delete the
 download, fetch it again from the release page, and verify again. If it still
