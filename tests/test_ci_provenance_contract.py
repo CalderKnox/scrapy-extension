@@ -32,6 +32,11 @@ _FLOATING_ATTEST_PATTERN = re.compile(
 _REPOSITORY_GUARD = (
     "github.event.pull_request.head.repo.owner.login == github.repository_owner"
 )
+# Owner equality alone misreads a fork parked under the same owner as "not a
+# fork". The identity comparison is what decides whether the token can mint.
+_REPOSITORY_IDENTITY_GUARD = (
+    "github.event.pull_request.head.repo.full_name == github.repository"
+)
 _PULL_REQUEST_GUARD = "github.event_name != 'pull_request'"
 # Publishing surfaces this repository must never grow back: the delivery
 # channel is a GitHub Release, not a package index.
@@ -223,6 +228,7 @@ def test_attest_step_is_skipped_for_fork_pull_requests() -> None:
 
     assert _PULL_REQUEST_GUARD in condition
     assert _REPOSITORY_GUARD in condition
+    assert _REPOSITORY_IDENTITY_GUARD in condition
 
 
 def test_provenance_verify_job_proves_the_attestation_inside_ci() -> None:
@@ -235,6 +241,7 @@ def test_provenance_verify_job_proves_the_attestation_inside_ci() -> None:
     condition = _normalized(str(job["if"]))
     assert _PULL_REQUEST_GUARD in condition
     assert _REPOSITORY_GUARD in condition
+    assert _REPOSITORY_IDENTITY_GUARD in condition
 
     downloads = [
         step
@@ -256,6 +263,9 @@ def test_provenance_verify_job_proves_the_attestation_inside_ci() -> None:
     )
     assert 'for artifact in "${wheels[0]}" "${sdists[0]}" SHA256SUMS; do' in run
     assert "sha256sum --check --strict SHA256SUMS" in run
+    # The attested bytes must come from THIS run's commit, not just from any
+    # older run that happened to build the same (reproducible) bytes.
+    assert '--source-digest "$GITHUB_SHA"' in run
 
 
 def test_lifecycle_confirm_requires_provenance_or_the_documented_fork_skip() -> None:
@@ -268,8 +278,14 @@ def test_lifecycle_confirm_requires_provenance_or_the_documented_fork_skip() -> 
         step for step in _steps(confirm) if "PROVENANCE" in str(step.get("env"))
     )
     assert step["env"]["PROVENANCE"] == "${{ needs.provenance-verify.result }}"
+    # The provenance skip is decided by repository identity, not by owner
+    # alone, so it cannot inherit the security-scan rule's blind spot.
+    provenance_fork = step["env"]["PROVENANCE_FORK"]
+    assert "head.repo.owner.login != github.repository_owner" in provenance_fork
+    assert "head.repo.full_name != github.repository" in provenance_fork
     run = str(step["run"])
 
+    assert 'if [[ "$PROVENANCE_FORK" == true ]]' in run
     assert 'test "$PROVENANCE" = success' in run
     assert 'test "$PROVENANCE" = skipped' in run
     assert "Fork PR:" in run
@@ -325,6 +341,10 @@ def test_release_workflow_attests_verifies_then_creates_the_release() -> None:
         '--signer-workflow "${{ github.repository }}/.github/workflows/release.yml"'
         in verify_runs
     )
+    # Bind the attested bytes to this tag's commit AND this tag ref, so an
+    # attestation this workflow minted for another tag cannot be substituted.
+    assert '--source-digest "$GITHUB_SHA"' in verify_runs
+    assert '--source-ref "$GITHUB_REF"' in verify_runs
 
     release = jobs["release"]
     assert release["permissions"] == {"contents": "write", "actions": "read"}
@@ -334,6 +354,13 @@ def test_release_workflow_attests_verifies_then_creates_the_release() -> None:
     assert "--verify-tag" in release_runs
     assert "dist/*" in release_runs
     assert "sha256sum --check --strict SHA256SUMS" in release_runs
+    # A run that died mid-upload must be resumable instead of dead-ending on
+    # "release already exists".
+    assert 'gh release upload "$GITHUB_REF_NAME" dist/*' in release_runs
+    assert "--clobber" in release_runs
+    # The existence probe must guard the upload path.
+    guard = release_runs.index('if gh release view "$GITHUB_REF_NAME"')
+    assert guard < release_runs.index('gh release upload "$GITHUB_REF_NAME" dist/*')
 
     for job_name, job in jobs.items():
         permissions = job.get("permissions") or {}
@@ -396,6 +423,23 @@ def test_release_workflow_requires_a_green_ci_run_for_the_tagged_commit() -> Non
     # Reading workflow runs is exactly what the extra read scope is for.
     assert release["permissions"]["actions"] == "read"
     assert release["permissions"]["contents"] == "write"
+
+
+def test_release_workflow_refuses_a_tag_moved_after_the_build() -> None:
+    """`--verify-tag` proves the tag exists; it does not prove where it points.
+
+    A force-moved tag would otherwise publish this run's artifacts under a tag
+    that now names another commit.
+    """
+    release = _load("release.yml")["jobs"]["release"]
+    run = _job_runs(release)
+
+    assert "git/ref/tags/$GITHUB_REF_NAME" in run
+    # Annotated tags need one more dereference to reach the commit.
+    assert 'if [[ "$type" == tag ]]; then' in run
+    assert "git/tags/$sha" in run
+    assert 'if [[ "$sha" != "$GITHUB_SHA" ]]; then' in run
+    assert run.index("git/ref/tags/$GITHUB_REF_NAME") < run.index("gh release create")
 
 
 def test_verification_cross_checks_attested_digests_against_the_checksums() -> None:

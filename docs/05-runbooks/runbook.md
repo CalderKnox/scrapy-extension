@@ -1014,6 +1014,9 @@ exist; this is the canonical procedure until it lands):
    shasum -a 256 "$wheel" "$sdist" | tee dist/SHA256SUMS
    ```
 
+   The wheel and sdist selected here are **local build outputs**. They never
+   leave this machine, and step 7 does not install them.
+
    In fresh virtual environments, install those exact `$wheel` and `$sdist`
    artifacts and import the package + one backend. Confirm `__version__` is
    `X.Y.Z`. The wheel must contain only the runtime package (including
@@ -1032,27 +1035,32 @@ exist; this is the canonical procedure until it lands):
    that disagrees with `[project] version` in `pyproject.toml` (checked
    against the wheel and sdist filenames it just built), rebuilds the tagged
    commit twice, diffs the two `sha256sum` passes, attests the wheel, the
-   sdist, and `SHA256SUMS`, verifies those attestations, requires at least one
-   completed successful CI run for the tagged commit and no completed
-   non-successful one, and only then creates the GitHub Release for `vX.Y.Z`
-   with those three files attached. Do not rebuild, replace, or add artifacts
-   after inspection. Nothing is published to a package index: the GitHub
-   Release is the delivery channel, and a tag push is the only way to create
-   one.
-7. **Verify the released install:** download the release artifacts, verify their
-   provenance ([below](#verify-an-artifacts-provenance)), then in a fresh venv
-   install exactly the `$wheel` and `$sdist` you verified and import the
-   package + one backend; confirm `__version__` matches.
+   sdist, and `SHA256SUMS`, verifies those attestations (bound to this tag's
+   commit and this tag ref), requires that the tag still points at the commit
+   this run built, requires at least one completed successful CI run for that
+   commit and no completed non-successful one, and only then creates the GitHub
+   Release for `vX.Y.Z` with those three files attached. Do not rebuild,
+   replace, or add artifacts after inspection. Nothing is published to a
+   package index: the GitHub Release is the delivery channel, and a tag push is
+   the only way to create one.
+7. **Verify the released install:** download the release assets to a fresh
+   directory, verify their provenance
+   ([below](#verify-an-artifacts-provenance)), then in a fresh venv install
+   **those downloaded files** — never the local `$wheel`/`$sdist` from step 4 —
+   and import the package + one backend; confirm `__version__` matches.
 
 For the stability commitment each release makes, see
 [`STABILITY.md`](../../.github/STABILITY.md).
 
 ## Verify an artifact's provenance
 
-Every wheel, sdist, and `SHA256SUMS` file attached to a GitHub Release carries a
-build-provenance attestation that the release workflow signed through GitHub's
-OIDC identity. Verify the exact bytes you downloaded before you install or
-deploy them:
+Every wheel, sdist, and `SHA256SUMS` file attached **by the release workflow**
+carries a build-provenance attestation that the release workflow signed through
+GitHub's OIDC identity. A release created by hand, outside
+[`release.yml`](../../.github/workflows/release.yml), can carry assets that no
+workflow attested: treat a file with no verifiable attestation as unreleased
+rather than assuming the sentence above covers it. Verify the exact bytes you
+downloaded before you install or deploy them:
 
 ```bash
 gh attestation verify scrapy_extension-X.Y.Z-py3-none-any.whl \

@@ -160,9 +160,14 @@ jobs:
           for artifact in "${wheels[0]}" "${sdists[0]}" SHA256SUMS; do
             # Exits non-zero when no attestation exists for these exact bytes,
             # so an unattested artifact fails this job outright.
+            # `--source-digest`/`--source-ref` bind the attested bytes to this
+            # tag's commit and this tag ref, so an attestation this workflow
+            # minted for a different tag cannot be substituted for an asset.
             gh attestation verify "$artifact" \
               --repo "${{ github.repository }}" \
               --signer-workflow "${{ github.repository }}/.github/workflows/release.yml" \
+              --source-digest "$GITHUB_SHA" \
+              --source-ref "$GITHUB_REF" \
               --format json > "attestation-${artifact}.json"
           done
           python3 - <<'PY'
@@ -266,6 +271,30 @@ jobs:
           fi
           printf 'CI for %s: %s successful run(s), no non-successful run.\n' \
             "$GITHUB_SHA" "$green"
+      - name: Require the tag to still point at this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        # A tag can be force-moved between the run that built these bytes and
+        # this step. `--verify-tag` only proves the tag exists, so resolve the
+        # tag object now and refuse to publish when it names another commit.
+        run: |
+          set -euo pipefail
+          object=$(gh api "repos/${{ github.repository }}/git/ref/tags/$GITHUB_REF_NAME" \
+            --jq '.object.type + " " + .object.sha')
+          type=${object%% *}
+          sha=${object##* }
+          if [[ "$type" == tag ]]; then
+            # Annotated tag: the commit is one dereference away.
+            sha=$(gh api "repos/${{ github.repository }}/git/tags/$sha" --jq '.object.sha')
+          fi
+          printf 'tag %s (%s) -> %s; run commit %s\n' \
+            "$GITHUB_REF_NAME" "$type" "$sha" "$GITHUB_SHA"
+          if [[ "$sha" != "$GITHUB_SHA" ]]; then
+            printf 'Refusing to release: tag %s points at %s, not at the commit this run built (%s).\n' \
+              "$GITHUB_REF_NAME" "$sha" "$GITHUB_SHA" >&2
+            exit 1
+          fi
       - uses: actions/download-artifact@v8
         with:
           name: release-artifacts
@@ -285,13 +314,25 @@ jobs:
           test "$(wc -l < SHA256SUMS)" -eq 2
           sha256sum --check --strict SHA256SUMS
           cd ..
-          # --verify-tag refuses to publish when the tag is missing from the
-          # remote, so a release can never point at an unpushed commit.
-          gh release create "$GITHUB_REF_NAME" \
-            --repo "${{ github.repository }}" \
-            --verify-tag \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            dist/*
+          # Re-runs are recoverable: a run that failed mid-upload leaves a
+          # release with partial assets, and `gh release create` would then
+          # fail on the existing release. Re-upload the byte-identical,
+          # already-verified assets instead.
+          if gh release view "$GITHUB_REF_NAME" \
+            --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* \
+              --repo "${{ github.repository }}" --clobber
+            printf 'Release %s already existed; re-uploaded the verified assets.\n' \
+              "$GITHUB_REF_NAME"
+          else
+            # --verify-tag refuses to publish when the tag is missing from the
+            # remote, so a release can never point at an unpushed commit.
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "${{ github.repository }}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*
+          fi
           printf '### Release\n\nCreated the GitHub Release for %s with the attested wheel, sdist and SHA256SUMS. Nothing is published to a package index.\n' \
             "$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"

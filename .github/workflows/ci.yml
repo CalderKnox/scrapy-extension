@@ -89,6 +89,13 @@ jobs:
     # This is the only job that mints attestations, so the OIDC token and the
     # attestation write scope are granted here and nowhere else. Everything
     # else stays on the workflow-level `contents: read` default.
+    #
+    # GitHub scopes permissions per JOB, never per step, so every matrix lane of
+    # this job — and any code a same-repository contributor's branch adds to it
+    # — can request an OIDC token even though only the 3.11 lane's attest step
+    # uses one. Fork pull requests are granted neither scope and skip the step.
+    # Narrowing this further means extracting the build into a dedicated job,
+    # which is a separate change with its own blast-radius review.
     permissions:
       contents: read
       id-token: write
@@ -293,11 +300,14 @@ jobs:
         # A fork pull request reaches this workflow with a read-only token and
         # no OIDC identity in the base repository, so an attestation cannot be
         # minted. Skip instead of failing: `provenance-verify` and
-        # `4 / Confirm` treat that skip as the documented fork outcome.
+        # `4 / Confirm` treat that skip as the documented fork outcome. The
+        # head repository must match on BOTH owner and name — a fork parked
+        # under the same owner is still a fork and still gets no token.
         if: >-
           matrix.python-version == '3.11'
           && (github.event_name != 'pull_request'
-          || github.event.pull_request.head.repo.owner.login == github.repository_owner)
+          || (github.event.pull_request.head.repo.owner.login == github.repository_owner
+          && github.event.pull_request.head.repo.full_name == github.repository))
         uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-path: dist/*
@@ -746,7 +756,10 @@ jobs:
     needs: [docs, unit-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.repository_owner
+    if: >-
+      github.event_name != 'pull_request'
+      || (github.event.pull_request.head.repo.owner.login == github.repository_owner
+      && github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       # Read-only: this job verifies attestations, it never mints them.
@@ -773,9 +786,13 @@ jobs:
           for artifact in "${wheels[0]}" "${sdists[0]}" SHA256SUMS; do
             # Exits non-zero when no attestation exists for these exact bytes,
             # so an unattested artifact fails this job outright.
+            # `--source-digest` additionally pins the attestation to THIS run's
+            # commit, so bytes attested only by an older run cannot pass (a
+            # reproducible build reuses digests across commits).
             gh attestation verify "$artifact" \
               --repo "${{ github.repository }}" \
               --signer-workflow "${{ github.repository }}/.github/workflows/ci.yml" \
+              --source-digest "$GITHUB_SHA" \
               --format json > "attestation-${artifact}.json"
           done
           python3 - <<'PY'
@@ -919,19 +936,23 @@ jobs:
           NIGHTLY: ${{ needs.nightly-serial-determinism.result }}
           EVENT: ${{ github.event_name }}
           FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login != github.repository_owner }}
+          PROVENANCE_FORK: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.owner.login != github.repository_owner || github.event.pull_request.head.repo.full_name != github.repository) }}
         shell: bash
         run: |
           set -euo pipefail
           printf '### Confirm\n\nEvaluation: %s; security scan: %s; artifact provenance: %s; nightly determinism: %s.\n' \
             "$EVALUATION" "$SECURITY" "$PROVENANCE" "$NIGHTLY" >> "$GITHUB_STEP_SUMMARY"
           test "$EVALUATION" = success
+          if [[ "$PROVENANCE_FORK" == true ]]; then
+            test "$PROVENANCE" = skipped
+          else
+            test "$PROVENANCE" = success
+          fi
           if [[ "$FORK" == true ]]; then
             test "$SECURITY" = skipped
-            test "$PROVENANCE" = skipped
             echo 'Fork PR: separate security scan and artifact provenance verification skipped; the unit lane still runs the dependency audit and has no attestation to verify.' >> "$GITHUB_STEP_SUMMARY"
           else
             test "$SECURITY" = success
-            test "$PROVENANCE" = success
           fi
           if [[ "$EVENT" == schedule ]]; then
             test "$NIGHTLY" = success
