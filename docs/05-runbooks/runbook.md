@@ -1027,7 +1027,7 @@ exist; this is the canonical procedure until it lands):
    socket access loopback-only with
    `--allow-hosts=localhost,127.0.0.1,::1`.
 5. **Tag:** `git tag vX.Y.Z` and push the tag after all verification succeeds.
-6. **Tag to release:** pushing the tag runs
+6. **The tag creates the release:** that push runs
    [`release.yml`](../../.github/workflows/release.yml), which rebuilds the
    tagged commit twice, diffs the two `sha256sum` passes, attests the wheel,
    the sdist, and `SHA256SUMS`, verifies those attestations, and only then
