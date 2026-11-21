@@ -86,6 +86,13 @@ jobs:
     # GitHub Actions' multi-hour default timeout.  The normal suite completes
     # in minutes; 30 minutes leaves headroom for a cold runner.
     timeout-minutes: 30
+    # This is the only job that mints attestations, so the OIDC token and the
+    # attestation write scope are granted here and nowhere else. Everything
+    # else stays on the workflow-level `contents: read` default.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -262,6 +269,38 @@ jobs:
             echo "Wheel contains source-only test or documentation files" >&2
             exit 1
           fi
+      - name: Verify reproducible checksums and assert attestation subjects
+        if: matrix.python-version == '3.11'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          # `subject-path: dist/*` in the attest step below expands to the
+          # run's own build output only. Pin that to exactly one wheel, one
+          # sdist and SHA256SUMS, and re-check the checksums before any
+          # attestation is minted.
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          subjects=(*)
+          test "${#subjects[@]}" -eq 3
+          printf 'attestation subjects: %s\n' "${subjects[*]}"
+      - name: Attest build provenance for the wheel, sdist and checksums
+        # A fork pull request reaches this workflow with a read-only token and
+        # no OIDC identity in the base repository, so an attestation cannot be
+        # minted. Skip instead of failing: `provenance-verify` and
+        # `4 / Confirm` treat that skip as the documented fork outcome.
+        if: >-
+          matrix.python-version == '3.11'
+          && (github.event_name != 'pull_request'
+          || github.event.pull_request.head.repo.owner.login == github.repository_owner)
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: dist/*
       - name: Test the extracted sdist in its own locked environment
         if: matrix.python-version == '3.11'
         shell: bash
@@ -698,6 +737,94 @@ jobs:
           name: audit-report
           path: audit-report.txt
 
+  # Provenance gate — proves the attestation the build lane minted, instead of
+  # only creating it. Skipped for fork pull requests for the same reason the
+  # attestation itself is: their token cannot read this repository's
+  # attestations, so the job must not fail on an artifact it may not verify.
+  provenance-verify:
+    name: "Verify · artifact provenance"
+    needs: [docs, unit-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.owner.login == github.repository_owner
+    permissions:
+      contents: read
+      # Read-only: this job verifies attestations, it never mints them.
+      attestations: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: ci-lifecycle-evidence
+          path: evidence
+      - name: Verify attestations and cross-check attested digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd evidence/dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          for artifact in "${wheels[0]}" "${sdists[0]}" SHA256SUMS; do
+            # Exits non-zero when no attestation exists for these exact bytes,
+            # so an unattested artifact fails this job outright.
+            gh attestation verify "$artifact" \
+              --repo "${{ github.repository }}" \
+              --signer-workflow "${{ github.repository }}/.github/workflows/ci.yml" \
+              --format json > "attestation-${artifact}.json"
+          done
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          checksums = {}
+          for line in Path("SHA256SUMS").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split()
+              checksums[name.lstrip("*")] = digest.lower()
+
+
+          def attested_digests(payload):
+              """Collect every subject sha256 the verified statements carry."""
+              found = set()
+              pending = [payload]
+              while pending:
+                  node = pending.pop()
+                  if isinstance(node, dict):
+                      digest = node.get("digest")
+                      if isinstance(digest, dict) and isinstance(
+                          digest.get("sha256"), str
+                      ):
+                          found.add(digest["sha256"].lower())
+                      pending.extend(node.values())
+                  elif isinstance(node, list):
+                      pending.extend(node)
+              return found
+
+
+          failures = []
+          for name, expected in sorted(checksums.items()):
+              payload = json.loads(
+                  Path(f"attestation-{name}.json").read_text(encoding="utf-8")
+              )
+              attested = attested_digests(payload)
+              if expected not in attested:
+                  failures.append(
+                      f"{name}: attested digests {sorted(attested)} do not match "
+                      f"the SHA256SUMS digest {expected}"
+                  )
+              print(f"{name}: attested digest {expected} matches SHA256SUMS")
+          if failures:
+              print("\n".join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY
+          printf '### Verify provenance\n\nAttestations verified for the wheel, the sdist and SHA256SUMS; every attested digest matches the checksum file.\n' >> "$GITHUB_STEP_SUMMARY"
+
   lifecycle-test:
     name: "1 / Test · test results"
     needs: [docs, unit-tests, integration-tests]
@@ -773,7 +900,13 @@ jobs:
 
   lifecycle-confirm:
     name: "4 / Confirm · policy gates"
-    needs: [lifecycle-evaluate, security-scan, nightly-serial-determinism]
+    needs:
+      [
+        lifecycle-evaluate,
+        security-scan,
+        provenance-verify,
+        nightly-serial-determinism,
+      ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -782,20 +915,23 @@ jobs:
         env:
           EVALUATION: ${{ needs.lifecycle-evaluate.result }}
           SECURITY: ${{ needs.security-scan.result }}
+          PROVENANCE: ${{ needs.provenance-verify.result }}
           NIGHTLY: ${{ needs.nightly-serial-determinism.result }}
           EVENT: ${{ github.event_name }}
           FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login != github.repository_owner }}
         shell: bash
         run: |
           set -euo pipefail
-          printf '### Confirm\n\nEvaluation: %s; security scan: %s; nightly determinism: %s.\n' \
-            "$EVALUATION" "$SECURITY" "$NIGHTLY" >> "$GITHUB_STEP_SUMMARY"
+          printf '### Confirm\n\nEvaluation: %s; security scan: %s; artifact provenance: %s; nightly determinism: %s.\n' \
+            "$EVALUATION" "$SECURITY" "$PROVENANCE" "$NIGHTLY" >> "$GITHUB_STEP_SUMMARY"
           test "$EVALUATION" = success
           if [[ "$FORK" == true ]]; then
             test "$SECURITY" = skipped
-            echo 'Fork PR: separate security scan skipped; the unit lane still runs the dependency audit.' >> "$GITHUB_STEP_SUMMARY"
+            test "$PROVENANCE" = skipped
+            echo 'Fork PR: separate security scan and artifact provenance verification skipped; the unit lane still runs the dependency audit and has no attestation to verify.' >> "$GITHUB_STEP_SUMMARY"
           else
             test "$SECURITY" = success
+            test "$PROVENANCE" = success
           fi
           if [[ "$EVENT" == schedule ]]; then
             test "$NIGHTLY" = success

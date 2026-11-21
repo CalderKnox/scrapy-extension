@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — artifact provenance and tag-driven releases
+
+- **Release artifacts carry verified build provenance, and a tag creates the
+  GitHub Release.** The Python 3.11 build lane now attests the wheel, the
+  sdist, and `SHA256SUMS` with `actions/attest-build-provenance@v4.2.2` (the
+  exact tag, not a floating major) after re-checking the reproducible
+  `sha256sum` manifest and asserting that `dist/*` is exactly those three
+  files. A new `Verify · artifact provenance` job downloads the lifecycle
+  evidence, runs `gh attestation verify` for all three artifacts with
+  `--signer-workflow` pinned to `ci.yml`, and cross-checks every attested
+  `sha256` digest against `dist/SHA256SUMS`, so an attestation for different
+  bytes cannot pass. Stage `4 / Confirm` requires that job on same-repository
+  events and the documented `skipped` result on fork pull requests, which keeps
+  `5 / Accept` from accepting a build whose provenance was never proven. The
+  job-level `id-token`/`attestations` write scopes live only on the job that
+  attests. Pushing a `v*` tag now runs the new `.github/workflows/release.yml`,
+  which rebuilds the tagged archive twice under the same reproducibility
+  contract, attests and verifies the artifacts, and only then creates the
+  GitHub Release that carries them. **Nothing is published to PyPI**: the
+  GitHub Release is the delivery channel. The build and the attestation share
+  one hosted-runner job, so the trust statement is SLSA Build Level 2 and
+  explicitly not Level 3.
+
 ### Security
 
 - **The locked dependency graph is advisory-free, and Python 3.10 support is

@@ -1027,15 +1027,67 @@ exist; this is the canonical procedure until it lands):
    socket access loopback-only with
    `--allow-hosts=localhost,127.0.0.1,::1`.
 5. **Tag:** `git tag vX.Y.Z` and push the tag after all verification succeeds.
-6. **Publish the verified artifacts:** immediately re-check the recorded hashes
-   and publish only the recorded paths: `shasum -a 256 -c dist/SHA256SUMS && uv
-   publish "$wheel" "$sdist"`. Do not rebuild, replace, or add artifacts after
-   inspection. This repository has no release/publish GitHub Actions workflow,
-   so trusted publishing and artifact attestation cannot be safely automated
-   here yet.
-7. **Verify published install:** in a fresh venv,
-   `pip install scrapy-extension==X.Y.Z` and import the package + one backend;
-   confirm `__version__` matches.
+6. **Tag to release:** pushing the tag runs
+   [`release.yml`](../../.github/workflows/release.yml), which rebuilds the
+   tagged commit twice, diffs the two `sha256sum` passes, attests the wheel,
+   the sdist, and `SHA256SUMS`, verifies those attestations, and only then
+   creates the GitHub Release for `vX.Y.Z` with those three files attached. Do
+   not rebuild, replace, or add artifacts after inspection. Nothing is
+   published to a package index: the GitHub Release is the delivery channel,
+   and a tag push is the only way to create one.
+7. **Verify the released install:** download the release artifacts, verify their
+   provenance ([below](#verify-an-artifacts-provenance)), then in a fresh venv
+   install exactly the `$wheel` and `$sdist` you verified and import the
+   package + one backend; confirm `__version__` matches.
 
 For the stability commitment each release makes, see
 [`STABILITY.md`](../../.github/STABILITY.md).
+
+## Verify an artifact's provenance
+
+Every wheel, sdist, and `SHA256SUMS` file attached to a GitHub Release carries a
+build-provenance attestation that the release workflow signed through GitHub's
+OIDC identity. Verify the exact bytes you downloaded before you install or
+deploy them:
+
+```bash
+gh attestation verify scrapy_extension-X.Y.Z-py3-none-any.whl \
+  --repo CalderKnox/scrapy-extension \
+  --signer-workflow CalderKnox/scrapy-extension/.github/workflows/release.yml
+```
+
+Run the same command for the `.tar.gz` and for `SHA256SUMS`. A successful
+verification prints the provenance statement it matched; add `--format json`
+for the machine-readable form. The command exits non-zero when the file's bytes
+do not match any attestation, when the attestation was signed by a different
+workflow, or when no attestation exists for that file at all.
+
+**Operational meaning of a failure: do not deploy.** A failed verification is
+not a checksum disagreement to retry against the same file. Delete the
+download, fetch it again from the release page, and verify again. If it still
+fails, treat the release as compromised: pin the previous release, open an
+issue, and keep the artifact out of every environment until the discrepancy is
+explained.
+
+CI enforces the same check on the build it produces: the
+`Verify · artifact provenance` job downloads the lifecycle evidence, runs
+`gh attestation verify` for the wheel, the sdist, and `SHA256SUMS`, and
+cross-checks every attested `sha256` digest against `dist/SHA256SUMS`. Stage
+`4 / Confirm` requires that job to succeed, so a build whose provenance cannot
+be verified cannot reach `5 / Accept`. Fork pull requests skip both the
+attestation and that job, because a fork's token can neither mint nor read
+attestations.
+
+### What the trust statement covers, and what it does not
+
+Trust statement: release artifacts are **SLSA Build Level 2**. The build runs on
+a GitHub-hosted runner, and its provenance is signed with the workflow's OIDC
+identity, so the attestation binds these exact bytes to this repository, this
+workflow, and this tag.
+
+Limitation, stated plainly: the build and the attestation run in the same job
+on a shared hosted runner. This is **not SLSA Build Level 3**, and it does not
+prove that the build was isolated from other jobs on that runner. It proves
+what was built and which workflow vouched for it; it does not prove that no
+other process on the machine could have touched those bytes. Treat it as a
+strong provenance-and-identity signal, not as hermetic-build evidence.
