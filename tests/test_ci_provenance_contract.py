@@ -19,7 +19,16 @@ import yaml
 _ROOT = Path(__file__).resolve().parents[1]
 _WORKFLOWS = _ROOT / ".github" / "workflows"
 _ATTEST_ACTION = "actions/attest-build-provenance"
-_ATTEST_PIN = "actions/attest-build-provenance@v4.2.2"
+# The invariant is the SHAPE of the pin, not a literal patch version:
+# `.github/dependabot.yml` bumps the `github-actions` ecosystem daily, so
+# asserting `@v4.2.2` here would turn the first routine `v4.3.x` bump into a
+# red contract test that looks like a provenance regression. A full `vX.Y.Z`
+# pin is what makes the attestation reproducible; a floating `@vN` alias is
+# what must never come back.
+_ATTEST_PIN_PATTERN = re.compile(rf"^{re.escape(_ATTEST_ACTION)}@v\d+\.\d+\.\d+$")
+_FLOATING_ATTEST_PATTERN = re.compile(
+    rf"{re.escape(_ATTEST_ACTION)}@v\d+\s*$", re.MULTILINE
+)
 _REPOSITORY_GUARD = (
     "github.event.pull_request.head.repo.owner.login == github.repository_owner"
 )
@@ -83,28 +92,62 @@ def _triggers(workflow: dict[str, Any]) -> dict[str, Any]:
     raise AssertionError("workflow declares no trigger mapping")
 
 
-def test_ci_attests_with_the_exact_pinned_action() -> None:
-    """R1: the attest action is pinned to a release tag, never a major alias."""
-    attest_steps = [
-        step
-        for job in _load("ci.yml")["jobs"].values()
+def _attest_steps() -> list[tuple[str, dict[str, Any]]]:
+    """Every attestation call site, as ``(workflow name, step)`` pairs."""
+    return [
+        (path.name, step)
+        for path in _workflow_paths()
+        for job in (_load(path.name)["jobs"].values())
         for step in _steps(job)
         if str(step.get("uses", "")).startswith(_ATTEST_ACTION)
     ]
-    assert len(attest_steps) == 1
-    assert attest_steps[0]["uses"] == _ATTEST_PIN
-    assert attest_steps[0]["with"] == {"subject-path": "dist/*"}
 
-    for name in ("ci.yml", "release.yml"):
-        assert _ATTEST_PIN in _text(name)
+
+def test_every_workflow_attests_with_a_fully_pinned_action() -> None:
+    """R1: a full ``vX.Y.Z`` pin everywhere, never a floating major alias."""
+    attestations = _attest_steps()
+    assert len(attestations) == 2
+    assert {name for name, _ in attestations} == {"ci.yml", "release.yml"}
+
+    pins = {str(step["uses"]) for _, step in attestations}
+    # One pin, shared by every call site: the two workflows cannot drift.
+    assert len(pins) == 1
+    pin = pins.pop()
+    assert _ATTEST_PIN_PATTERN.match(pin), pin
+
+    for _, step in attestations:
+        assert step["with"] == {"subject-path": "dist/*"}
 
     for path in _workflow_paths():
-        floating = re.search(
-            rf"{re.escape(_ATTEST_ACTION)}@v\d+\s*$",
-            path.read_text(encoding="utf-8"),
-            re.MULTILINE,
-        )
-        assert floating is None, path
+        assert (
+            _FLOATING_ATTEST_PATTERN.search(
+                path.read_text(encoding="utf-8"),
+            )
+            is None
+        ), path
+
+
+def test_floating_major_tags_are_only_outlawed_for_the_attest_action() -> None:
+    """The full-semver rule is scoped to the attest action, not the whole repo.
+
+    Every other action here keeps the repository's ``@vN`` style
+    (``actions/checkout@v7``, ``actions/upload-artifact@v7``, ...). Widening
+    the pin rule to them would fail this suite on the current tree, so assert
+    the scope explicitly instead of leaving it implicit.
+    """
+    used = {
+        uses
+        for path in _workflow_paths()
+        for uses in re.findall(r"uses:\s*(\S+)", path.read_text(encoding="utf-8"))
+    }
+    major_only = {uses for uses in used if re.fullmatch(r"[^@\s]+@v\d+", uses)}
+
+    # Repo style: other actions are free to use a major alias...
+    assert major_only, "expected the repository's @vN style to still be present"
+    # ...and the attest action is never one of them.
+    assert {
+        uses for uses in major_only if uses.startswith(f"{_ATTEST_ACTION}@")
+    } == set()
 
 
 def test_attesting_job_asserts_its_subjects_before_attesting() -> None:
@@ -259,7 +302,7 @@ def test_release_workflow_attests_verifies_then_creates_the_release() -> None:
         if str(step.get("uses", "")).startswith(_ATTEST_ACTION)
     ]
     assert len(attest_steps) == 1
-    assert attest_steps[0]["uses"] == _ATTEST_PIN
+    assert _ATTEST_PIN_PATTERN.match(str(attest_steps[0]["uses"]))
     assert attest_steps[0]["with"] == {"subject-path": "dist/*"}
 
     build = jobs["build"]
@@ -284,7 +327,7 @@ def test_release_workflow_attests_verifies_then_creates_the_release() -> None:
     )
 
     release = jobs["release"]
-    assert release["permissions"] == {"contents": "write"}
+    assert release["permissions"] == {"contents": "write", "actions": "read"}
     assert set(release["needs"]) == {"build", "verify"}
     release_runs = _job_runs(release)
     assert "gh release create" in release_runs
@@ -296,6 +339,63 @@ def test_release_workflow_attests_verifies_then_creates_the_release() -> None:
         permissions = job.get("permissions") or {}
         if job_name != "release":
             assert permissions.get("contents") != "write", job_name
+
+
+def test_release_workflow_refuses_a_tag_that_disagrees_with_the_version() -> None:
+    """A tag is a claim about the bytes: `vX.Y.Z` must match the built version.
+
+    Without this, pushing `v9.9.9` would build artifacts that announce 0.1.0 and
+    publish them under a tag that describes nothing on disk.
+    """
+    build = _load("release.yml")["jobs"]["build"]
+    run = _job_runs(build)
+
+    # The declared version is read from pyproject.toml, not re-typed by hand.
+    assert "tomllib.load(open('pyproject.toml','rb'))" in run
+    assert "'project']['version']" in run
+    # Both artifacts, and the tag, must agree with it.
+    assert 'if [[ "$GITHUB_REF_NAME" != "v$declared" ]]; then' in run
+    assert 'test "$wheel_version" = "$declared"' in run
+    assert 'test "$sdist_version" = "$declared"' in run
+
+    # And the refusal must come before any attestation is minted.
+    steps = _steps(build)
+    gate = next(
+        index
+        for index, step in enumerate(steps)
+        if "declared=" in str(step.get("run", ""))
+    )
+    attest = next(
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith(_ATTEST_ACTION)
+    )
+    assert gate < attest
+
+
+def test_release_workflow_requires_a_green_ci_run_for_the_tagged_commit() -> None:
+    """``--verify-tag`` proves the tag exists; it does not prove CI passed.
+
+    A release must be cut from a commit whose CI actually succeeded, so the
+    release job queries the CI runs for `$GITHUB_SHA` and fails unless at least
+    one completed run succeeded and no completed run failed.
+    """
+    release = _load("release.yml")["jobs"]["release"]
+    run = _job_runs(release)
+
+    assert "gh run list" in run
+    assert '--commit "$GITHUB_SHA"' in run
+    assert "--workflow ci.yml" in run
+    assert "select(.headSha == $sha)" in run
+    assert 'select(.status == "completed")' in run
+    assert '[[ "$green" -lt 1 || "$red" -ne 0 ]]' in run
+
+    # The gate must run before the release object exists.
+    assert run.index("gh run list") < run.index("gh release create")
+
+    # Reading workflow runs is exactly what the extra read scope is for.
+    assert release["permissions"]["actions"] == "read"
+    assert release["permissions"]["contents"] == "write"
 
 
 def test_verification_cross_checks_attested_digests_against_the_checksums() -> None:

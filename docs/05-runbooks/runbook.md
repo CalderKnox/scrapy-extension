@@ -1028,13 +1028,17 @@ exist; this is the canonical procedure until it lands):
    `--allow-hosts=localhost,127.0.0.1,::1`.
 5. **Tag:** `git tag vX.Y.Z` and push the tag after all verification succeeds.
 6. **The tag creates the release:** that push runs
-   [`release.yml`](../../.github/workflows/release.yml), which rebuilds the
-   tagged commit twice, diffs the two `sha256sum` passes, attests the wheel,
-   the sdist, and `SHA256SUMS`, verifies those attestations, and only then
-   creates the GitHub Release for `vX.Y.Z` with those three files attached. Do
-   not rebuild, replace, or add artifacts after inspection. Nothing is
-   published to a package index: the GitHub Release is the delivery channel,
-   and a tag push is the only way to create one.
+   [`release.yml`](../../.github/workflows/release.yml), which refuses a tag
+   that disagrees with `[project] version` in `pyproject.toml` (checked
+   against the wheel and sdist filenames it just built), rebuilds the tagged
+   commit twice, diffs the two `sha256sum` passes, attests the wheel, the
+   sdist, and `SHA256SUMS`, verifies those attestations, requires at least one
+   completed successful CI run for the tagged commit and no completed
+   non-successful one, and only then creates the GitHub Release for `vX.Y.Z`
+   with those three files attached. Do not rebuild, replace, or add artifacts
+   after inspection. Nothing is published to a package index: the GitHub
+   Release is the delivery channel, and a tag push is the only way to create
+   one.
 7. **Verify the released install:** download the release artifacts, verify their
    provenance ([below](#verify-an-artifacts-provenance)), then in a fresh venv
    install exactly the `$wheel` and `$sdist` you verified and import the
@@ -1061,6 +1065,14 @@ verification prints the provenance statement it matched; add `--format json`
 for the machine-readable form. The command exits non-zero when the file's bytes
 do not match any attestation, when the attestation was signed by a different
 workflow, or when no attestation exists for that file at all.
+
+The `--signer-workflow` value is the whole binding, not a hint: the verifier
+accepts only an attestation whose signing certificate names that workflow path
+at that ref in that repository, so an attestation minted by any other workflow
+in this repository — including `ci.yml`, whose attestations cover ordinary
+build evidence — is rejected by the documented command. Pin the exact path when
+you automate verification; omitting `--signer-workflow` widens the trust
+decision to "any workflow in the repository".
 
 **Operational meaning of a failure: do not deploy.** A failed verification is
 not a checksum disagreement to retry against the same file. Delete the

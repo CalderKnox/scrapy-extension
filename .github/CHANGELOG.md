@@ -23,9 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `5 / Accept` from accepting a build whose provenance was never proven. The
   job-level `id-token`/`attestations` write scopes live only on the job that
   attests. Pushing a `v*` tag now runs the new `.github/workflows/release.yml`,
-  which rebuilds the tagged archive twice under the same reproducibility
-  contract, attests and verifies the artifacts, and only then creates the
-  GitHub Release that carries them. **Nothing is published to PyPI**: the
+  which refuses a tag that disagrees with `[project] version` (and with the
+  version in the wheel and sdist filenames), rebuilds the tagged archive twice
+  under the same reproducibility contract, attests and verifies the artifacts,
+  requires a completed successful CI run for the tagged commit and no completed
+  non-successful one, and only then creates the GitHub Release that carries
+  them. **Nothing is published to PyPI**: the
   GitHub Release is the delivery channel. The build and the attestation share
   one hosted-runner job, so the trust statement is SLSA Build Level 2 and
   explicitly not Level 3.

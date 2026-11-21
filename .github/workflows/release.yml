@@ -70,6 +70,35 @@ jobs:
           cp .artifact-build-1/* dist/
           cp .artifact-hashes-1 dist/SHA256SUMS
           cat .artifact-hashes-1
+      - name: Require the tag to match the built distribution version
+        shell: bash
+        # A tag is a claim about the artifact bytes. Refuse to publish a
+        # `vX.Y.Z` release whose wheel and sdist announce a different version.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          declared=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          wheel_name=$(basename "${wheels[0]}")
+          sdist_name=$(basename "${sdists[0]}")
+          # Wheel filenames escape `-` inside the version, so the first field
+          # after the project prefix is the whole version.
+          wheel_rest=${wheel_name#scrapy_extension-}
+          wheel_version=${wheel_rest%%-*}
+          sdist_version=${sdist_name#scrapy_extension-}
+          sdist_version=${sdist_version%.tar.gz}
+          printf 'tag: %s; pyproject: %s; wheel: %s; sdist: %s\n' \
+            "$GITHUB_REF_NAME" "$declared" "$wheel_version" "$sdist_version"
+          if [[ "$GITHUB_REF_NAME" != "v$declared" ]]; then
+            printf 'Tag %s does not match the pyproject version %s; refusing to release.\n' \
+              "$GITHUB_REF_NAME" "$declared" >&2
+            exit 1
+          fi
+          test "$wheel_version" = "$declared"
+          test "$sdist_version" = "$declared"
       - name: Verify reproducible checksums and assert attestation subjects
         shell: bash
         run: |
@@ -192,6 +221,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # `gh run list` (the release precondition) reads workflow runs.
+      actions: read
     steps:
       - name: Require the build and provenance gates
         env:
@@ -202,6 +233,39 @@ jobs:
           set -euo pipefail
           test "$BUILD" = success
           test "$VERIFY" = success
+      - name: Require a successful CI run for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        # `--verify-tag` only proves the tag exists on the remote. A release
+        # must also carry a commit whose CI actually passed, so require at
+        # least one completed successful CI run for this exact SHA and no
+        # completed non-successful one, and record every run it used.
+        run: |
+          set -euo pipefail
+          runs=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --commit "$GITHUB_SHA" \
+            --workflow ci.yml \
+            --limit 20 \
+            --json headSha,status,conclusion,url)
+          completed=$(printf '%s' "$runs" | jq -c --arg sha "$GITHUB_SHA" \
+            '[.[] | select(.headSha == $sha) | select(.status == "completed")]')
+          green=$(printf '%s' "$completed" | jq -r '[.[] | select(.conclusion == "success")] | length')
+          red=$(printf '%s' "$completed" | jq -r '[.[] | select(.conclusion != "success")] | length')
+          {
+            printf '### CI evidence for %s\n\n' "$GITHUB_SHA"
+            printf '%s' "$completed" | jq -r \
+              'if length == 0 then "- no completed CI run for this commit" else .[] | "- \\(.conclusion): \\(.url)" end'
+            printf '\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$green" -lt 1 || "$red" -ne 0 ]]; then
+            printf 'Refusing to release %s: %s successful CI run(s), %s non-successful CI run(s).\n' \
+              "$GITHUB_SHA" "$green" "$red" >&2
+            exit 1
+          fi
+          printf 'CI for %s: %s successful run(s), no non-successful run.\n' \
+            "$GITHUB_SHA" "$green"
       - uses: actions/download-artifact@v8
         with:
           name: release-artifacts
