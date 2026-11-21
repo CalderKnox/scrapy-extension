@@ -1014,6 +1014,9 @@ exist; this is the canonical procedure until it lands):
    shasum -a 256 "$wheel" "$sdist" | tee dist/SHA256SUMS
    ```
 
+   The wheel and sdist selected here are **local build outputs**. They never
+   leave this machine, and step 7 does not install them.
+
    In fresh virtual environments, install those exact `$wheel` and `$sdist`
    artifacts and import the package + one backend. Confirm `__version__` is
    `X.Y.Z`. The wheel must contain only the runtime package (including
@@ -1027,15 +1030,91 @@ exist; this is the canonical procedure until it lands):
    socket access loopback-only with
    `--allow-hosts=localhost,127.0.0.1,::1`.
 5. **Tag:** `git tag vX.Y.Z` and push the tag after all verification succeeds.
-6. **Publish the verified artifacts:** immediately re-check the recorded hashes
-   and publish only the recorded paths: `shasum -a 256 -c dist/SHA256SUMS && uv
-   publish "$wheel" "$sdist"`. Do not rebuild, replace, or add artifacts after
-   inspection. This repository has no release/publish GitHub Actions workflow,
-   so trusted publishing and artifact attestation cannot be safely automated
-   here yet.
-7. **Verify published install:** in a fresh venv,
-   `pip install scrapy-extension==X.Y.Z` and import the package + one backend;
-   confirm `__version__` matches.
+6. **The tag creates the release:** that push runs
+   [`release.yml`](../../.github/workflows/release.yml), which refuses a tag
+   that disagrees with `[project] version` in `pyproject.toml` (checked
+   against the wheel and sdist filenames it just built), rebuilds the tagged
+   commit twice, diffs the two `sha256sum` passes, attests the wheel, the
+   sdist, and `SHA256SUMS`, verifies those attestations (bound to this tag's
+   commit and this tag ref), requires that the tag still points at the commit
+   this run built, requires at least one completed successful CI run for that
+   commit and no completed non-successful one, and only then creates the GitHub
+   Release for `vX.Y.Z` with those three files attached. Do not rebuild,
+   replace, or add artifacts after inspection. Nothing is published to a
+   package index: the GitHub Release is the delivery channel, and a tag push is
+   the only way to create one.
+7. **Verify the released install:** download the release assets to a fresh
+   directory, verify their provenance
+   ([below](#verify-an-artifacts-provenance)), then in a fresh venv install
+   **those downloaded files** — never the local `$wheel`/`$sdist` from step 4 —
+   and import the package + one backend; confirm `__version__` matches.
 
 For the stability commitment each release makes, see
 [`STABILITY.md`](../../.github/STABILITY.md).
+
+## Verify an artifact's provenance
+
+Every wheel, sdist, and `SHA256SUMS` file attached **by the release workflow**
+carries a build-provenance attestation that the release workflow signed through
+GitHub's OIDC identity. A release created by hand, outside
+[`release.yml`](../../.github/workflows/release.yml), can carry assets that no
+workflow attested: treat a file with no verifiable attestation as unreleased
+rather than assuming the sentence above covers it. Verify the exact bytes you
+downloaded before you install or deploy them:
+
+```bash
+gh attestation verify scrapy_extension-X.Y.Z-py3-none-any.whl \
+  --repo CalderKnox/scrapy-extension \
+  --signer-workflow CalderKnox/scrapy-extension/.github/workflows/release.yml
+```
+
+Run the same command for the `.tar.gz` and for `SHA256SUMS`. A successful
+verification prints the provenance statement it matched; add `--format json`
+for the machine-readable form. The command exits non-zero when the file's bytes
+do not match any attestation, when the attestation was signed by a different
+workflow, or when no attestation exists for that file at all.
+
+The `--signer-workflow` value is the whole binding, not a hint: the verifier
+accepts only an attestation whose signing certificate names that workflow path
+at that ref in that repository, so an attestation minted by any other workflow
+in this repository — including `ci.yml`, whose attestations cover ordinary
+build evidence — is rejected by the documented command. Pin the exact path when
+you automate verification; omitting `--signer-workflow` widens the trust
+decision to "any workflow in the repository".
+
+One caveat belongs to PR runs rather than to releases: on a `pull_request` event
+the attested source digest is the pull-request merge commit (`refs/pull/N/merge`)
+— ephemeral, rebuilt whenever the PR changes, and never the PR head SHA — so a
+`--source-digest` binding names a durable commit only for tag releases, where it
+is the tagged commit; verify released artifacts rather than PR-minted ones, and
+do not read the PR-run digest as an identity for the PR's head commit.
+
+**Operational meaning of a failure: do not deploy.** A failed verification is
+not a checksum disagreement to retry against the same file. Delete the
+download, fetch it again from the release page, and verify again. If it still
+fails, treat the release as compromised: pin the previous release, open an
+issue, and keep the artifact out of every environment until the discrepancy is
+explained.
+
+CI enforces the same check on the build it produces: the
+`Verify · artifact provenance` job downloads the lifecycle evidence, runs
+`gh attestation verify` for the wheel, the sdist, and `SHA256SUMS`, and
+cross-checks every attested `sha256` digest against `dist/SHA256SUMS`. Stage
+`4 / Confirm` requires that job to succeed, so a build whose provenance cannot
+be verified cannot reach `5 / Accept`. Fork pull requests skip both the
+attestation and that job, because a fork's token can neither mint nor read
+attestations.
+
+### What the trust statement covers, and what it does not
+
+Trust statement: release artifacts are **SLSA Build Level 2**. The build runs on
+a GitHub-hosted runner, and its provenance is signed with the workflow's OIDC
+identity, so the attestation binds these exact bytes to this repository, this
+workflow, and this tag.
+
+Limitation, stated plainly: the build and the attestation run in the same job
+on a shared hosted runner. This is **not SLSA Build Level 3**, and it does not
+prove that the build was isolated from other jobs on that runner. It proves
+what was built and which workflow vouched for it; it does not prove that no
+other process on the machine could have touched those bytes. Treat it as a
+strong provenance-and-identity signal, not as hermetic-build evidence.

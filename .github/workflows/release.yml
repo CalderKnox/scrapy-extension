@@ -1,0 +1,338 @@
+name: Release
+
+# A tag is the only release trigger. A branch push must never be able to
+# create a release, so a mistaken merge cannot ship bytes that no tag points
+# at. Nothing here publishes to a package index: the GitHub Release, with
+# attestations attached to it, is the delivery channel.
+on:
+  push:
+    tags:
+      - "v*"
+
+# Least privilege by default; each job opts into exactly the scopes it needs.
+permissions:
+  contents: read
+
+# Releases are never cancelled: two runs for one tag would race on the same
+# release object.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Rebuild the tagged commit exactly the way CI does, then attest the bytes
+  # that this job produced. Only this job receives the OIDC and attestation
+  # write scopes.
+  build:
+    name: "Build · attested release artifacts"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: python -m pip install uv==0.11.29
+      - name: Require a v-prefixed tag
+        shell: bash
+        # The trigger already restricts this workflow to tag pushes; assert it
+        # again because a release must be reconstructible from a tag name.
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_TYPE" = tag
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9] ]]
+      - name: Build package artifacts from a clean tracked archive twice
+        shell: bash
+        # Identical contract to the CI build lane: two independent builds from
+        # `git archive` of the tagged commit must produce identical bytes, or
+        # the reproducibility claim (and therefore the attestation subject) is
+        # meaningless.
+        run: |
+          set -euo pipefail
+          build_root=$(mktemp -d)
+          git archive --format=tar HEAD | tar -xf - -C "$build_root"
+          for pass in 1 2; do
+            out="$GITHUB_WORKSPACE/.artifact-build-$pass"
+            (
+              cd "$build_root"
+              uv build --clear --python 3.11 --out-dir "$out"
+            )
+            (cd "$out" && sha256sum -- * | sort -k2) > ".artifact-hashes-$pass"
+          done
+          diff -u .artifact-hashes-1 .artifact-hashes-2
+          mkdir dist
+          cp .artifact-build-1/* dist/
+          cp .artifact-hashes-1 dist/SHA256SUMS
+          cat .artifact-hashes-1
+      - name: Require the tag to match the built distribution version
+        shell: bash
+        # A tag is a claim about the artifact bytes. Refuse to publish a
+        # `vX.Y.Z` release whose wheel and sdist announce a different version.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          declared=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          wheel_name=$(basename "${wheels[0]}")
+          sdist_name=$(basename "${sdists[0]}")
+          # Wheel filenames escape `-` inside the version, so the first field
+          # after the project prefix is the whole version.
+          wheel_rest=${wheel_name#scrapy_extension-}
+          wheel_version=${wheel_rest%%-*}
+          sdist_version=${sdist_name#scrapy_extension-}
+          sdist_version=${sdist_version%.tar.gz}
+          printf 'tag: %s; pyproject: %s; wheel: %s; sdist: %s\n' \
+            "$GITHUB_REF_NAME" "$declared" "$wheel_version" "$sdist_version"
+          if [[ "$GITHUB_REF_NAME" != "v$declared" ]]; then
+            printf 'Tag %s does not match the pyproject version %s; refusing to release.\n' \
+              "$GITHUB_REF_NAME" "$declared" >&2
+            exit 1
+          fi
+          test "$wheel_version" = "$declared"
+          test "$sdist_version" = "$declared"
+      - name: Verify reproducible checksums and assert attestation subjects
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          # `subject-path: dist/*` below must expand to exactly the wheel, the
+          # sdist and SHA256SUMS.
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          subjects=(*)
+          test "${#subjects[@]}" -eq 3
+          printf 'attestation subjects: %s\n' "${subjects[*]}"
+      - name: Attest build provenance for the wheel, sdist and checksums
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-artifacts
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  # Prove the freshly minted attestations before any release object exists.
+  verify:
+    name: "Verify · release artifact provenance"
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Read-only: this job verifies attestations, it never mints them.
+      attestations: read
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-artifacts
+          path: dist
+      - name: Verify attestations and cross-check attested digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          for artifact in "${wheels[0]}" "${sdists[0]}" SHA256SUMS; do
+            # Exits non-zero when no attestation exists for these exact bytes,
+            # so an unattested artifact fails this job outright.
+            # `--source-digest`/`--source-ref` bind the attested bytes to this
+            # tag's commit and this tag ref, so an attestation this workflow
+            # minted for a different tag cannot be substituted for an asset.
+            gh attestation verify "$artifact" \
+              --repo "${{ github.repository }}" \
+              --signer-workflow "${{ github.repository }}/.github/workflows/release.yml" \
+              --source-digest "$GITHUB_SHA" \
+              --source-ref "$GITHUB_REF" \
+              --format json > "attestation-${artifact}.json"
+          done
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          checksums = {}
+          for line in Path("SHA256SUMS").read_text(encoding="utf-8").splitlines():
+              digest, name = line.split()
+              checksums[name.lstrip("*")] = digest.lower()
+
+
+          def attested_digests(payload):
+              """Collect every subject sha256 the verified statements carry."""
+              found = set()
+              pending = [payload]
+              while pending:
+                  node = pending.pop()
+                  if isinstance(node, dict):
+                      digest = node.get("digest")
+                      if isinstance(digest, dict) and isinstance(
+                          digest.get("sha256"), str
+                      ):
+                          found.add(digest["sha256"].lower())
+                      pending.extend(node.values())
+                  elif isinstance(node, list):
+                      pending.extend(node)
+              return found
+
+
+          failures = []
+          for name, expected in sorted(checksums.items()):
+              payload = json.loads(
+                  Path(f"attestation-{name}.json").read_text(encoding="utf-8")
+              )
+              attested = attested_digests(payload)
+              if expected not in attested:
+                  failures.append(
+                      f"{name}: attested digests {sorted(attested)} do not match "
+                      f"the SHA256SUMS digest {expected}"
+                  )
+              print(f"{name}: attested digest {expected} matches SHA256SUMS")
+          if failures:
+              print("\n".join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY
+          printf '### Verify provenance\n\nAttestations verified for the wheel, the sdist and SHA256SUMS; every attested digest matches the checksum file.\n' >> "$GITHUB_STEP_SUMMARY"
+
+  # Only this job may write the release itself, and it runs after the
+  # attestations have been verified.
+  release:
+    name: "Release · publish GitHub release"
+    needs: [build, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      # `gh run list` (the release precondition) reads workflow runs.
+      actions: read
+    steps:
+      - name: Require the build and provenance gates
+        env:
+          BUILD: ${{ needs.build.result }}
+          VERIFY: ${{ needs.verify.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$BUILD" = success
+          test "$VERIFY" = success
+      - name: Require a successful CI run for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        # `--verify-tag` only proves the tag exists on the remote. A release
+        # must also carry a commit whose CI actually passed, so require at
+        # least one completed successful CI run for this exact SHA and no
+        # completed non-successful one, and record every run it used.
+        run: |
+          set -euo pipefail
+          runs=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --commit "$GITHUB_SHA" \
+            --workflow ci.yml \
+            --limit 20 \
+            --json headSha,status,conclusion,url)
+          completed=$(printf '%s' "$runs" | jq -c --arg sha "$GITHUB_SHA" \
+            '[.[] | select(.headSha == $sha) | select(.status == "completed")]')
+          green=$(printf '%s' "$completed" | jq -r '[.[] | select(.conclusion == "success")] | length')
+          red=$(printf '%s' "$completed" | jq -r '[.[] | select(.conclusion != "success")] | length')
+          {
+            printf '### CI evidence for %s\n\n' "$GITHUB_SHA"
+            printf '%s' "$completed" | jq -r \
+              'if length == 0 then "- no completed CI run for this commit" else .[] | "- \\(.conclusion): \\(.url)" end'
+            printf '\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$green" -lt 1 || "$red" -ne 0 ]]; then
+            printf 'Refusing to release %s: %s successful CI run(s), %s non-successful CI run(s).\n' \
+              "$GITHUB_SHA" "$green" "$red" >&2
+            exit 1
+          fi
+          printf 'CI for %s: %s successful run(s), no non-successful run.\n' \
+            "$GITHUB_SHA" "$green"
+      - name: Require the tag to still point at this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        # A tag can be force-moved between the run that built these bytes and
+        # this step. `--verify-tag` only proves the tag exists, so resolve the
+        # tag object now and refuse to publish when it names another commit.
+        run: |
+          set -euo pipefail
+          object=$(gh api "repos/${{ github.repository }}/git/ref/tags/$GITHUB_REF_NAME" \
+            --jq '.object.type + " " + .object.sha')
+          type=${object%% *}
+          sha=${object##* }
+          if [[ "$type" == tag ]]; then
+            # Annotated tag: the commit is one dereference away.
+            sha=$(gh api "repos/${{ github.repository }}/git/tags/$sha" --jq '.object.sha')
+          fi
+          printf 'tag %s (%s) -> %s; run commit %s\n' \
+            "$GITHUB_REF_NAME" "$type" "$sha" "$GITHUB_SHA"
+          if [[ "$sha" != "$GITHUB_SHA" ]]; then
+            printf 'Refusing to release: tag %s points at %s, not at the commit this run built (%s).\n' \
+              "$GITHUB_REF_NAME" "$sha" "$GITHUB_SHA" >&2
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-artifacts
+          path: dist
+      - name: Verify checksums and create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          shopt -s nullglob
+          wheels=(*.whl)
+          sdists=(*.tar.gz)
+          test "${#wheels[@]}" -eq 1
+          test "${#sdists[@]}" -eq 1
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          sha256sum --check --strict SHA256SUMS
+          cd ..
+          # Re-runs are recoverable: a run that failed mid-upload leaves a
+          # release with partial assets, and `gh release create` would then
+          # fail on the existing release. Re-upload the byte-identical,
+          # already-verified assets instead.
+          if gh release view "$GITHUB_REF_NAME" \
+            --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* \
+              --repo "${{ github.repository }}" --clobber
+            printf 'Release %s already existed; re-uploaded the verified assets.\n' \
+              "$GITHUB_REF_NAME"
+          else
+            # --verify-tag refuses to publish when the tag is missing from the
+            # remote, so a release can never point at an unpushed commit.
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "${{ github.repository }}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*
+          fi
+          printf '### Release\n\nCreated the GitHub Release for %s with the attested wheel, sdist and SHA256SUMS. Nothing is published to a package index.\n' \
+            "$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"

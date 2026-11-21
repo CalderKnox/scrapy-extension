@@ -391,12 +391,15 @@ namespaced stat keys (`queue/depth`, `dupefilter/hit_count`, ...; full list in
 
 ### Release
 
-The project is pre-release (`0.1.0`, `[Unreleased]` changelog only, no publish
-workflow). The canonical manual procedure (from `runbook.md`): `uv version
-<bump>` → `uv lock` (+ `--check`) → gates → `uv build --clear` → SHA256SUMS →
-tag → re-verify hashes → `uv publish` → fresh-venv install check. Never
-rebuild artifacts after inspection. Pre-1.0 breaks need a minor bump +
-changelog entry + migration guidance (`.github/STABILITY.md`).
+The project is pre-release (`0.1.0`, `[Unreleased]` changelog only). The
+canonical procedure (from `runbook.md`): `uv version <bump>` → `uv lock` (+ `--check`)
+→ gates → `uv build --clear` → SHA256SUMS → tag → push the tag. Pushing a `v*`
+tag runs `.github/workflows/release.yml`, which rebuilds the tagged archive
+twice, attests the wheel, sdist, and SHA256SUMS, verifies those attestations,
+and only then creates the GitHub Release that carries them. Nothing is
+published to a package index. Never rebuild artifacts after inspection. Pre-1.0
+breaks need a minor bump + changelog entry + migration guidance
+(`.github/STABILITY.md`).
 
 ## Testing playbook
 
