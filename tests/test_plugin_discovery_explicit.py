@@ -16,13 +16,35 @@ def test_core_package_imports_do_not_enumerate_entry_points() -> None:
     script = r"""
 import importlib.metadata
 
-def hostile(*args, **kwargs):
-    raise BaseException("entry-point enumeration during import")
+_REAL_ENTRY_POINTS = importlib.metadata.entry_points
+_PROJECT_GROUP = "scrapy_extension.backends"
 
-importlib.metadata.entry_points = hostile
+def guarded_entry_points(*args, **kwargs):
+    # Importing the core package must not discover *scrapy_extension's* own
+    # backend plugins. Dependencies may enumerate their own groups while they
+    # are imported: pydantic 2.14.4's plugin loader calls
+    # entry_points(group="pydantic") when it builds its built-in models, which
+    # pydantic-settings reaches during import. That is the dependency's plugin
+    # system, not this package's lazy registry, so delegate it unchanged.
+    group = kwargs.get("group")
+    if group is None or group == _PROJECT_GROUP:
+        raise BaseException("entry-point enumeration during import")
+    return _REAL_ENTRY_POINTS(*args, **kwargs)
+
+importlib.metadata.entry_points = guarded_entry_points
 import scrapy_extension
 import scrapy_extension.backends
 import scrapy_extension.backends.connectors
+
+# Prove the guard is still armed for this package's own discovery group.
+try:
+    importlib.metadata.entry_points(group=_PROJECT_GROUP)
+except BaseException as exc:
+    if str(exc) != "entry-point enumeration during import":
+        raise
+else:
+    raise AssertionError("guard did not fire for the project entry-point group")
+
 print("imports-ok")
 """
     result = subprocess.run(
