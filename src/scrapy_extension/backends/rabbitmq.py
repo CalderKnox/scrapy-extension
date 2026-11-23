@@ -26,6 +26,7 @@ from scrapy_extension.core.types import validate_key_name as _validate_key_name
 
 try:
     import pika
+    from pika.adapters.blocking_connection import BlockingChannel
     from pika.exceptions import AMQPError
 except ImportError as e:
     if not _is_missing_optional_dependency(e, "pika"):
@@ -166,7 +167,7 @@ class _RabbitMQGenerationHandles:
     """Exact channel/connection state retained by admitted operations."""
 
     connection: pika.BlockingConnection
-    channel: pika.channel.Channel
+    channel: BlockingChannel
     channel_generation: int
     snapshot: _RabbitMQConnectionSnapshot | None
     declared_queues: set[str]
@@ -214,7 +215,7 @@ class _RabbitMQCandidate:
     """A fully prepared connection generation that is not yet published."""
 
     connection: pika.BlockingConnection
-    channel: pika.channel.Channel
+    channel: BlockingChannel
     snapshot: _RabbitMQConnectionSnapshot
 
 
@@ -253,7 +254,7 @@ class RabbitMQBackend(Backend, QueueBackend):
         # never waits for an unbounded network connect attempt.
         self._retirement_lock = threading.RLock()
         self._connection: pika.BlockingConnection | None = None
-        self._channel: pika.channel.Channel | None = None
+        self._channel: BlockingChannel | None = None
         self._connection_snapshot: _RabbitMQConnectionSnapshot | None = None
         self._channel_generation = 0
         self._generation_gate: GenerationLeaseGate[_RabbitMQGenerationHandles] = (
@@ -266,7 +267,7 @@ class RabbitMQBackend(Backend, QueueBackend):
         # Ack operations use this immutable snapshot instead of ``_channel`` so
         # a reconnect between validation and the broker call cannot redirect an
         # old token to the new channel.
-        self._channel_session: tuple[int, pika.channel.Channel] | None = None
+        self._channel_session: tuple[int, BlockingChannel] | None = None
         # Pika's BlockingConnection/channel are not thread-safe. This lock also
         # linearizes basic_get/settlement/purge so clear cannot race a newly issued
         # delivery between its local in-flight check and the broker purge.
@@ -380,10 +381,10 @@ class RabbitMQBackend(Backend, QueueBackend):
 
     @staticmethod
     def _close_handles(
-        channel: pika.channel.Channel | None,
+        channel: BlockingChannel | None,
         connection: pika.BlockingConnection | None,
         *,
-        keep_channel: pika.channel.Channel | None = None,
+        keep_channel: BlockingChannel | None = None,
         keep_connection: pika.BlockingConnection | None = None,
     ) -> None:
         """Best-effort close a detached or losing connection generation."""
@@ -421,11 +422,11 @@ class RabbitMQBackend(Backend, QueueBackend):
     def _publish_handles_locked(
         self,
         connection: pika.BlockingConnection,
-        channel: pika.channel.Channel,
+        channel: BlockingChannel,
         *,
         snapshot: _RabbitMQConnectionSnapshot | None,
     ) -> tuple[
-        pika.channel.Channel | None,
+        BlockingChannel | None,
         pika.BlockingConnection | None,
     ]:
         """Install one complete session while holding ``_delivery_lock``."""
@@ -452,7 +453,7 @@ class RabbitMQBackend(Backend, QueueBackend):
     def _detach_handles_locked(
         self,
     ) -> tuple[
-        pika.channel.Channel | None,
+        BlockingChannel | None,
         pika.BlockingConnection | None,
     ]:
         """Detach one published generation while holding ``_delivery_lock``."""
@@ -903,9 +904,9 @@ class RabbitMQBackend(Backend, QueueBackend):
         connection: pika.BlockingConnection,
         *,
         snapshot: _RabbitMQConnectionSnapshot | None = None,
-    ) -> pika.channel.Channel:
+    ) -> BlockingChannel:
         """Open and initialize a channel, closing local handles on failure."""
-        channel: pika.channel.Channel | None = None
+        channel: BlockingChannel | None = None
         try:
             channel = connection.channel()
             self._prepare_channel(channel, snapshot=snapshot)
@@ -926,7 +927,7 @@ class RabbitMQBackend(Backend, QueueBackend):
     def _activate_channel(
         self,
         connection: pika.BlockingConnection,
-        channel: pika.channel.Channel,
+        channel: BlockingChannel,
     ) -> None:
         """Publish prepared handles through the test-compatibility seam."""
         with self._retirement_lock:
@@ -998,7 +999,7 @@ class RabbitMQBackend(Backend, QueueBackend):
 
     def _prepare_channel(
         self,
-        channel: pika.channel.Channel,
+        channel: BlockingChannel,
         *,
         snapshot: _RabbitMQConnectionSnapshot | None = None,
     ) -> None:
@@ -1019,7 +1020,7 @@ class RabbitMQBackend(Backend, QueueBackend):
 
     def _apply_qos(
         self,
-        channel: pika.channel.Channel,
+        channel: BlockingChannel,
         *,
         snapshot: _RabbitMQConnectionSnapshot | None = None,
     ) -> None:
@@ -1155,7 +1156,7 @@ class RabbitMQBackend(Backend, QueueBackend):
         self,
         queue_name: str,
         *,
-        channel: pika.channel.Channel | None = None,
+        channel: BlockingChannel | None = None,
         snapshot: _RabbitMQConnectionSnapshot | None = None,
         declared_queues: set[str] | None = None,
         generation: GenerationRecord[_RabbitMQGenerationHandles] | None = None,
@@ -1535,6 +1536,9 @@ class RabbitMQBackend(Backend, QueueBackend):
                         )
                         if method_frame:
                             delivery_tag = method_frame.delivery_tag
+                            # A decoded Basic.GetOk always carries a delivery
+                            # tag; the stub only exposes it as optional.
+                            assert delivery_tag is not None
                             token = _RabbitMQAckToken(
                                 delivery_tag,
                                 channel_generation,
