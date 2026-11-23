@@ -1536,6 +1536,9 @@ class RabbitMQBackend(Backend, QueueBackend):
                         )
                         if method_frame:
                             delivery_tag = method_frame.delivery_tag
+                            # A decoded Basic.GetOk always carries a delivery
+                            # tag; the stub only exposes it as optional.
+                            assert delivery_tag is not None
                             token = _RabbitMQAckToken(
                                 delivery_tag,
                                 channel_generation,
@@ -1576,11 +1579,8 @@ class RabbitMQBackend(Backend, QueueBackend):
                                 queue_name=queue_name,
                                 operation="pop",
                             )
-                        # Pika accepts a fractional ``time_limit`` in seconds at
-                        # runtime (pika 1.5.0 annotates it ``float | None``), but
-                        # Pyrefly's bundled stub types it as ``int | None``.
                         handles.connection.process_data_events(
-                            time_limit=min(0.05, remaining)  # type: ignore[bad-argument-type]
+                            time_limit=min(0.05, remaining)
                         )
             except AMQPError as e:
                 msg = f"Failed to pop from queue {queue_name}: {e}"
